@@ -62,6 +62,8 @@
       gearEdit: {},            // VirtualRide3D : matériel modifié sur la vue 3D (catégorie du catalogue, ou 'position' → article), repris après chaque choix (gear-edit.js)
       weatherMode: 'random',   // jeux : météo 'random' (aléatoire évolutive) ou 'date' (celle d'un jour et d'une heure)
       weatherSeed: 0,          // jeux : graine du temps aléatoire
+      view3dQuality: 'medium', // VirtualRide3D : qualité du parcours (paysage) dans la vue 3D : 'low' rapide, 'medium' normale, 'high' belle
+      view3dDetail: 'auto',    // VirtualRide3D : niveau de détail des cyclistes : 'auto' (suit la qualité), 'simple', 'detailed', 'realistic'
       display: '2d',           // écran de course : '2d' la carte (VirtualRide2D), '3d' l'univers de Bike3D (VirtualRide3D)
       // limites en « Dans les roues » / « Suivre les attaques » (en %) : on se laisse décrocher plutôt que de passer sous ce W′ (0 : aucune limite)
       // ou de dépasser cette part de la courbe de puissance record (100 : aucune limite)

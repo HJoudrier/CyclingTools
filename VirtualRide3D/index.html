@@ -130,6 +130,24 @@
         </div>
         <p class="hint">Avec un home-trainer, tu connectes ton capteur de puissance sur l'écran de course, juste avant le départ.
           Avatars et home-trainers se retrouvent dans la même course en direct ; les cyclistes qui roulent pour de vrai y participent avec le GPS de leur Compteur (« Rejoindre une partie »).</p>
+        <h3>Vue 3D</h3>
+        <div class="grid2">
+          <div class="field"><label for="g-v3d-quality">Qualité du parcours</label>
+            <select id="g-v3d-quality" data-bind="game.view3dQuality">
+              <option value="low">Rapide : paysage léger, pour les petites configurations</option>
+              <option value="medium">Normale</option>
+              <option value="high">Belle : paysage fourni, ombres fines</option>
+            </select>
+          </div>
+          <div class="field"><label for="g-v3d-detail">Niveau de détail des cyclistes</label>
+            <select id="g-v3d-detail" data-bind="game.view3dDetail">
+              <option value="auto">Auto : suit la qualité du parcours</option>
+              <option value="simple">Simple</option>
+              <option value="detailed">Détaillé</option>
+              <option value="realistic">Réaliste</option>
+            </select>
+          </div>
+        </div>
         <h3>Course</h3>
         <div class="grid2">
           <div class="field"><label for="g-bots">Coureurs virtuels (0 à 89 : un peloton de 90 avec toi)</label>

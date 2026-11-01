@@ -99,6 +99,13 @@
    * Message « course » pour Bike3D : points du parcours (degrés arrondis au millionième, altitude au décimètre), points de passage,
    * zones de ravitaillement, joueur. La graine du paysage est tirée de l'empreinte : même parcours, même monde pour tous.
    */
+  const QUALITIES = ['low', 'medium', 'high'], DETAILS = ['auto', 'simple', 'detailed', 'realistic'];
+  /** Qualité du parcours et niveau de détail des cyclistes choisis sur la page Jeu (VirtualRide3D). */
+  function viewOptions() {
+    const g = (PYR.store && PYR.store.state && PYR.store.state.game) || {};
+    return { quality: QUALITIES.includes(g.view3dQuality) ? g.view3dQuality : 'medium', detail: DETAILS.includes(g.view3dDetail) ? g.view3dDetail : 'auto' };
+  }
+
   function courseMessage(course, cps, feed, me) {
     const n = Math.min(course.lat.length, course.lng.length, course.ele.length);
     const lat = new Array(n), lng = new Array(n), ele = new Array(n);
@@ -119,12 +126,14 @@
       surfaces: surfacesOf(course), roadW: course.roadWidth,
       me: { name: me.name, color: me.color || ME_COLOR }, cp: me.cp,
     };
+    const vo = viewOptions();
+    msg.quality = vo.quality; msg.detail = vo.detail; // réglages de la vue : changent l'empreinte (la vue se reconstruit)
     if (me.gear && typeof me.gear === 'object') msg.me.gear = me.gear; // vélo, roues, position, tenue (n'entre pas dans l'empreinte)
     // empreinte complète (la vue ne se reconstruit que si elle change) : tracé, revêtements, points de passage, ravitaillements
     let x = 2166136261;
     const extra = JSON.stringify([msg.surfaces, msg.roadW, msg.cps, msg.feed]);
     for (let i = 0; i < extra.length; i++) { x ^= extra.charCodeAt(i); x = Math.imul(x, 16777619) >>> 0; }
-    msg.key = geo + '.' + (x >>> 0).toString(36);
+    msg.key = geo + '.' + (x >>> 0).toString(36) + '.' + vo.quality + '.' + vo.detail;
     return msg;
   }
 

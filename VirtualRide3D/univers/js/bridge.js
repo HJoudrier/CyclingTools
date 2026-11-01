@@ -5,7 +5,7 @@
    fenêtre à part (second écran, devant le home-trainer) ; les deux échangent des messages (postMessage) :
 
    PaceYourRide → Bike3D (tous les messages portent pyr3d: 1)
-     course : { key (empreinte : on ne reconstruit que si elle change), name, seed (même graine pour tous les joueurs
+     course : {quality ('low' | 'medium' | 'high' : qualité du paysage), detail ('auto' | 'simple' | 'detailed' | 'realistic' : détail des cyclistes),  key (empreinte : on ne reconstruit que si elle change), name, seed (même graine pour tous les joueurs
                 d'une course en direct : même paysage), lat[], lng[], ele[] (points du parcours, m), length (m),
                 cps : [{type: 'sprint' | 'kom' | 'finish', s, start (pied d'une côte), cat ('hc', '1'…'4')}],
                 feed : [{s, end}] (zones de ravitaillement), me : {name, color, gear (équipement du joueur : voir gear)},
@@ -169,6 +169,10 @@
         this.fail('Parcours reçu illisible.');
         return;
       }
+      // qualité du parcours et détail des cyclistes choisis dans PaceYourRide (sans toucher aux réglages enregistrés de la vue seule)
+      const g0 = this.game, st = g0.settings;
+      if (B3D.TileManager.QUALITY[m.quality] && m.quality !== st.quality) { st.quality = m.quality; if (g0.renderer) g0.applyQuality(); }
+      if (m.detail === 'auto' || (B3D.Cyclist.DETAILS || []).includes(m.detail)) st.riderDetail = m.detail;
       if (m.key && m.key === this.key) { this.setGear(m.me && m.me.gear); return; }
       if (this.game.building) { this.pending = m; return; } // on attend la fin de la génération en cours
       this.key = m.key || String(Date.now());
