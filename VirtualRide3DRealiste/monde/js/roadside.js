@@ -111,7 +111,7 @@ vec3 buildAlbedo(vec3 base) {
         else {
           a = vec3(0.02, 0.022, 0.025); bRough = 0.04; bMetal = 0.2;
           float on = step(0.55, h12(vec2(cell, fl) + floor(vWin.y * 3.1)));
-          bEmis = vec3(1.0, 0.62, 0.3) * on * uNightB * 2.5;
+          bEmis = vec3(1.0, 0.62, 0.3) * on * uNightB * 0.12;
         }
         bTN = vec3(0.0, 0.0, 1.0);
       } else if (abs(cx) < hw + sw) {

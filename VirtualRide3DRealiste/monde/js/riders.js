@@ -215,6 +215,10 @@ export class Riders {
     this._m = new THREE.Matrix4(); this._m2 = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._e = new THREE.Euler(0, 0, 0, 'YXZ');
     this._p = new THREE.Vector3(); this._s = new THREE.Vector3(1, 1, 1);
     this._pq = {}; this._pq2 = {};
+    // phare du joueur : il éclaire la route la nuit (sans ombre ; allumé au crépuscule)
+    this.lamp = new THREE.SpotLight('#fff3dc', 0, 70, 0.42, 0.55, 2);
+    this.lamp.castShadow = false;
+    this.group.add(this.lamp, this.lamp.target);
     this.setGear(this.me.gear);
     // les modèles du peloton sont préparés tout de suite (pas d'à-coup quand les coureurs arrivent)
     const sex = this.meGear.sex;
@@ -364,6 +368,12 @@ export class Riders {
       this._m2.makeRotationX(a.crank).setPosition(L.BB);
       M.crank.push(this._m2.premultiply(this._m), pv);
       o._lean = a.roll;
+      if (isMe) {
+        const night = this.world.atmo && this.world.atmo.night !== undefined ? this.world.atmo.night : 0;
+        this.lamp.intensity = 45 * night;
+        this.lamp.position.set(0, 1.0, 0.75).applyMatrix4(this._m);
+        this.lamp.target.position.set(0, 0, 14).applyMatrix4(this._m);
+      }
       row++;
     }
     this.boneTex.needsUpdate = true;

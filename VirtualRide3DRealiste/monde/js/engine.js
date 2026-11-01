@@ -14,9 +14,9 @@ import { CSM } from 'three/addons/csm/CSM.js';
 import { SKY_LOOKUP, CLOUDS_GLSL } from './atmosphere.js';
 
 export const QUALITY = {
-  moyenne: { label: 'Moyenne', msaa: 2, shadow: 2048, cascades: 3, shadowFar: 450, ao: true, aoHalf: true, bloom: true, maxDpr: 1, grass: 0.55, treeNear: 70, impostorFar: 1800, terrain: [300, 1200, 5000], tex: 1024, people: 0.5 },
-  haute: { label: 'Haute', msaa: 4, shadow: 2048, cascades: 4, shadowFar: 800, ao: true, aoHalf: true, bloom: true, maxDpr: 1.25, grass: 1, treeNear: 110, impostorFar: 3000, terrain: [420, 1700, 7500], tex: 1024, people: 1 },
-  ultra: { label: 'Ultra', msaa: 4, shadow: 4096, cascades: 4, shadowFar: 1300, ao: true, aoHalf: false, bloom: true, maxDpr: 2, grass: 1.7, treeNear: 170, impostorFar: 4500, terrain: [520, 2200, 10000], tex: 2048, people: 1.4 },
+  moyenne: { label: 'Moyenne', msaa: 2, shadow: 2048, cascades: 3, shadowFar: 450, ao: true, aoHalf: true, bloom: true, maxDpr: 1, grass: 0.55, treeNear: 65, impostorFar: 1800, terrain: [300, 1200, 5000], tex: 1024, people: 0.5 },
+  haute: { label: 'Haute', msaa: 4, shadow: 2048, cascades: 4, shadowFar: 800, ao: true, aoHalf: true, bloom: true, maxDpr: 1.25, grass: 1, treeNear: 95, impostorFar: 3000, terrain: [420, 1700, 7500], tex: 1024, people: 1 },
+  ultra: { label: 'Ultra', msaa: 4, shadow: 4096, cascades: 4, shadowFar: 1300, ao: true, aoHalf: false, bloom: true, maxDpr: 2, grass: 1.7, treeNear: 140, impostorFar: 4500, terrain: [520, 2200, 10000], tex: 2048, people: 1.4 },
 };
 
 const FS_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
@@ -72,7 +72,10 @@ void main() {
   // exposition (adaptation de l'œil, image précédente) : l'image HDR qui suit est déjà exposée (gris moyen ≈ 0,18)
   float avg = texture2D(tAdapt, vec2(0.5)).r;
   float ex = uManualExp > 0.0 ? uManualExp : clamp(0.18 / max(avg, 1e-6), uMinExp, uMaxExp);
-  gl_FragColor = vec4(c * ex * uExpComp, ex * uExpComp);
+  // valeurs bornées (demi-flottants, halo) ; la nuit reste sombre (l'œil ne s'adapte pas au-delà de ×12)
+  vec3 outC = min(c * ex * uExpComp, vec3(48.0));
+  if (outC != outC) outC = vec3(0.0);
+  gl_FragColor = vec4(outC, ex * uExpComp);
 }
 `;
 
@@ -208,7 +211,7 @@ export class Engine {
         tColor: { value: this.rtScene.texture }, tDepth: { value: this.rtScene.depthTexture }, tAO: { value: this.rtAO.texture },
         uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() }, uCamPos: { value: new THREE.Vector3() },
         uAOOn: { value: this.Q.ao ? 1 : 0 }, uNear: { value: 0.2 }, uFar: { value: 30000 }, uDebug: { value: 0 },
-        tAdapt: { value: this.rtAdapt[0].texture }, uExpComp: { value: 1 }, uMinExp: { value: 0.02 }, uMaxExp: { value: 600 }, uManualExp: { value: 0 },
+        tAdapt: { value: this.rtAdapt[0].texture }, uExpComp: { value: 1 }, uMinExp: { value: 0.02 }, uMaxExp: { value: 12 }, uManualExp: { value: 0 },
       },
       vertexShader: FS_VERT, fragmentShader: COMPOSITE_FRAG, depthTest: false, depthWrite: false,
     });

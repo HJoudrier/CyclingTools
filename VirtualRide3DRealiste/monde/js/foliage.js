@@ -231,7 +231,7 @@ function branchPts(p, d, L, droop, segs) {
 function genBroadleaf(rnd, o) {
   const B = new Builder(), F = new Builder();
   const H = o.h * (0.85 + rnd() * 0.3), trunkH = H * (o.trunk || 0.35);
-  const r0 = H * 0.028;
+  const r0 = H * 0.019;
   const trunk = [new V3(0, -0.3, 0)];
   for (let k = 1; k <= 4; k++) trunk.push(new V3((rnd() - 0.5) * 0.25 * k / 4, trunkH * k / 4 + (k === 4 ? 0.0 : 0), (rnd() - 0.5) * 0.25 * k / 4));
   tube(B, trunk, r0 * 1.25, r0 * 0.75, 9, 0, 0.05);
@@ -279,8 +279,8 @@ function genBroadleaf(rnd, o) {
 function genSpruce(rnd, o) {
   const B = new Builder(), F = new Builder();
   const H = o.h * (0.85 + rnd() * 0.3);
-  const r0 = H * 0.02;
-  tube(B, [new V3(0, -0.4, 0), new V3(0, H * 0.5, 0), new V3(0, H, 0)], r0, r0 * 0.15, 8, 0, 0.3);
+  const r0 = H * 0.012;
+  tube(B, [new V3(0, -0.4, 0), new V3(0, H * 0.5, 0), new V3(0, H, 0)], r0, r0 * 0.15, 7, 0, 0.3);
   const crownC = new V3(0, H * 0.45, 0);
   const R = H * (o.wide || 0.22);
   const start = H * (o.bare || 0.12);
@@ -295,13 +295,13 @@ function genSpruce(rnd, o) {
       const d = new V3(Math.cos(ang), (o.up || -0.15) + rnd() * 0.1, Math.sin(ang)).normalize();
       const pts = branchPts(new V3(0, y, 0), d, L, o.droop || 0.35, 2);
       // la branche s'arrête dans le rameau (pas de bout de bois qui dépasse)
-      if (L > 0.8) tube(B, branchPts(new V3(0, y, 0), d, L * 0.7, o.droop || 0.35, 2), r0 * 0.2, r0 * 0.04, 4, 0.2, 0.7);
+      if (L > 1.4 && t < 0.45) tube(B, branchPts(new V3(0, y, 0), d, L * 0.7, o.droop || 0.35, 1), r0 * 0.3, r0 * 0.06, 3, 0.2, 0.7);
       // rameau : une carte allongée le long de la branche, légèrement inclinée vers le bas
       const mid = pts[1];
       const along = pts[2].clone().sub(pts[0]).normalize();
       const nf = new V3(0, 1, 0).addScaledVector(along, -0.3).add(new V3(-along.z, 0, along.x).multiplyScalar((rnd() - 0.5) * 0.6)).normalize();
-      card(F, pts[0].clone().addScaledVector(along, 0.05), nf, along, L * 0.55 + 0.25, L * 1.05 + 0.15, o.cell, crownC, 0.6 + t * 0.4, 0.55);
-      if (L > 1.2) card(F, mid, new V3(0, 1, 0).lerp(nf, 0.5).normalize(), along, L * 0.45, L * 0.7, o.cell, crownC, 0.8, 0.55);
+      card(F, pts[0].clone().addScaledVector(along, 0.05), nf, along, L * 0.65 + 0.35, L * 1.08 + 0.2, o.cell, crownC, 0.6 + t * 0.4, 0.55);
+      if (L > 1.6) card(F, mid, new V3(0, 1, 0).lerp(nf, 0.5).normalize(), along, L * 0.5, L * 0.75, o.cell, crownC, 0.8, 0.55);
     }
   }
   // flèche
@@ -337,7 +337,7 @@ function genPine(rnd, o) {
   // pin : long fût nu, houppier en parasol au sommet
   const B = new Builder(), F = new Builder();
   const H = o.h * (0.85 + rnd() * 0.3);
-  const r0 = H * 0.025;
+  const r0 = H * 0.017;
   const lean = new V3((rnd() - 0.5) * 0.6, 0, (rnd() - 0.5) * 0.6);
   const trunk = [];
   for (let k = 0; k <= 5; k++) { const t = k / 5; trunk.push(new V3(lean.x * t * t * 3 + Math.sin(t * 5) * 0.12, -0.3 + t * H * 0.78, lean.z * t * t * 3)); }
@@ -414,7 +414,7 @@ function genVine(rnd, o) {
 const GEN = {
   vine: (r) => genVine(r, { h: 1.25, cell: 0, leaf: 0.7, fill: 16 }),
   broadleaf: (r) => genBroadleaf(r, { h: 15, leaf: 2.6, cell: 0, branches: 8, fill: 90, cardsPer: 6, trunk: 0.32 }),
-  spruce: (r) => genSpruce(r, { h: 22, cell: 1, wide: 0.2, whorl: 0.5, droop: 0.4 }),
+  spruce: (r) => genSpruce(r, { h: 22, cell: 1, wide: 0.2, whorl: 0.85, droop: 0.4 }),
   pine: (r) => genPine(r, { h: 16, cell: 2, wide: 0.3, leaf: 2.2 }),
   poplar: (r) => genColumn(r, { h: 22, cell: 3, wide: 0.11, leaf: 1.9, fill: 110 }),
   birch: (r) => genBroadleaf(r, { h: 14, leaf: 1.8, cell: 4, branches: 7, fill: 60, cardsPer: 5, trunk: 0.4, wide: 0.75, droop: 0.6, tall: 1.1 }),
