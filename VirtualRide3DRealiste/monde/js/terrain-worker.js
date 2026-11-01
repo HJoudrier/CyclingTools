@@ -274,7 +274,7 @@ function weights(x, z, o, slope, W, wo, T, to, ST, so) {
 /* ---------------------------------------------------------------- tuiles */
 
 // végétation : espèces (ordre de vegetation.js)
-const SP = { BROADLEAF: 0, SPRUCE: 1, PINE: 2, POPLAR: 3, BIRCH: 4, CYPRESS: 5, OLIVE: 6, FRUIT: 7, WILLOW: 8, BUSH: 9, ROCK: 10, HAY: 11 };
+const SP = { BROADLEAF: 0, SPRUCE: 1, PINE: 2, POPLAR: 3, BIRCH: 4, CYPRESS: 5, OLIVE: 6, FRUIT: 7, WILLOW: 8, BUSH: 9, ROCK: 10, HAY: 11, VINE: 12 };
 
 function mulberry(seed) {
   let a = seed >>> 0;
@@ -442,8 +442,8 @@ function vegetation(m, t, inf, step, V) {
       }
     }
   }
-  // vergers : rangs alignés sur les rangs des champs
-  if (m.level === 0) orchards(m, t, inf, step, V, list, hAt);
+  // vergers et vignes : rangs alignés sur les rangs des champs
+  if (m.level === 0) { orchards(m, t, inf, step, V, list, hAt); vines(m, t, inf, step, V, list, hAt); }
   return Float32Array.from(list);
 }
 
@@ -462,6 +462,32 @@ function orchards(m, t, inf, step, V, list, hAt) {
       const rnd = mulberry(Math.imul(Math.round(a), 2654435761) ^ Math.imul(Math.round(b), 40503));
       const sc = 0.85 + rnd() * 0.3;
       list.push(x, hAt(x, z) - 0.2, z, sc, rnd() * 6.28, L.bio.south && rnd() < 0.5 ? SP.OLIVE : SP.FRUIT, Math.floor(rnd() * 3), 1, 1, 1);
+    }
+  }
+}
+
+// ceps de vigne : sur les rangs peints par le terrain (espacement 3,2 m, un cep tous les 1,2 m), dans les deux orientations
+function vines(m, t, inf, step, V, list, hAt) {
+  let any = false;
+  for (let k = 0; k < t.stripe.length && !any; k++) if (t.stripe[k] % 8 === STRIPE.VINE) any = true;
+  if (!any) return;
+  const dir = L.bio.rowDir;
+  for (const rot of [0, 8]) {
+    const ux = rot ? -dir[1] : dir[0], uz = rot ? dir[0] : dir[1];      // le long des rangs
+    const vx = -uz, vz = ux;                                             // à travers
+    const corners = [[t.x0, t.z0], [t.x0 + m.size, t.z0], [t.x0, t.z0 + m.size], [t.x0 + m.size, t.z0 + m.size]];
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const [x, z] of corners) { const a = x * ux + z * uz, b = x * vx + z * vz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+    for (let b = Math.ceil(b0 / 3.2) * 3.2; b <= b1; b += 3.2) {
+      for (let a = Math.ceil(a0 / 1.2) * 1.2; a <= a1; a += 1.2) {
+        const x = a * ux + b * vx, z = a * uz + b * vz;
+        if (x < t.x0 || z < t.z0 || x >= t.x0 + m.size || z >= t.z0 + m.size) continue;
+        const k = clamp(Math.round((z - t.z0) / step), 0, V - 1) * V + clamp(Math.round((x - t.x0) / step), 0, V - 1);
+        if (t.stripe[k] !== STRIPE.VINE + rot || inf.roadD[k] < L.roadHalf + 3) continue;
+        const rnd = mulberry(Math.imul(Math.round(a * 10), 2654435761) ^ Math.imul(Math.round(b * 10), 40503));
+        const g = 0.9 + rnd() * 0.15;
+        list.push(x, hAt(x, z) - 0.05, z, 0.85 + rnd() * 0.3, Math.atan2(ux, uz) + (rnd() - 0.5) * 0.3, SP.VINE, Math.floor(rnd() * 3), g, g, g * 0.95);
+      }
     }
   }
 }

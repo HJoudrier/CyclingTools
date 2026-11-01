@@ -124,8 +124,10 @@ void groundShade(vec3 P, vec3 N, float dist) {
     float across = dot(P.xz, vec2(-rd.y, rd.x));
     float spacing = sk < 1.5 ? 0.8 : sk < 2.5 ? 3.2 : sk < 3.5 ? 2.6 : sk < 4.5 ? 0.8 : 2.4;
     float ph = fract(across / spacing);
-    float ridge = 0.5 + 0.5 * cos(ph * 6.2831853);
-    float fade = 1.0 - smoothstep(120.0, 600.0, dist);
+    // filtrage : quand un rang devient plus petit qu'un pixel, on le remplace par sa moyenne (pas de moiré au loin)
+    float aaF = fwidth(across / spacing);
+    float fade = (1.0 - smoothstep(120.0, 600.0, dist)) * (1.0 - smoothstep(0.12, 0.45, aaF));
+    float ridge = mix(0.5, 0.5 + 0.5 * cos(ph * 6.2831853), fade);
     // relief des rangs : la normale penche de chaque côté du sillon
     float slopeR = -sin(ph * 6.2831853) * 0.55 * fade;
     vec3 acrossW = normalize(vec3(-rd.y, 0.0, rd.x));

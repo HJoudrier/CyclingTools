@@ -8,10 +8,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export const SPECIES = ['broadleaf', 'spruce', 'pine', 'poplar', 'birch', 'cypress', 'olive', 'fruit', 'willow', 'bush', 'rock', 'hay'];
+export const SPECIES = ['broadleaf', 'spruce', 'pine', 'poplar', 'birch', 'cypress', 'olive', 'fruit', 'willow', 'bush', 'rock', 'hay', 'vine'];
 // cellule de l'atlas de feuillage (4 × 2) et couche d'écorce (textures.js, BARK) de chaque espèce
-const LEAF_CELL = { broadleaf: 0, spruce: 1, pine: 2, poplar: 3, birch: 4, cypress: 5, olive: 6, fruit: 0, willow: 3, bush: 7 };
-const BARK_LAYER = { broadleaf: 0, spruce: 2, pine: 2, poplar: 0, birch: 1, cypress: 2, olive: 0, fruit: 0, willow: 0, bush: 0 };
+const LEAF_CELL = { broadleaf: 0, spruce: 1, pine: 2, poplar: 3, birch: 4, cypress: 5, olive: 6, fruit: 0, willow: 3, bush: 7, vine: 0 };
+const BARK_LAYER = { broadleaf: 0, spruce: 2, pine: 2, poplar: 0, birch: 1, cypress: 2, olive: 0, fruit: 0, willow: 0, bush: 0, vine: 0 };
 export const BARK_COLOR = { broadleaf: '#4a4038', spruce: '#4b3528', pine: '#6a4330', poplar: '#5f5a50', birch: '#c9c4ba', cypress: '#4b3528', olive: '#6b655a', fruit: '#4a4038', willow: '#4f4a40', bush: '#3d3329' };
 
 /* ---------------------------------------------------------------- atlas de feuillage */
@@ -267,7 +267,7 @@ function genBroadleaf(rnd, o) {
   // remplissage du houppier : cartes réparties dans un ellipsoïde
   for (let k = 0; k < (o.fill || 40); k++) {
     const d = randDir(rnd);
-    const rr = Math.pow(rnd(), 0.4);
+    const rr = 0.35 + 0.65 * Math.pow(rnd(), 0.6);
     const p = crownC.clone().add(new V3(d.x * crownR, d.y * crownR * (o.tall || 0.8), d.z * crownR).multiplyScalar(rr));
     const nf = d.clone().lerp(randDir(rnd), 0.5).normalize();
     const sz = o.leaf * (0.8 + rnd() * 0.6);
@@ -294,7 +294,8 @@ function genSpruce(rnd, o) {
       const ang = (b / nbr) * Math.PI * 2 + w * 0.7 + rnd() * 0.4;
       const d = new V3(Math.cos(ang), (o.up || -0.15) + rnd() * 0.1, Math.sin(ang)).normalize();
       const pts = branchPts(new V3(0, y, 0), d, L, o.droop || 0.35, 2);
-      if (L > 0.8) tube(B, pts, r0 * 0.25, r0 * 0.05, 4, 0.2, 0.8);
+      // la branche s'arrête dans le rameau (pas de bout de bois qui dépasse)
+      if (L > 0.8) tube(B, branchPts(new V3(0, y, 0), d, L * 0.7, o.droop || 0.35, 2), r0 * 0.2, r0 * 0.04, 4, 0.2, 0.7);
       // rameau : une carte allongée le long de la branche, légèrement inclinée vers le bas
       const mid = pts[1];
       const along = pts[2].clone().sub(pts[0]).normalize();
@@ -396,15 +397,30 @@ function genWillow(rnd, o) {
   return { bark: B.build(), leaves: F.build(), height: H, radius: H * 0.45 };
 }
 
+// cep de vigne : souche tordue, fil de palissage, feuillage en haie basse et étroite le long du rang (axe z)
+function genVine(rnd, o) {
+  const B = new Builder(), F = new Builder();
+  const H = o.h * (0.9 + rnd() * 0.2);
+  tube(B, [new V3(0, -0.05, 0), new V3(0.03, H * 0.35, 0.02), new V3(-0.02, H * 0.5, 0)], 0.035, 0.022, 5, 0, 0.2, 2);
+  const c = new V3(0, H * 0.75, 0);
+  for (let k = 0; k < (o.fill || 14); k++) {
+    const p = new V3((rnd() - 0.5) * 0.35, H * (0.5 + rnd() * 0.5), (rnd() - 0.5) * 1.2);
+    const nf = new V3(rnd() < 0.5 ? 1 : -1, 0.3 + rnd() * 0.4, (rnd() - 0.5) * 0.6).normalize();
+    card(F, p, nf, new V3(0, 1, 0), o.leaf * (0.8 + rnd() * 0.4), o.leaf * (0.8 + rnd() * 0.4), o.cell, c, 0.6, 0.6);
+  }
+  return { bark: B.build(), leaves: F.build(), height: H, radius: 0.6 };
+}
+
 const GEN = {
-  broadleaf: (r) => genBroadleaf(r, { h: 15, leaf: 2.1, cell: 0, branches: 7, fill: 46, cardsPer: 5, trunk: 0.32 }),
+  vine: (r) => genVine(r, { h: 1.25, cell: 0, leaf: 0.7, fill: 16 }),
+  broadleaf: (r) => genBroadleaf(r, { h: 15, leaf: 2.6, cell: 0, branches: 8, fill: 90, cardsPer: 6, trunk: 0.32 }),
   spruce: (r) => genSpruce(r, { h: 22, cell: 1, wide: 0.2, whorl: 0.5, droop: 0.4 }),
   pine: (r) => genPine(r, { h: 16, cell: 2, wide: 0.3, leaf: 2.2 }),
   poplar: (r) => genColumn(r, { h: 22, cell: 3, wide: 0.11, leaf: 1.9, fill: 110 }),
-  birch: (r) => genBroadleaf(r, { h: 14, leaf: 1.5, cell: 4, branches: 6, fill: 34, cardsPer: 4, trunk: 0.4, wide: 0.75, droop: 0.6, tall: 1.1 }),
+  birch: (r) => genBroadleaf(r, { h: 14, leaf: 1.8, cell: 4, branches: 7, fill: 60, cardsPer: 5, trunk: 0.4, wide: 0.75, droop: 0.6, tall: 1.1 }),
   cypress: (r) => genColumn(r, { h: 13, cell: 5, wide: 0.1, leaf: 1.5, fill: 120, bare: 0.03 }),
-  olive: (r) => genBroadleaf(r, { h: 6, leaf: 1.4, cell: 6, branches: 5, fill: 30, cardsPer: 4, trunk: 0.3, wide: 1.2, droop: 0.1 }),
-  fruit: (r) => genBroadleaf(r, { h: 6.5, leaf: 1.3, cell: 0, branches: 5, fill: 28, cardsPer: 4, trunk: 0.3, wide: 1.15 }),
+  olive: (r) => genBroadleaf(r, { h: 6, leaf: 1.6, cell: 6, branches: 5, fill: 45, cardsPer: 5, trunk: 0.3, wide: 1.2, droop: 0.1 }),
+  fruit: (r) => genBroadleaf(r, { h: 6.5, leaf: 1.6, cell: 0, branches: 5, fill: 45, cardsPer: 5, trunk: 0.3, wide: 1.15 }),
   willow: (r) => genWillow(r, { h: 11, cell: 3, leaf: 1.4 }),
   bush: (r) => genBush(r, { h: 1.3, cell: 7, leaf: 1.0, fill: 26 }),
 };

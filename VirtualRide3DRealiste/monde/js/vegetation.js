@@ -10,7 +10,7 @@ import { buildModels, leafAtlas, SPECIES } from './foliage.js';
 import { NOISE } from './glsl.js';
 
 const FRAMES = 8, FRAME_PX = 128;
-const NOFAR = new Set(['rock', 'hay']);
+const NOFAR = new Set(['rock', 'hay', 'vine']);
 const EVERGREEN = new Set(['spruce', 'pine', 'cypress', 'olive']);
 const WIND_VERT = /* glsl */`
 uniform float uTimeV;
@@ -387,7 +387,7 @@ export class Vegetation {
 
   _rebuild(p, doNear, doFar) {
     const Q = this.Q;
-    const R0 = Q.treeNear, R0b = R0 * R0, RF = Q.impostorFar, RFb = RF * RF, RR = 300 * 300;
+    const R0 = Q.treeNear, R0b = R0 * R0, RF = Q.impostorFar, RFb = RF * RF, RR = 300 * 300, RV = Math.pow(Q.treeNear * 1.3, 2);
     const near = new Map();
     let farN = 0;
     const farList = doFar ? [] : null;
@@ -396,7 +396,7 @@ export class Vegetation {
         const dx = arr[i] - p.x, dz = arr[i + 2] - p.z, d2 = dx * dx + dz * dz;
         const sp = SPECIES[arr[i + 5]];
         const nofar = NOFAR.has(sp);
-        if (d2 < (nofar ? RR : R0b)) {
+        if (d2 < (sp === 'vine' ? RV : nofar ? RR : R0b)) {
           if (doNear) { const key = sp + arr[i + 6]; let l = near.get(key); if (!l) near.set(key, (l = [])); l.push(i, arr); }
         } else if (!nofar && d2 < RFb && doFar) { farList.push(i, arr); farN++; }
       }
