@@ -4,6 +4,7 @@
  *   PaceYourRide/       accueil (index.html), parcours, athlète, équipements, pacing optimal
  *   VirtualRide2D/              index.html : choix du parcours, de l'athlète et de la météo, réglages ; course.html : la course sur la carte
  *   VirtualRide3D/              idem, la course dans l'univers 3D (Bike3D, VirtualRide3D/univers/)
+ *   VirtualRide3DRealiste/      idem, la course dans le monde 3D réaliste (VirtualRide3DRealiste/monde/), pour PC et consoles de salon
  *   Compteur/           compteur de la vraie sortie
  * Chaque page charge les scripts de son application (boot.js) mais n'initialise que les parties qu'elle contient. L'état (le projet) est
  * propre à l'application et gardé par le stockage local (Commun/js/core/store.js) : on le relit à l'ouverture de chaque page, on
@@ -26,8 +27,10 @@
     ride: { mapMode: 'grade', module: () => PYR.tabRide },
   };
 
-  /** Pages du site, depuis la racine : une par section de PaceYourRide, la page de choix et l'écran de course du jeu en cours (VirtualRide2D ou VirtualRide3D). */
-  const gameDir = () => (PYR.appDir === 'VirtualRide3D' ? 'VirtualRide3D' : 'VirtualRide2D');
+  /** Pages du site, depuis la racine : une par section de PaceYourRide, la page de choix et l'écran de course du jeu en cours (VirtualRide2D,
+   * VirtualRide3D ou VirtualRide3DRealiste). */
+  const GAME_DIRS = ['VirtualRide2D', 'VirtualRide3D', 'VirtualRide3DRealiste'];
+  const gameDir = () => (GAME_DIRS.includes(PYR.appDir) ? PYR.appDir : 'VirtualRide2D');
   const PAGES = {
     home: 'index.html',
     route: 'PaceYourRide/parcours.html',

@@ -12,8 +12,10 @@
  *     position, les mêmes que dans la vitrine 3D du magasin (gear-art.js, gear3d) ;
  *   - Bike3D renvoie les touches pressées quand il a le focus (key), elles pilotent le jeu comme d'habitude.
  * La graine du paysage vient de l'empreinte du parcours : tous les joueurs d'une course en direct ont le même monde.
- * Le détail du protocole est en tête de js/bridge.js côté Bike3D. Adresse de la vue : VirtualRide3D/univers/index.html, ou celle enregistrée par
- * localStorage.setItem('pyr.view3d', 'https://…/index.html'). */
+ * Le détail du protocole est en tête de js/bridge.js côté Bike3D. Deux vues parlent ce même protocole : l'univers cartoon de Bike3D
+ * (VirtualRide3D/univers/index.html, application jeu3d) et le monde réaliste (VirtualRide3DRealiste/monde/index.html, application jeu3dr,
+ * pour PC et consoles de salon). Une autre adresse peut être enregistrée par localStorage.setItem('pyr.view3d', 'https://…/index.html')
+ * (univers cartoon) ou localStorage.setItem('pyr.view3d.realiste', …) (monde réaliste). */
 (function (PYR) {
   'use strict';
 
@@ -22,7 +24,13 @@
   const h = (...a) => D.h(...a), $ = (q) => D.$(q);
   const st = () => PYR.store.state;
   const V = 1;
-  const UNIVERSE = 'VirtualRide3D/univers/index.html';   // depuis la racine du site (PYR.root, posé par js/boot.js)
+  // vue de chaque application, depuis la racine du site (PYR.root, posé par js/boot.js), et la clé du stockage local qui peut la remplacer
+  const UNIVERSES = {
+    jeu3d: { url: 'VirtualRide3D/univers/index.html', key: 'pyr.view3d', name: 'univers 3D' },
+    jeu3dr: { url: 'VirtualRide3DRealiste/monde/index.html', key: 'pyr.view3d.realiste', name: 'monde 3D réaliste' },
+  };
+  /** La vue 3D de l'application en cours (l'univers cartoon par défaut : VirtualRide2D ouvre aussi celui-là dans une autre fenêtre). */
+  const universe = () => UNIVERSES[PYR.appId] || UNIVERSES.jeu3d;
   const ME_COLOR = '#eb6834';
 
   let frameEl = null;      // cadre par-dessus la carte
@@ -39,9 +47,10 @@
   const on = () => typeof document !== 'undefined' && !!document.body && document.body.dataset.display === '3d';
 
   function baseUrl() {
+    const U3 = universe();
     let u = null;
-    try { u = localStorage.getItem('pyr.view3d'); } catch (e) { /* stockage indisponible */ }
-    return u && /^(https?:|\.{0,2}\/|[\w.-]+\.html)/.test(u) ? u : (PYR.root || '') + UNIVERSE;
+    try { u = localStorage.getItem(U3.key); } catch (e) { /* stockage indisponible */ }
+    return u && /^(https?:|\.{0,2}\/|[\w.-]+\.html)/.test(u) ? u : (PYR.root || '') + U3.url;
   }
   function urlOf(hud) { const b = baseUrl(); return b + (b.includes('?') ? '&' : '?') + 'pyr' + (hud ? '&hud=1' : ''); }
 
@@ -122,15 +131,20 @@
   /* ---------- météo à la position et à l'heure du joueur ---------- */
 
   /**
-   * Conditions envoyées à la vue : {hour (heure locale, avec une météo datée), T, rain (mm/h), ws (m/s à 10 m), wd (° d'où vient le
-   * vent), gust, rh, wet}. Sans météo, le vent saisi à la main (portions) et la température de la page Pacing optimal.
+   * Conditions envoyées à la vue : {hour (heure locale, avec une météo datée), doy (jour de l'année, idem), T, rain (mm/h), ws (m/s à 10 m),
+   * wd (° d'où vient le vent), gust, rh, wet}. Sans météo, le vent saisi à la main (portions) et la température de la page Pacing optimal.
    */
   function envAt(course, s, t) {
     const w = course.weather;
     if (w && PYR.weather) {
       const o = PYR.weather.at(w, s, (Number(w.start) || 0) + t);
       const env = { T: o.T, rain: o.rain, ws: o.ws, wd: o.wd, gust: o.gust, rh: o.rh, wet: o.wet };
-      if (Number.isFinite(w.start) && Number.isFinite(w.off)) env.hour = ((((w.start + w.off + t) / 3600) % 24) + 24) % 24;
+      if (Number.isFinite(w.start) && Number.isFinite(w.off)) {
+        env.hour = ((((w.start + w.off + t) / 3600) % 24) + 24) % 24;
+        // jour de l'année (1–366, heure locale du parcours) : la course du soleil et la saison de la vue réaliste
+        const d = new Date((w.start + w.off + t) * 1000);
+        env.doy = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000) + 1;
+      }
       return env;
     }
     const env = { T: course.temperature };
@@ -277,5 +291,5 @@
 
   if (typeof window !== 'undefined') window.addEventListener('message', onMessage);
 
-  PYR.view3d = { V, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
+  PYR.view3d = { V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
 })(globalThis.PYR = globalThis.PYR || {});

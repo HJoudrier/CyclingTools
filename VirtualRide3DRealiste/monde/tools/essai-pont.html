@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Essai du pont — Virtual Ride 3D Réaliste</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 13px/1.4 system-ui, sans-serif; }
+    iframe { position: absolute; inset: 0 0 64px 0; width: 100%; height: calc(100% - 64px); border: 0; }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex; gap: 10px; align-items: center; padding: 0 12px; background: #1c1d20; }
+    button, select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #444; background: #2a2b2f; color: #eee; }
+    #st { margin-left: auto; color: #aaa; }
+  </style>
+</head>
+<body>
+  <!-- Page de développement (non publiée) : joue le rôle de PaceYourRide auprès de la vue réaliste, avec le protocole de
+       Commun/js/jeu/view3d.js : parcours d'exemple de Bike3D, un petit peloton simulé grossièrement, météo réglable. -->
+  <iframe id="v" allow="autoplay; fullscreen; gamepad"></iframe>
+  <div class="bar">
+    <select id="gpx"><option value="col-des-marmottes.gpx">Col des Marmottes</option><option value="col-hors-categorie.gpx">Col hors catégorie</option><option value="balade-en-campagne.gpx">Balade en campagne</option></select>
+    <select id="wx"><option value="0">Sec</option><option value="2">Pluie</option><option value="9">Orage</option><option value="-1">Neige</option></select>
+    <label>Heure <input id="hour" type="range" min="4" max="22" step="0.25" value="11"></label>
+    <select id="surf"><option value="">Asphalte</option><option value="cobbles_hard">Pavés difficiles</option><option value="gravel_hard">Chemin blanc</option><option value="dirt">Terre</option></select>
+    <button id="cam">🎥 Caméra</button>
+    <span id="st">…</span>
+  </div>
+  <script src="../../../VirtualRide3D/univers/js/gpx.js"></script>
+  <script>
+    'use strict';
+    const view = document.getElementById('v');
+    // les paramètres de cette page passent à la vue (q=ultra, stats=1, capture=1…)
+    view.src = '../index.html?pyr' + location.search.replace(/^\?/, '&');
+    const post = (m) => view.contentWindow.postMessage(Object.assign({ pyr3d: 1 }, m), '*');
+    let course = null, riders = [], t = 0, pts = null, len = 0;
+    async function load() {
+      const txt = await (await fetch('../../../VirtualRide3D/univers/samples/' + document.getElementById('gpx').value)).text();
+      const g = window.B3D.gpx.parse(txt);
+      pts = g.points;
+      len = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const dy = (pts[i].lat - pts[i - 1].lat) * 111195, dx = (pts[i].lon - pts[i - 1].lon) * 111195 * Math.cos(pts[i].lat * Math.PI / 180);
+        len += Math.hypot(dx, dy);
+      }
+      const surf = document.getElementById('surf').value;
+      course = {
+        type: 'course', key: g.name + '|' + surf, name: g.name, seed: 1234, lat: pts.map((p) => p.lat), lng: pts.map((p) => p.lon), ele: pts.map((p) => p.ele), length: len,
+        cps: [{ type: 'sprint', s: len * 0.3 }, { type: 'kom', s: len * 0.7, start: len * 0.45, cat: '2' }, { type: 'finish', s: len }],
+        feed: [], surfaces: surf ? [{ s: 400, end: 2400, kind: surf, w: surf === 'dirt' ? 3 : 5 }] : [], roadW: 6,
+        me: { name: 'Toi', color: '#eb6834', gear: { frame: 'aero', wheels: 'c65', tire: 'race', position: 'hoods', helmet: 'road', clothing: 'fitted', glasses: 'sport', socks: 'classic', shoes: 'road', sex: 'm' } }, cp: 300,
+      };
+      riders = [{ id: 'me', name: 'Toi', color: '#eb6834', kind: 'avatar', s: 300, v: 9, P: 240 }];
+      const cols = ['#1f5fbf', '#d8262f', '#f2c230', '#1d8a4f', '#262626', '#e8e4dc'];
+      for (let i = 0; i < 20; i++) riders.push({ id: 'b' + i, name: 'Coureur ' + (i + 1), color: cols[i % cols.length], kind: 'bot', s: 300 + 4 + Math.floor(i / 3) * 1.9, v: 9, P: 220 });
+      t = 0;
+      post(course);
+    }
+    window.addEventListener('message', (e) => {
+      const m = e.data;
+      if (!m || m.pyr3d !== 1) return;
+      if (m.type === 'hello' && course) post(course);
+      if (m.type === 'status') document.getElementById('st').textContent = 'vue : ' + m.state + (m.text ? ' — ' + m.text : '');
+      if (m.type === 'key') document.getElementById('st').textContent = 'touche reçue : ' + m.code;
+    });
+    let last = performance.now();
+    function tick(now) {
+      requestAnimationFrame(tick);
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      if (!course) return;
+      t += dt;
+      for (const r of riders) r.s = Math.min(course.length, r.s + r.v * dt);
+      const wx = +document.getElementById('wx').value;
+      const env = { hour: +document.getElementById('hour').value, doy: 196, T: wx < 0 ? -2 : 18, rain: wx < 0 ? 2 : wx, ws: 4, wd: 250, gust: wx > 5 ? 16 : 6, rh: 60, wet: wx !== 0 ? 1 : 0 };
+      post({ type: 'frame', t, k: 1, run: true, me: 'me', riders, env });
+    }
+    requestAnimationFrame(tick);
+    document.getElementById('cam').onclick = () => post({ type: 'cmd', cmd: 'camera' });
+    document.getElementById('gpx').onchange = load;
+    document.getElementById('surf').onchange = load;
+    load();
+  </script>
+</body>
+</html>

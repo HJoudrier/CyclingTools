@@ -12,7 +12,8 @@
   const store = PYR.store, Cat = PYR.catalog, Ph = PYR.physics, D = PYR.dom;
   const { h, $, $$ } = D;
 
-  const SHOWROOM = (PYR.root || '') + 'VirtualRide3D/univers/showroom.html';
+  // la vitrine de la vue 3D de l'application : cartoon (Bike3D) ou réaliste (le monde 3D réaliste, même protocole)
+  const SHOWROOM = (PYR.root || '') + (PYR.appId === 'jeu3dr' ? 'VirtualRide3DRealiste/monde/vitrine.html' : 'VirtualRide3D/univers/showroom.html');
   const ME_COLOR = '#eb6834';   // couleur du joueur (maillot et casque), comme dans la course
   const BIKE_CATS = ['frame', 'wheels', 'tires', 'drivetrain'];
 

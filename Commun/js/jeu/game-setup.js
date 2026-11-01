@@ -1,5 +1,5 @@
 /* author : Hugo Joudrier-Faure */
-/* PaceYourRide — page de choix des jeux (VirtualRide2D/index.html et VirtualRide3D/index.html) : le parcours (carrousel de vues 3D avec distance, D+ et D−),
+/* PaceYourRide — page de choix des jeux (VirtualRide2D/index.html, VirtualRide3D/index.html et VirtualRide3DRealiste/index.html) : le parcours (carrousel de vues 3D avec distance, D+ et D−),
  * l'athlète (avec son vélo et sa tenue), la météo (celle d'une date, ou un temps aléatoire qui évolue), puis les réglages de la partie
  * (liés à l'état par data-bind, comme avant). « Démarrer » ouvre l'écran de course de l'application (course.html).
  *
@@ -15,7 +15,10 @@
   const { $, $$, h } = D;
 
   const C = PYR.libCache, NONE = 'none';            // vélo ou tenue : « réglages par défaut » (vide : le premier proposé)
-  const is3d = () => PYR.appId === 'jeu3d';
+  // les deux jeux en 3D : parcours vus en 3D, matériel réglé sur la vue 3D ; seul l'univers cartoon a son propre ciel (le monde réaliste montre
+  // la météo de la simulation, comme la carte : pluie, vent, température, heure)
+  const is3d = () => PYR.appId === 'jeu3d' || PYR.appId === 'jeu3dr';
+  const ownSky = () => PYR.appId === 'jeu3d';
 
   const S = { views: [], mode: 'random' };
   const items = (kind) => C.items(kind), find = (kind, id) => C.find(kind, id);
@@ -151,7 +154,7 @@
     const st = store.state, G = st.game;
     if (S.mode !== 'random') return;
     const p = store.profile;
-    if (is3d() || !p) { st.weather.enabled = false; st.weather.snapshot = null; st.weather.fetchedFor = ''; return; }
+    if (ownSky() || !p) { st.weather.enabled = false; st.weather.snapshot = null; st.weather.fetchedFor = ''; return; }
     if (!G.weatherSeed) G.weatherSeed = 1 + Math.floor(Math.random() * 999999);
     const start = Math.floor(Date.now() / 1000);
     const snap = We.randomEvolving(p, G.weatherSeed, { start, hours: 24 });
@@ -162,7 +165,7 @@
 
   function randomSummary() {
     const w = store.state.weather, el = $('#gs-wx-random-sum');
-    if (is3d()) { el.textContent = ''; return; }
+    if (ownSky()) { el.textContent = ''; return; }
     if (!w.snapshot || !w.enabled) { el.textContent = ''; return; }
     const T = [].concat(...w.snapshot.T), rain = w.snapshot.rain[0];
     const wetH = rain.filter((x) => x >= 0.2).length;
@@ -186,10 +189,10 @@
   }
 
   function renderWeatherPanel() {
-    $('#gs-wx-random-note').textContent = is3d()
+    $('#gs-wx-random-note').textContent = ownSky()
       ? "Le ciel de l'univers 3D change tout seul pendant la course : soleil, nuages, pluie, orage ou neige, avec des transitions douces."
       : 'Un temps tiré au hasard, qui évolue pendant la course : perturbations qui passent, pluie, vent qui tourne, température qui suit la journée et l\'altitude. Il agit sur la route (mouillée), la chaleur et le vent.';
-    $('#gs-wx-reroll').hidden = is3d();
+    $('#gs-wx-reroll').hidden = ownSky();
     $('#gs-wx-reroll').onclick = () => {
       store.state.game.weatherSeed = 1 + Math.floor(Math.random() * 999999);
       applyWeather(); store.save(); store.emit('weather', { path: 'weather' }); randomSummary(); renderSummary();
@@ -202,7 +205,7 @@
   function renderSummary() {
     const route = find('route', pickId('route')), ath = find('athlete', pickId('athlete')), p = store.profile;
     const w = store.state.weather;
-    const wx = S.mode === 'random' ? (is3d() ? 'ciel variable' : 'météo aléatoire') : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
+    const wx = S.mode === 'random' ? (ownSky() ? 'ciel variable' : 'météo aléatoire') : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
     $('#gs-go-sum').textContent = route ? [route.name, ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut', wx].join(' · ') : 'Choisis un parcours pour commencer.';
     $('#g-go').disabled = !route || !p;
   }

@@ -5,6 +5,7 @@
  *   pro       PaceYourRide/   tracé des parcours, athlètes, équipements, pacing optimal (la seule qui écrit la bibliothèque)
  *   jeu2d     VirtualRide2D/          le jeu sur la carte : choix du parcours et de l'athlète, puis la course
  *   jeu3d     VirtualRide3D/          le jeu dans l'univers 3D de Bike3D
+ *   jeu3dr    VirtualRide3DRealiste/  le même jeu dans un monde 3D réaliste (PC et consoles de salon : VirtualRide3DRealiste/monde/)
  *   compteur  Compteur/       le compteur de la vraie sortie
  * La page dit laquelle elle est avec l'attribut data-app de la balise qui charge ce fichier, en fin de corps :
  *   <script src="../Commun/js/boot.js" data-app="jeu2d"></script>
@@ -50,6 +51,7 @@
     },
     jeu2d: { dir: 'VirtualRide2D', ns: 'paceyourride.jeu2d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     jeu3d: { dir: 'VirtualRide3D', ns: 'paceyourride.jeu3d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
+    jeu3dr: { dir: 'VirtualRide3DRealiste', ns: 'paceyourride.jeu3dr', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     compteur: { dir: 'Compteur', ns: 'paceyourride.compteur', scripts: ENGINE.concat(SHARED_UI, ['Commun/vendor/qrcode-generator/qrcode.js', 'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js', 'Compteur/js/tab-ride.js']) },
     // accueil de PaceYourRide : le projet en cours et la bibliothèque (pas de Commun/js/app.js)
     'pro-home': {
