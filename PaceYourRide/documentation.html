@@ -215,9 +215,10 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
     </li>
     <li><a href="#sortie"><span class="n">10</span><span>Suivi d'une sortie réelle</span></a></li>
     <li><a href="#histo"><span class="n">11</span><span>Profil estimé depuis les sorties</span></a></li>
-    <li><a href="#valid"><span class="n">12</span><span>Validation, tests et limites</span></a></li>
-    <li><a href="#gloss"><span class="n">13</span><span>Glossaire et notations</span></a></li>
-    <li><a href="#refs"><span class="n">14</span><span>Références</span></a></li>
+    <li><a href="#radar"><span class="n">12</span><span>Catégorie et profil en toile d'araignée</span></a></li>
+    <li><a href="#valid"><span class="n">13</span><span>Validation, tests et limites</span></a></li>
+    <li><a href="#gloss"><span class="n">14</span><span>Glossaire et notations</span></a></li>
+    <li><a href="#refs"><span class="n">15</span><span>Références</span></a></li>
   </ol>
 </nav>
 
@@ -1453,8 +1454,136 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
 </section>
 
 <!-- ===================================================================================================== 12 -->
+<section class="sec" id="radar">
+  <div class="sec-h"><span class="num">12</span><h2>Catégorie et profil en toile d'araignée</h2></div>
+  <p>Chaque vignette d'athlète de la page d'accueil montre deux résumés : sa <b>catégorie</b> (Pro, Élite, 1<sup>re</sup> à 4<sup>e</sup> catégorie, Loisir) et une <b>toile d'araignée</b> de sept spécialités, notées de 0 à 100 : grimpeur, sprinteur, rouleur, contre-la-montre, courses par étapes, classiques et puncheur. Le but est de montrer les forces et les faiblesses d'un athlète <b>parmi ses pairs</b> : un cyclo de 2<sup>e</sup> catégorie et un professionnel du World Tour ont chacun un graphique bien contrasté, bien que leurs watts n'aient rien de comparable. Le code est <code>Commun/js/engine/rider-radar.js</code> (pur, sans interface, testé par <code>tests/rider-radar.test.js</code>).</p>
+  <div class="note user"><b>Comment lire le graphique</b>Plus un point est loin du centre, plus l'athlète est fort dans cette spécialité <i>pour sa catégorie</i> (100 = le meilleur de sa catégorie). Le polygone en pointillés est la moyenne de la catégorie : là où la surface bleue le dépasse, c'est une force ; en dessous, une faiblesse. Le point orange et la ligne « Profil » désignent la spécialité qui se détache le plus de cette moyenne. Un score de grimpeur de 80 chez un 3<sup>e</sup> catégorie ne dit rien sur sa vitesse en montée comparée à un pro : il dit qu'il grimpe bien <i>pour un 3<sup>e</sup> catégorie</i>.</div>
+
+  <h3>1. Les mesures</h3>
+  <p>Tout part du profil de l'athlète (page Athlète) : poids et taille, courbe de puissance record (FTP, records de 1 s à 5 h, ou courbe type déduite de la FTP quand il n'y en a pas), CP2, W′, Pmax et carte physiologique. Le module en tire les mesures suivantes (<code>riderRadar.metrics</code>).</p>
+  <div class="tw"><table>
+    <thead><tr><th>Mesure</th><th>Définition</th><th>Domaine</th></tr></thead>
+    <tbody>
+      <tr><td>FTP/kg · P<sub>20 min</sub>/kg · P<sub>5 min</sub>/kg · P<sub>1 min</sub>/kg</td><td>Puissance de la courbe record à 60 min (FTP), 20, 5 et 1 min, divisée par le poids</td><td>physiologie</td></tr>
+      <tr><td>FTP · P<sub>20 min</sub> (W)</td><td>Les mêmes, en watts : ce qui compte sur le plat, où le poids ne joue pas</td><td>physiologie</td></tr>
+      <tr><td>Pmax · Pmax/kg · P<sub>15 s</sub></td><td>Puissance maximale (1 s), par kilo, et puissance moyenne de la courbe sur 15 s</td><td>physiologie</td></tr>
+      <tr><td>W′ (kJ) · W′/kg</td><td>Réserve anaérobie ; par kilo (le puncheur la dépense en bosse, avec son propre poids à hisser)</td><td>physiologie</td></tr>
+      <tr><td>VO₂max · fibres lentes (%) · pouvoir tampon β</td><td>Valeurs de la carte athlète (saisies, sinon estimées : VO₂max d'après P<sub>5 min</sub>, fibres lentes d'après Pmax / CP2, β = 1)</td><td>métabolisme</td></tr>
+      <tr><td>CdA<sub>route</sub> · CdA<sub>chrono</sub> (m²)</td><td>Surface équivalente du corps (taille, poids : Bassett et al., section 04 de cette documentation) avec un équipement <b>de référence</b> fixe : position « drops », casque route, maillot ajusté pour la route ; prolongateurs, casque et combinaison chrono pour le contre-la-montre. L'équipement du moment de l'athlète ne compte donc pas : le score décrit le corps, pas le matériel</td><td>aérodynamique</td></tr>
+      <tr><td>W/CdA<sub>route</sub> · W/CdA<sub>chrono</sub></td><td>FTP / CdA : la puissance disponible par m² de surface à vaincre, mesure de la vitesse sur le plat à puissance égale (la traînée croît comme <i>v</i><sup>3</sup>)</td><td>aérodynamique + poids</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>2. La catégorie</h3>
+  <p>La catégorie répond à « avec qui doit-on le comparer ? ». Elle ne dépend que de l'<b>endurance et de la puissance aérobie par kilo</b>, jamais du sprint : un sprinteur ne doit pas changer de catégorie à cause de sa Pmax. On part de deux watts par kilo, rapportés au niveau « classe mondiale » des tableaux de Coggan et Allen<cite data-k="allen2010"></cite> (<code>benchmarks.js</code>, valeurs par sexe) :</p>
+  <div class="eq"><span class="lab">Rapport de niveau <span class="tag cal">calage</span></span>
+    <div class="f"><i>ρ</i><sub>niveau</sub> = 0,6 · FTP/kg ÷ FTP/kg<sub>mondial</sub> + 0,4 · P<sub>5 min</sub>/kg ÷ P<sub>5 min</sub>/kg<sub>mondial</sub></div>
+    <div class="f">hommes : FTP/kg<sub>mondial</sub> = 6,04, P<sub>5 min</sub>/kg<sub>mondial</sub> = 7,19 ;&nbsp; femmes : 5,36 et 6,36</div>
+  </div>
+  <p>La FTP (60 %) donne le niveau d'endurance, la puissance sur 5 min (40 %) la puissance aérobie maximale. La catégorie est la première de la liste où le rapport atteint le minimum :</p>
+  <div class="tw"><table>
+    <thead><tr><th>Catégorie</th><th>Rapport minimal</th><th>FTP/kg équivalente (homme)</th><th>Facteur d'échelle <i>k</i></th><th>Niveau de Coggan correspondant</th></tr></thead>
+    <tbody>
+      <tr><td><b>Pro (World Tour)</b></td><td>0,91</td><td>≈ 5,5 W/kg et plus</td><td>1,00</td><td>exceptionnel / classe mondiale</td></tr>
+      <tr><td><b>Élite</b></td><td>0,85</td><td>≈ 5,1 W/kg</td><td>0,92</td><td>pro continental, élite nationale</td></tr>
+      <tr><td><b>1<sup>re</sup> catégorie</b></td><td>0,78</td><td>≈ 4,7 W/kg</td><td>0,85</td><td>excellent (Cat 1)</td></tr>
+      <tr><td><b>2<sup>e</sup> catégorie</b></td><td>0,70</td><td>≈ 4,2 W/kg</td><td>0,77</td><td>très bon (Cat 2)</td></tr>
+      <tr><td><b>3<sup>e</sup> catégorie</b></td><td>0,61</td><td>≈ 3,7 W/kg</td><td>0,68</td><td>bon (Cat 3)</td></tr>
+      <tr><td><b>4<sup>e</sup> catégorie</b></td><td>0,52</td><td>≈ 3,1 W/kg</td><td>0,59</td><td>moyen (Cat 4, cyclosportif)</td></tr>
+      <tr><td><b>Loisir</b></td><td>moins de 0,52</td><td>moins de ≈ 3,1 W/kg</td><td>0,47</td><td>passable à non entraîné</td></tr>
+    </tbody>
+  </table></div>
+  <p>Les minimums prolongent les seuils de Coggan et Allen : « exceptionnel » commence à 91 % du niveau mondial pour la FTP, « excellent » à 82 %, « très bon » à 73,5 %, « bon » à 63 %, « moyen » à 54,5 %. Les valeurs de la colonne FTP/kg ne sont que des repères (le rapport mêle FTP et 5 min). Le facteur <i>k</i> est le niveau typique de la catégorie rapporté à celui du peloton World Tour : il sert à l'échelle des scores (paragraphe 3).</p>
+  <div class="note"><b>Les coureurs du World Tour</b>Les 249 profils de la catégorie « Coureurs World Tour » sont <b>Pro d'office</b> : sans cela, une soixantaine de coureurs dont la FTP par kilo est plus modeste (équipiers, rouleurs, sprinteurs : ils sont forts par leur puissance absolue ou leur sprint) seraient classés « Élite ». Leur profil reste modifiable : la catégorie ne change pas, l'échelle non plus.</div>
+
+  <h3>3. L'échelle d'un score</h3>
+  <p>Un score de spécialité est une moyenne pondérée de mesures, chacune ramenée sur 0–100 par une règle linéaire bornée :</p>
+  <div class="eq"><span class="lab">Mesure ramenée sur 0–100 (<code>sc</code>)</span>
+    <div class="f">sc(<i>x</i> ; lo, hi) = 100 · clip((<i>x</i> − lo) / (hi − lo) ; 0 ; 1)</div>
+  </div>
+  <p>Les bornes (lo, hi) du code sont celles du <b>peloton World Tour</b> : lo est le 5<sup>e</sup> centile des 249 profils moins une marge d'un intervalle, hi le 95<sup>e</sup> centile (par exemple FTP/kg : lo = 3,8 W/kg, hi = 6,6 W/kg). Pour comparer un athlète à ses pairs, ces bornes sont <b>réduites selon la catégorie</b> : multipliées par le facteur <i>k</i> de la catégorie, ou plus doucement pour les qualités qui dépendent moins du niveau :</p>
+  <div class="tw"><table>
+    <thead><tr><th>Famille de mesure</th><th>Bornes utilisées</th><th>Pourquoi</th></tr></thead>
+    <tbody>
+      <tr><td>Puissances et W/CdA (<code>S</code>)</td><td>lo · <i>k</i>, hi · <i>k</i></td><td>Les seuils de Coggan sont à peu près proportionnels d'un niveau à l'autre</td></tr>
+      <tr><td>VO₂max (<code>V</code>)</td><td>lo · <i>k</i><sup>0,6</sup>, hi · <i>k</i><sup>0,6</sup></td><td>La VO₂max varie moins que la puissance entre catégories</td></tr>
+      <tr><td>Puissance de sprint : Pmax, Pmax/kg, P<sub>15 s</sub>, W′ (<code>Q</code>)</td><td>lo · <i>k</i><sup>0,45</sup>, hi · <i>k</i><sup>0,45</sup></td><td>Un amateur sprinte à 1 100–1 400 W, un pro à 1 500–2 000 W : l'écart est bien plus faible que celui de l'endurance</td></tr>
+      <tr><td>Fibres lentes (%), pouvoir tampon β</td><td>inchangées</td><td>Ce sont des qualités de l'athlète, pas de son niveau : un pro peut avoir 45 % de fibres lentes, un loisir 65 %</td></tr>
+    </tbody>
+  </table></div>
+  <p>Enfin, le score brut de chaque spécialité (de 0 à 100 sur l'échelle ci-dessus) est <b>étiré</b> pour que les forces et les faiblesses se voient : les moyennes tombent entre 50 et 75, l'étirement envoie 30 sur 0 et 98 sur 100 :</p>
+  <div class="eq"><span class="lab">Étirement final</span>
+    <div class="f">score = arrondi( 100 · clip((brut − 30) / (98 − 30) ; 0 ; 1) )</div>
+  </div>
+
+  <h3>4. Les sept scores</h3>
+  <p>Chaque spécialité combine les mesures qui la décident. Les poids ci-dessous (somme 1) et les bornes (lo ; hi, avant réduction par la catégorie) sont ceux du code. <i>E</i> désigne l'endurance, définie ensuite.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Spécialité</th><th>Formule du score brut</th><th>Ce que ça capte</th></tr></thead>
+    <tbody>
+      <tr><td><b>Grimpeur</b></td><td>0,50 · sc(FTP/kg ; 3,8 ; 6,6) + 0,25 · sc(P<sub>5 min</sub>/kg ; 5,1 ; 7,8) + 0,15 · sc(P<sub>20 min</sub>/kg ; 4,4 ; 7,1) + 0,10 · sc(VO₂max ; 57 ; 87)</td><td>Watts par kilo, de la grimpette de 5 min au col d'une heure : le poids est déjà dans les watts par kilo (un coureur lourd est pénalisé)</td></tr>
+      <tr><td><b>Sprinteur</b></td><td>0,40 · sc(Pmax ; 300 ; 1 900) + 0,20 · sc(Pmax/kg ; 8 ; 24,4) + 0,20 · sc(P<sub>15 s</sub> ; 250 ; 1 300) + 0,10 · sc(W′ ; 0 ; 30) + 0,10 · sc(100 − fibres lentes ; 5 ; 54)</td><td>Puissance de pointe absolue (les sprinteurs sont lourds : la valeur absolue compte), puissance soutenue 15 s, réserve anaérobie, fibres rapides</td></tr>
+      <tr><td><b>Rouleur</b></td><td>0,40 · sc(W/CdA<sub>route</sub> ; 830 ; 1 500) + 0,30 · sc(FTP ; 140 ; 465) + 0,15 · sc(P<sub>20 min</sub> ; 120 ; 505) + 0,15 · <i>E</i></td><td>Vitesse sur le plat et dans le vent : watts absolus, surface frontale réduite, endurance</td></tr>
+      <tr><td><b>Contre-la-montre</b></td><td>0,55 · sc(W/CdA<sub>chrono</sub> ; 1 000 ; 2 150) + 0,20 · sc(FTP ; 140 ; 465) + 0,15 · sc(P<sub>20 min</sub>/kg ; 4,4 ; 7,1) + 0,10 · <i>E</i></td><td>La puissance tenue 20 à 60 min en position aérodynamique, avec les watts par kilo pour les chronos de côte</td></tr>
+      <tr><td><b>Courses par étapes</b></td><td>0,40 · Grimpeur + 0,20 · CLM + 0,25 · <i>E</i> + 0,15 · sc(FTP/kg ; 3,8 ; 6,6)</td><td>Montagne, chrono et récupération d'un jour à l'autre : le profil d'un leader de grand tour</td></tr>
+      <tr><td><b>Classiques</b></td><td>0,25 · sc(FTP ; 140 ; 465) + 0,20 · sc(Pmax ; 300 ; 1 900) + 0,15 · sc(W′ ; 0 ; 30) + 0,20 · sc(W/CdA<sub>route</sub> ; 830 ; 1 500) + 0,20 · <i>E</i></td><td>Puissance absolue sur de longues distances, relances à répétition (Pmax, W′), aérodynamisme, endurance</td></tr>
+      <tr><td><b>Puncheur</b></td><td>0,25 · sc(P<sub>1 min</sub>/kg ; 6,0 ; 10,7) + 0,35 · sc(P<sub>5 min</sub>/kg ; 5,1 ; 7,8) + 0,20 · sc(W′/kg ; 0,05 ; 0,39) + 0,10 · sc(β ; 0,7 ; 1,29) + 0,10 · sc(Pmax/kg ; 8 ; 24,4)</td><td>Efforts de 1 à 5 min dans une bosse ou un mur : puissance par kilo, W′ par kilo (réserve utile pour le poids à hisser), pouvoir tampon</td></tr>
+    </tbody>
+  </table></div>
+  <div class="eq"><span class="lab">Endurance <i>E</i> (utilisée par rouleur, CLM, étapes, classiques)</span>
+    <div class="f"><i>E</i> = 0,7 · sc(fibres lentes ; 34 ; 70) + 0,3 · sc(VO₂max ; 65 ; 87)</div>
+  </div>
+  <p>Les fibres lentes pèsent le plus : elles brûlent plus de lipides et fatiguent moins<cite data-k="coyle1992"></cite> (voir la section 07), ce qui décide de la fin d'une longue étape et de la récupération d'un jour à l'autre. La VO₂max complète. La spécialité <b>Courses par étapes</b> réutilise les scores de grimpeur (0,40) et de CLM (0,20) plutôt que de repartir des mesures : elle hérite de leur échelle et de leurs bornes.</p>
+  <p>Toutes les bornes <b>de puissance</b> (FTP, Pmax…) sont multipliées par <i>k</i> (ou <i>k</i><sup>0,45</sup> pour le sprint, <i>k</i><sup>0,6</sup> pour la VO₂max) avant le calcul, selon le paragraphe 3 ; celles de <i>E</i> pour les fibres lentes, et du pouvoir tampon, ne le sont pas.</p>
+
+  <h3>5. La spécialité dominante</h3>
+  <p>Une spécialité n'exclut pas les autres, et certaines se recoupent : un grimpeur est aussi bon en courses par étapes. La spécialité mise en avant (point orange, ligne « Profil ») n'est donc pas la plus haute en valeur absolue, mais celle qui <b>se détache le plus de la moyenne</b> du peloton de référence :</p>
+  <div class="eq"><span class="lab">Spécialité principale (<code>best[0]</code>)</span>
+    <div class="f">argmax<sub>s</sub> ( score<sub>s</sub> − <i>M</i><sub>s</sub> )</div>
+    <div class="f"><i>M</i> : grimpeur 61 · sprinteur 59 · rouleur 70 · CLM 71 · étapes 62 · classiques 64 · puncheur 65</div>
+  </div>
+  <p>La table <i>M</i> est la moyenne des 249 profils World Tour (échelle Pro). Sans elle, le CLM et le rouleur, mécaniquement élevés chez presque tous, l'emporteraient toujours. Le polygone en pointillés du graphique est cette même moyenne, ce qui permet de voir en un coup d'œil où l'athlète fait mieux ou moins bien que « le coureur type » de sa catégorie. La deuxième spécialité de la liste complète la ligne « Profil » (par exemple « Grimpeur · Étapes »).</p>
+
+  <h3>6. Un exemple chiffré</h3>
+  <p>Un athlète de 78 kg et 184 cm dont la FTP est 320 W, sans records saisis (la courbe type est déduite de la FTP).</p>
+  <div class="tw"><table>
+    <thead><tr><th>Étape</th><th>Calcul</th><th>Résultat</th></tr></thead>
+    <tbody>
+      <tr><td>Mesures</td><td>FTP/kg = 320 / 78 ; P<sub>5 min</sub>/kg = 416 / 78 ; P<sub>20 min</sub>/kg = 345,6 / 78 ; VO₂max estimée</td><td>4,10 · 5,33 · 4,43 · 66,4</td></tr>
+      <tr><td>Catégorie</td><td><i>ρ</i> = 0,6 · 4,10 / 6,04 + 0,4 · 5,33 / 7,19</td><td>0,407 + 0,297 = <b>0,704</b> → 2<sup>e</sup> catégorie (≥ 0,70), <i>k</i> = 0,77</td></tr>
+      <tr><td>Bornes réduites (grimpeur)</td><td>FTP/kg : (3,8 ; 6,6) · 0,77 ; 5 min : (5,1 ; 7,8) · 0,77 ; 20 min : (4,4 ; 7,1) · 0,77 ; VO₂max : (57 ; 87) · 0,77<sup>0,6</sup> = 0,855</td><td>(2,93 ; 5,08) · (3,93 ; 6,01) · (3,39 ; 5,47) · (48,7 ; 74,4)</td></tr>
+      <tr><td>Sous-scores du grimpeur</td><td>sc(4,10) ; sc(5,33) ; sc(4,43) ; sc(66,4)</td><td>54,6 · 67,6 · 50,2 · 68,9</td></tr>
+      <tr><td>Score brut</td><td>0,50 · 54,6 + 0,25 · 67,6 + 0,15 · 50,2 + 0,10 · 68,9</td><td>58,6</td></tr>
+      <tr><td>Étirement</td><td>(58,6 − 30) / 68 · 100</td><td><b>42</b> (grimpeur)</td></tr>
+      <tr><td>Autres spécialités</td><td>même démarche</td><td>sprinteur <b>86</b> · rouleur 65 · CLM 60 · étapes 39 · classiques 68 · puncheur 74 → profil « Sprinteur · Puncheur »</td></tr>
+    </tbody>
+  </table></div>
+  <p>Lecture : parmi les 2<sup>e</sup> catégories, cet athlète est plutôt un sprinteur-puncheur (puissant, lourd, Pmax élevée) qu'un grimpeur. Pour comparaison, avec l'échelle Pro, le profil d'un grimpeur du World Tour comme Pogačar (66 kg, FTP 436 W soit 6,6 W/kg) donne : grimpeur 100, étapes 99, CLM 99, rouleur 95, puncheur 90, classiques 81, sprinteur 61 ; celui d'un sprinteur comme Milan (82 kg, Pmax 2 010 W) : sprinteur 100, puncheur 82, classiques 77, rouleur 71, CLM 64, grimpeur 42, étapes 41.</p>
+
+  <div class="exp">
+    <h4>Calibrage et vérifications</h4>
+    <p>Les bornes (lo, hi) viennent des mesures des 249 profils du World Tour (<code>pros.js</code>) : lo est leur 5<sup>e</sup> centile moins une marge d'une largeur d'intervalle, hi leur 95<sup>e</sup> centile. Ces profils sont eux-mêmes des <b>estimations</b> fondées sur le poids, la taille, le type de coureur et un niveau, avec des ordres de grandeur publiés (par exemple 20 min entre 5,5 et 6,6 W/kg chez 144 coureurs de 7 équipes<cite data-k="valenzuela2022"></cite>). Le test <code>tests/rider-radar.test.js</code> vérifie que :</p>
+    <ul>
+      <li>les sept scores sont entiers et dans [0 ; 100] pour tous les profils ;</li>
+      <li>les spécialistes ressortent (Pogačar grimpeur ≥ 90 et étapes ≥ 90 ; Milan sprinteur ≥ 90 et grimpeur faible ; Ganna rouleur et CLM ≥ 85) et que la spécialité mise en avant est cohérente avec le type de coureur pour au moins 95 % des profils (243 sur 249) ;</li>
+      <li>le poids, la puissance, l'aérodynamisme (la taille) et la carte physiologique (fibres, VO₂max) font bouger les scores dans le sens attendu, à échelle égale ;</li>
+      <li>la catégorie suit les watts par kilo, avec les femmes classées plus haut à puissance égale (tableaux de référence par sexe), et tous les coureurs du World Tour sont Pro.</li>
+    </ul>
+  </div>
+
+  <h3>7. Limites</h3>
+  <ul>
+    <li><b>Sans courbe de puissance saisie</b>, le modèle utilise une courbe type où la Pmax vaut environ 4,6 fois la FTP, ce qui surestime le sprint et le puncheur d'un athlète amateur. Saisir quelques records (5 s, 1 min, 5 min, 20 min, 60 min) rend les scores fiables.</li>
+    <li>La <b>catégorie est un niveau de puissance par kilo</b>, pas une licence ni un résultat de course : un coureur peu puissant mais très tactique reste classé sur ses watts.</li>
+    <li>Le <b>CdA</b> vient du corps (taille, poids) avec un équipement de référence, non d'une mesure : deux athlètes de mêmes dimensions ont le même W/CdA pour une même FTP, quelle que soit leur position réelle.</li>
+    <li>Les <b>pondérations</b> sont un compromis de modélisation (<span class="tag cal">calage</span>), pas des résultats d'étude : elles encodent que le grimpeur dépend des watts par kilo, le rouleur des watts absolus et du CdA, le sprinteur de la puissance de pointe absolue, le puncheur des efforts de 1 à 5 min.</li>
+    <li>L'<b>échelle d'une catégorie</b> suppose que ses athlètes ont la même dispersion de profils que le peloton pro, à un facteur près.</li>
+  </ul>
+</section>
+
+<!-- ===================================================================================================== 13 -->
 <section class="sec" id="valid">
-  <div class="sec-h"><span class="num">12</span><h2>Validation, tests et limites</h2></div>
+  <div class="sec-h"><span class="num">13</span><h2>Validation, tests et limites</h2></div>
   <h3>Les tests automatiques</h3>
   <p>Le moteur est couvert par environ 300 tests, sans dépendance, qui tournent sous Node (<code>node --test</code>) ou dans un navigateur (<code>tests/browser.html</code>, <code>?f=…</code> pour choisir les fichiers). Ils vérifient notamment :</p>
   <div class="cols">
@@ -1489,7 +1618,7 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
 
 <!-- ===================================================================================================== 13 -->
 <section class="sec" id="gloss">
-  <div class="sec-h"><span class="num">13</span><h2>Glossaire et notations</h2></div>
+  <div class="sec-h"><span class="num">14</span><h2>Glossaire et notations</h2></div>
   <dl>
     <dt>Adjoint (état, passage arrière)</dt><dd>Méthode qui calcule en une seule remontée du temps la dérivée d'une quantité (le temps d'arrivée) par rapport à toutes les puissances, en tenant compte des contraintes qui relient les secondes entre elles.</dd>
     <dt>Aspiration (abri)</dt><dd>Réduction de la traînée d'un coureur abrité derrière d'autres ; k<sub>abri</sub> = 1 − <i>R</i>.</dd>
@@ -1535,7 +1664,7 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
 
 <!-- ===================================================================================================== 14 -->
 <section class="sec" id="refs">
-  <div class="sec-h"><span class="num">14</span><h2>Références</h2></div>
+  <div class="sec-h"><span class="num">15</span><h2>Références</h2></div>
   <p class="small">Numérotées dans l'ordre de première citation. Les liens mènent à une recherche par titre (PubMed pour les articles indexés, Google Scholar pour les livres et articles d'ingénierie) ou à la notice de l'article. Le rapport « Modèle physiologique du cycliste » cite en plus une vingtaine de travaux non repris ici.</p>
   <ol class="refs" id="refList"></ol>
 </section>
@@ -1636,6 +1765,7 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
     coyle1986: ["Coyle EF, Coggan AR, Hemmert MK, Ivy JL (1986). Muscle glycogen utilization during prolonged strenuous exercise when fed carbohydrate. J Appl Physiol.", pm("Muscle glycogen utilization during prolonged strenuous exercise when fed carbohydrate")],
     gelman2013: ["Gelman A, Carlin JB, Stern HS, et al. (2013). Bayesian Data Analysis, 3e éd. CRC Press.", gs("Gelman Bayesian Data Analysis third edition")],
     allen2010: ["Allen H, Coggan A (2010). Training and Racing with a Power Meter, 2e éd. VeloPress.", gs("Allen Coggan Training and Racing with a Power Meter")],
+    valenzuela2022: ["Valenzuela PL, et al. (2022). Physical performance profiles of professional road cyclists (WorldTour and ProTeam, 2013–2021). Int J Sports Physiol Perform.", pm("Valenzuela professional road cyclists WorldTour power profile Int J Sports Physiol Perform")],
     xert: ["Xert's Maximal Power Available and the modeling of fatigue (notice LIDA).", "https://lida.sport-iat.de/ta/Record/4056337?lng=en"],
   };
 
