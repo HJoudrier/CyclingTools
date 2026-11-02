@@ -93,6 +93,7 @@
   function renderProject() {
     const project = readProject();
     if (preview) preview.update(project);
+    renderCarousel(project);
     renderAthlete(project);
     renderWeather(project);
     renderGear(project);
@@ -383,6 +384,64 @@
     if (projectName(kind, project)) return projectName(kind, project);
     const s = L.summary(kind, L.extract(kind, project));
     return kind === 'route' ? (s ? s.title.split(' · ')[0] : '') : (s ? s.title : '');
+  }
+
+  // ---------- Carrousel des parcours (page d'accueil du site) ----------
+
+  let carousel = null;
+
+  /**
+   * Carrousel des parcours de la bibliothèque, en vue 2D (le tracé sur la carte) ou 3D, avec distance, D+ et D− : cliquer sur un parcours le met dans le
+   * projet en cours (toutes les applications le reprennent). Le projet en cours est la première carte, sauf s'il est déjà dans la bibliothèque.
+   */
+  function renderCarousel(project) {
+    const host = $('#hm-carousel');
+    if (!host) return;
+    if (carousel) carousel.destroy();
+    const lib = readLibrary(), cur = describeCurrent('route', project);
+    const data = hasData('route', project) ? L.extract('route', project) : null;
+    // le projet est déjà dans la bibliothèque quand un parcours porte son nom et sa longueur (les données du projet ont pu être recalculées depuis)
+    const len = data ? L.routeLength(data) : 0, pname = projectName('route', project);
+    const same = data ? lib.routes.find((it) => it.name === pname && Math.abs(L.routeLength(it.data) - len) < 2) : null;
+    const items = lib.routes.slice();
+    if (data && !same) items.unshift({ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data, project: true });
+    const rename = (it) => {
+      const name = prompt('Nouveau nom :', it.name);
+      if (name === null || !name.trim()) return;
+      const l = readLibrary();
+      L.rename(l, 'route', it.id, name);
+      if (writeJSON(LIBRARY_KEY, l)) renderProject();
+    };
+    const remove = (it) => {
+      if (!confirm(`Retirer « ${it.name} » de la bibliothèque ?`)) return;
+      const l = readLibrary();
+      L.remove(l, 'route', it.id);
+      if (writeJSON(LIBRARY_KEY, l)) renderProject();
+    };
+    carousel = PYR.libPick.routePicker(host, {
+      items, pick: data ? (same ? same.id : 'current') : '', projectLabel: 'Projet en cours', defaultView: '3d',
+      actions: (it) => (it.project ? [] : [{ label: '✎', title: `Renommer « ${it.name} »`, fn: () => rename(it) }, { label: '✕', title: `Retirer « ${it.name} » de la bibliothèque`, fn: () => remove(it) }]),
+      onAdd: () => PYR.libPick.chooseGpx((r) => {
+        const l = readLibrary(), it = L.add(l, 'route', r.name, r.data);
+        if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${it.name} » ajouté à ta bibliothèque` + (r.hasEle === false ? " (le fichier n'a pas d'altitude : pas de dénivelé)." : '.')); chooseRoute(it.id); }
+      }),
+      extra: [{ label: '✎ Tracer un parcours', title: 'Un parcours vide, à tracer sur la carte', fn: createRoute }],
+      onPick: (id) => { if (id !== 'current') chooseRoute(id); },
+      emptyText: 'Aucun parcours : ajoute un fichier GPX ou trace-en un.',
+    });
+  }
+
+  /** Met le parcours de la bibliothèque dans le projet en cours. */
+  function chooseRoute(id) {
+    const project = readProject(), it = L.find(readLibrary(), 'route', id);
+    if (!it) return;
+    L.apply('route', project, it.data);
+    setProjectName('route', project, it.name);
+    if (writeJSON(PROJECT_KEY, project)) {
+      try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
+      PYR.cloud.syncSoon();
+      renderProject();
+    }
   }
 
   /** Vignette du tracé du projet en cours (SVG sans fond de carte, donc sans réseau) : le trait avec son départ (vert) et son arrivée (rouge). */

@@ -25,6 +25,8 @@
     .po-cloud p { margin: 0; flex: 1 1 260px; }
     .po-pick { margin-top: 20px; }
     .po-pick .hm-col { display: flex; flex-direction: column; gap: 16px; }
+    .hm-carousel { min-width: 0; }
+    .po-pick .hm-grid { grid-template-columns: minmax(0, 1fr); }
     .po-h2 { margin: 28px 0 0; font-size: 1.15rem; }
   </style>
 </head>
@@ -51,12 +53,8 @@
             <p>Crée-le, modifie-le, choisis-le : toutes les applications le reprennent.</p>
           </div>
         </header>
-        <!-- aperçu du parcours du projet : distance, D+/D-, carte et profil (js/ui/route-preview.js) -->
-        <div class="hm-route" id="hm-route" aria-live="polite"></div>
-        <div class="hm-acts">
-          <button class="hm-act primary" type="button" id="hm-new-route"><span><b>Créer un parcours</b><small>Un parcours vide, nommé d'après la date et l'heure. Clique sur la carte ; le tracé suit les routes. Tu peux aussi charger un GPX.</small></span><i aria-hidden="true">›</i></button>
-          <button class="hm-act" type="button" id="hm-pick-route"><span><b>Sélectionner un parcours</b><small>Un parcours de ta bibliothèque, ou celui du projet en cours.</small></span><i aria-hidden="true">›</i></button>
-        </div>
+        <!-- carrousel des parcours de la bibliothèque, en vue 2D ou 3D (PaceYourRide/js/home.js) -->
+        <div class="hm-carousel" id="hm-carousel" aria-live="polite"></div>
       </article>
         </div>
         <div class="hm-col">
