@@ -33,11 +33,11 @@ Dans PaceYourRide, tout est enregistré automatiquement dans le navigateur (`loc
 
 ## Organisation du dépôt : des applications reliées par Dropbox
 
-Le site est fait d'**applications indépendantes**, chacune dans son dossier, avec son propre stockage dans le navigateur. Elles ne se parlent **que par Dropbox** :
+Le site est fait d'**applications**, chacune dans son dossier, avec son propre stockage dans le navigateur. **Le parcours et l'athlète se choisissent une seule fois, sur la page d'accueil** (`index.html`, racine) : elle écrit le projet en cours et la bibliothèque dans le stockage de PaceYourRide, que les jeux et le compteur (même origine) lisent directement (`Commun/js/core/lib-cache.js`). Les autres échanges, entre appareils, passent **par Dropbox** :
 
 | Dossier | Application | Rôle |
 | --- | --- | --- |
-| `index.html` (racine) | **portail** | liens vers les applications, état de la connexion Dropbox ; adresse de retour de la connexion Dropbox |
+| `index.html` (racine) | **accueil** (portail) | **choix du parcours et de l'athlète pour toutes les applications** (créer, modifier, sélectionner ; catégorie **Coureurs World Tour**, 249 profils estimés qu'on peut ouvrir et modifier : `Commun/js/engine/pros.js`), matériel, météo, stratégie, synchronisation Dropbox ; lancement des applications ; adresse de retour de la connexion Dropbox |
 | `PaceYourRide/` | **PaceYourRide** (« pro ») | **tracé des parcours**, **athlètes** (profil, courbe de puissance record, modèle physiologique), équipements (vélo, tenue, position, magasin) et **calcul du pacing optimal** ; la bibliothèque. Seule application qui écrit dans Dropbox |
 | `VirtualRide2D/` | **Virtual Ride 2D** | `index.html` : choix du parcours (carrousel 3D), de l'athlète, de la météo et réglages de la partie ; `course.html` : la course sur la carte |
 | `VirtualRide3D/` | **Virtual Ride 3D** | idem, la course dans l'univers 3D de Bike3D (`VirtualRide3D/univers/`, voir son [README](VirtualRide3D/univers/README.md)) |
@@ -416,9 +416,9 @@ Les tests (Node ≥ 18, aucune dépendance) vérifient le moteur — dont le mod
 ## Structure
 
 ```
-index.html                 portail : les quatre applications, retour de la connexion Dropbox (Commun/js/portail.js)
+index.html                 accueil : choix du parcours et de l'athlète (dont les coureurs du World Tour), lancement des applications, retour de la connexion Dropbox (PaceYourRide/js/home.js)
 PaceYourRide/              application « pro »
-  index.html               accueil : projet en cours, bibliothèque, synchronisation (js/home.js ; css/home.css)
+  index.html               redirige vers l'accueil de la racine (js/home.js et css/home.css servent cet accueil)
   parcours.html            parcours, portions, points en jeu, météo
   athlete.html             athlète : profil, courbe de puissance record, carte athlète
   equipement.html          équipements : réglages du vélo, de la tenue et de la position, magasin

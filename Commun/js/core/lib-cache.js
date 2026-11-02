@@ -10,13 +10,26 @@
   const PROJECT_ID = '__project__';                                       // le projet en cours de PaceYourRide, proposé en tête de chaque liste
   const PROJECT_KEY = (PYR.storageNs || 'paceyourride') + '.cloudproject.v1';
 
-  const C = { lib: L.empty(), project: null, projectAt: 0, pulledAt: 0, busy: false, error: '', memo: {}, profiles: new Map() };
+  // Le choix du parcours, de l'athlète, du vélo et de la tenue se fait sur la page d'accueil du site (index.html, racine), qui écrit le projet en cours et
+  // la bibliothèque dans le stockage de PaceYourRide ; les jeux et le compteur, sur la même origine, les lisent directement (sans passer par Dropbox)
+  const SHARED_LIB = 'paceyourride.library.v1', SHARED_PROJECT = 'paceyourride.v1', SHARED_MTIME = 'paceyourride.v1.mtime';
+
+  const C = { lib: L.empty(), project: null, local: null, localAt: 0, projectAt: 0, pulledAt: 0, busy: false, error: '', memo: {}, profiles: new Map() };
 
   function readJSON(k) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
 
+  /** Le projet en cours de l'accueil de ce navigateur (parcours, athlète… choisis), ou null s'il est vide. */
+  function localProject() {
+    const p = readJSON(SHARED_PROJECT);
+    return p && typeof p === 'object' && !Array.isArray(p) && (L.routeLength(p) > 0 || p.rider) ? p : null;
+  }
+
   function load() {
     C.memo = {};
-    C.lib = L.normalize(readJSON(L.STORAGE_KEY));
+    C.lib = L.merge(readJSON(L.STORAGE_KEY), readJSON(SHARED_LIB));
+    C.local = localProject();
+    C.localAt = Number(localStorage.getItem(SHARED_MTIME)) || 0;
+    if (PYR.pros) PYR.pros.setOverrides(C.lib.athletes);       // coureurs du World Tour modifiés et enregistrés
     const c = readJSON(PROJECT_KEY);
     if (c && typeof c === 'object') { C.project = c.project || null; C.projectAt = Number(c.savedAt) || 0; C.pulledAt = Number(c.pulledAt) || 0; }
     return C;
@@ -24,6 +37,7 @@
   function save() {
     try {
       localStorage.setItem(L.STORAGE_KEY, JSON.stringify(C.lib));
+      if (L.STORAGE_KEY !== SHARED_LIB) localStorage.setItem(SHARED_LIB, JSON.stringify(L.merge(readJSON(SHARED_LIB), C.lib)));      // l'accueil et les autres applications le retrouvent
       localStorage.setItem(PROJECT_KEY, JSON.stringify({ project: C.project, savedAt: C.projectAt, pulledAt: C.pulledAt }));
       return true;
     } catch (e) { return false; }
@@ -31,12 +45,12 @@
 
   /** Ce que le projet en cours de PaceYourRide offre pour la rubrique, ou null. */
   function projectItem(kind) {
-    const p = C.project;
+    const p = C.local || C.project;
     if (!p || typeof p !== 'object') return null;
     const has = kind === 'route' ? L.routeLength(p) > 0 : kind === 'bike' ? !!p.bike : !!p.rider;
     if (!has) return null;
     const own = kind === 'route' ? p.route && p.route.name : kind === 'bike' ? p.bike && p.bike.name : kind === 'outfit' ? p.rider && p.rider.outfitName : p.rider && p.rider.name;
-    return { id: PROJECT_ID, name: (own ? own + ' · ' : '') + 'projet en cours', savedAt: C.projectAt, data: L.extract(kind, p), project: true };
+    return { id: PROJECT_ID, name: (own ? own + ' · ' : '') + 'projet en cours', savedAt: C.local ? C.localAt : C.projectAt, data: L.extract(kind, p), project: true };
   }
 
   /** Éléments proposés pour la rubrique : le projet en cours (sauf s'il est déjà dans la bibliothèque), puis la bibliothèque (le plus récent d'abord). */
@@ -48,9 +62,10 @@
     C.memo[kind] = pj && !out.some((x) => JSON.stringify(x.data) === json) ? [pj].concat(out) : out;
     return C.memo[kind];
   }
-  const find = (kind, id) => items(kind).find((x) => x.id === id) || (kind === 'athlete' && PYR.pros ? PYR.pros.find(id) : null);   // coureurs World Tour : pros.js
+  /** Un élément par son identifiant : le projet en cours (PROJECT_ID : ce qui est choisi sur l'accueil du site), la bibliothèque ou, pour un athlète, un coureur du World Tour. */
+  const find = (kind, id) => (id === PROJECT_ID ? projectItem(kind) : null) || items(kind).find((x) => x.id === id) || (kind === 'athlete' && PYR.pros ? PYR.pros.find(id) : null);
   /** Identifiant choisi s'il existe encore, sinon le premier proposé ('' s'il n'y en a pas). */
-  const pickId = (kind, id) => (items(kind).some((x) => x.id === id) || (kind === 'athlete' && PYR.pros && PYR.pros.has(id)) ? id : (items(kind)[0] ? items(kind)[0].id : ''));
+  const pickId = (kind, id) => (find(kind, id) ? id : (items(kind)[0] ? items(kind)[0].id : ''));
 
   /** Profil du parcours d'un élément (calculé une fois par version). */
   function profileOf(it) {
@@ -65,7 +80,7 @@
     try {
       const snap = await PYR.cloud.pull();
       if (!snap) return 'vide';
-      C.memo = {}; C.lib = snap.library; C.project = snap.project; C.projectAt = snap.savedAt; C.pulledAt = snap.pulledAt;
+      C.memo = {}; C.lib = L.merge(C.lib, snap.library); if (PYR.pros) PYR.pros.setOverrides(C.lib.athletes); C.project = snap.project; C.projectAt = snap.savedAt; C.pulledAt = snap.pulledAt;
       save();
       return 'ok';
     } catch (e) { C.error = e.message; throw e; } finally { C.busy = false; }
@@ -116,7 +131,7 @@
     const bike = pick.bike === 'none' ? null : find('bike', pickId('bike', pick.bike)), outfit = pick.outfit === 'none' ? null : find('outfit', pickId('outfit', pick.outfit));
     if (bike) L.apply('bike', st, bike.data);
     if (outfit) L.apply('outfit', st, outfit.data);
-    const pj = C.project;
+    const pj = C.local || C.project;
     if (pj) {
       if (pj.perf && typeof pj.perf === 'object') st.perf = Object.assign({}, st.perf, pj.perf);
       if (pj.env && typeof pj.env === 'object') st.env = Object.assign({}, st.env, pj.env);
@@ -125,5 +140,5 @@
     return route;
   }
 
-  PYR.libCache = { PROJECT_ID, state: C, load, save, items, find, pickId, profileOf, refresh, store, routeFromGpx, compose };
+  PYR.libCache = { PROJECT_ID, localProject, current: projectItem, state: C, load, save, items, find, pickId, profileOf, refresh, store, routeFromGpx, compose };
 })(globalThis.PYR = globalThis.PYR || {});

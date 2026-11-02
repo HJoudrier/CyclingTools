@@ -385,12 +385,19 @@
     setTxt(V.cloudBtn, st.connected ? '↻ Actualiser' : 'Se connecter à Dropbox');
   }
 
+  /** Le parcours et l'athlète se choisissent (et se créent, ou se modifient) sur la page d'accueil du site, pour toutes les applications. */
+  const goHome = () => { store.saveNow(); location.href = (PYR.root || '') + 'index.html'; };
+  const chosen = (kind) => LC.find(kind, LC.pickId(kind, LC.PROJECT_ID));
+
   function renderPickers() {
     const pick = pickOf();
     for (const v of pickViews) v.destroy();
-    pickViews = [PYR.libPick.routePicker(V.pickRoutes, { items: LC.items('route'), pick: LC.pickId('route', pick.route), onAdd: addRoute, onPick: (id) => pickItem('route', id),
-      emptyText: 'Aucun parcours : ajoute un fichier GPX, ou crée-en un dans PaceYourRide.' })];
-    PYR.libPick.athletePicker(V.pickAth, { items: LC.items('athlete'), pick: LC.pickId('athlete', pick.athlete), onAdd: addAthlete, onPick: (id) => pickItem('athlete', id), emptyText: "Aucun athlète : l'athlète par défaut est utilisé." });
+    const route = chosen('route'), ath = chosen('athlete');
+    pickViews = [PYR.libPick.routePicker(V.pickRoutes, { items: route ? [route] : [], pick: route ? route.id : '', onPick: () => {}, projectLabel: "Choisi sur l'accueil",
+      extra: [{ label: "↩ Changer de parcours (page d'accueil)", title: "Le parcours se choisit, se crée ou se modifie sur la page d'accueil du site", fn: goHome }],
+      emptyText: "Aucun parcours choisi : choisis ou crée un parcours sur la page d'accueil du site." })];
+    PYR.libPick.athletePicker(V.pickAth, { items: ath ? [ath] : [], pick: ath ? ath.id : '', onPick: () => {}, actions: () => [], emptyText: "Aucun athlète choisi : l'athlète par défaut est utilisé. Choisis-en un sur la page d'accueil du site." });
+    V.pickAth.querySelector('.gs-add').appendChild(h('button', { class: 'btn', type: 'button', onclick: goHome }, "↩ Changer d'athlète (page d'accueil)"));
     for (const [kind, sel] of [['bike', V.pickBike], ['outfit', V.pickOutfit]]) {
       D.clear(sel);
       sel.appendChild(h('option', { value: 'none' }, 'Réglages par défaut'));
@@ -403,7 +410,7 @@
   function composeSelection() {
     if (run.mode !== 'prep' || inGame()) return;      // dans une partie, le parcours est celui de la partie
     const keep = { cfg: store.state.ride.cfg, demo: store.state.ride.demo, plan: store.state.ride.plan, info: store.state.ride.planInfo };
-    const pick = pickOf();
+    const pick = Object.assign({}, pickOf(), { route: LC.PROJECT_ID, athlete: LC.PROJECT_ID });
     if (!LC.compose(store.state, pick)) return;
     store.state.ride.cfg = keep.cfg; store.state.ride.demo = keep.demo;
     PYR.routeModel.computeMissing();
@@ -438,17 +445,6 @@
     run.cloudBusy = false;
     composeSelection();
     renderPickers(); renderCloud(); renderPrep();
-  }
-
-  function afterAdd(res, kind, name, note) {
-    D.toast(`« ${name} » ajouté${note}` + (res.sent ? ' et envoyé à Dropbox.' : res.error ? ` (restera sur cet appareil : ${res.error})` : ' (sur cet appareil : connecte Dropbox pour le retrouver ailleurs).'), res.error ? 'error' : undefined, 6000);
-    pickItem(kind, res.item.id);
-  }
-  function addRoute() {
-    PYR.libPick.chooseGpx(async (r) => afterAdd(await LC.store('route', r.name, r.data), 'route', r.name, r.hasEle === false ? ' (le fichier n\'a pas d\'altitude : pas de dénivelé)' : ''));
-  }
-  function addAthlete() {
-    PYR.libPick.athleteDialog(async (a) => afterAdd(await LC.store('athlete', a.name, a.data), 'athlete', a.name, ''));
   }
 
   /* ---------- partie Virtual Ride rejointe avec le GPS (live.js) ---------- */
@@ -2265,6 +2261,8 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       composeSelection();
       renderPickers(); renderCloud();
       pullFromCloud(false);                                       // la bibliothèque est relue dans Dropbox à l'ouverture
+      // le parcours et l'athlète se choisissent sur la page d'accueil : on les relit au retour sur cette page
+      window.addEventListener('pageshow', (e) => { if (e.persisted && run.mode === 'prep') { LC.load(); composeSelection(); renderPickers(); renderCloud(); renderPrep(); } });
       ['profile', 'rider', 'bike', 'env', 'perf', 'weather', 'surfaces', 'winds'].forEach((e) => store.on(e, () => { if (run.mode === 'prep' && document.body.dataset.tab === 'ride') renderPrep(); }));
       // la référence de W′bal est inscrite dans le plan : un plan repris de la page Pacing optimal est repris à nouveau, les autres sont signalés périmés (empreinte)
       store.on('formref', () => {

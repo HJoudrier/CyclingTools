@@ -71,3 +71,24 @@ test('coureurs virtuels du World Tour : vrais noms et profils, tirage fixé par 
   let n = 0; while (race.riders.some((r) => !r.finished) && n++ < 20000) Race.step(race);
   assert.ok(race.riders.every((r) => r.finished), 'tous arrivent');
 });
+
+test('coureurs World Tour : la version modifiée enregistrée dans la bibliothèque remplace le profil d\'origine (et revient quand on la retire)', () => {
+  const it = P.find('pro:primoz-roglic'), base = it.data.rider.cp;
+  const mod = JSON.parse(JSON.stringify(it.data.rider)); mod.cp = base + 40;
+  P.setOverrides([{ id: 'l1', name: 'Primož Roglič', savedAt: 9, data: { rider: mod } }, { id: 'l2', name: 'Quelqu\'un d\'autre', savedAt: 9, data: { rider: mod } }]);
+  const o = P.find('pro:primoz-roglic');
+  assert.equal(o.data.rider.cp, base + 40);
+  assert.ok(o.edited && o.libId === 'l1' && o.pro.wkg > it.pro.wkg);
+  assert.equal(P.idOfName('PRIMOZ ROGLIC'), 'pro:primoz-roglic');
+  assert.equal(P.idOfName('Quelqu\'un d\'autre'), '');
+  // les coureurs virtuels du World Tour prennent la version modifiée
+  const { makeProfile, setupFor, DEFAULT_RIDER, DEFAULT_BIKE } = require('./helpers.js');
+  const { course } = setupFor(makeProfile([{ len: 3000, grade: 0 }]));
+  const race = globalThis.PYR.race.create({ course, rules: {}, seed: 1, gustSeed: 1, cps: [] });
+  const bots = globalThis.PYR.race.addBots(race, { n: 12, level: 'worldtour-top', rider: DEFAULT_RIDER, bike: DEFAULT_BIKE, v0: 0 });
+  const roglic = bots.find((b) => b.name === 'Primož Roglič');
+  if (roglic) assert.equal(Math.round(roglic.athlete.cp), base + 40);
+  P.setOverrides([]);
+  assert.equal(P.find('pro:primoz-roglic').data.rider.cp, base);
+  assert.ok(!P.find('pro:primoz-roglic').edited);
+});

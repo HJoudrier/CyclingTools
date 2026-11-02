@@ -22,7 +22,9 @@
 
   const S = { views: [], mode: 'random' };
   const items = (kind) => C.items(kind), find = (kind, id) => C.find(kind, id);
-  const pickId = (kind) => C.pickId(kind, store.state.game.pick[kind]);
+  // parcours et athlète : ce qui est choisi sur la page d'accueil (le projet en cours), à défaut le premier de la bibliothèque ; vélo et tenue : le choix de cette page
+  const pickId = (kind) => C.pickId(kind, kind === 'route' || kind === 'athlete' ? C.PROJECT_ID : store.state.game.pick[kind]);
+  const chosen = (kind) => find(kind, pickId(kind));
 
   /* ---------- Dropbox ---------- */
 
@@ -36,12 +38,12 @@
     let txt;
     if (c.busy) txt = h('span', null, 'Échange avec ton Dropbox…');
     else if (c.error) txt = h('span', null, h('b', null, 'Dropbox : '), c.error);
-    else if (!st.connected) txt = h('span', null, h('b', null, 'Dropbox non connecté. '), 'Tes parcours et tes athlètes sont ceux de PaceYourRide, lus dans ton Dropbox ; ceux que tu ajoutes ici restent sur cet appareil tant que tu n\'es pas connecté.' + (when ? ` Copie locale du ${when}.` : ''));
+    else if (!st.connected) txt = h('span', null, h('b', null, 'Dropbox non connecté. '), 'Ton parcours et ton athlète sont ceux choisis sur la page d\'accueil ; ta bibliothèque reste sur cet appareil tant que tu n\'es pas connecté.' + (when ? ` Copie locale du ${when}.` : ''));
     else txt = h('span', null, h('b', null, 'Dropbox connecté. '), `${n('route')} parcours, ${n('athlete')} athlète${n('athlete') > 1 ? 's' : ''}, ${n('bike')} vélo${n('bike') > 1 ? 's' : ''}` + (when ? ` · lu le ${when}` : ''));
     box.append(h('div', { class: 'gs-cloud-txt' }, txt));
     if (st.connected) box.append(h('button', { class: 'btn', type: 'button', disabled: c.busy ? 'true' : null, onclick: () => refresh() }, '↻ Actualiser'));
     else box.append(h('button', { class: 'btn primary', type: 'button', onclick: () => PYR.cloud.login().catch((e) => D.toast(e.message, 'error')) }, 'Se connecter à Dropbox'));
-    box.append(h('a', { class: 'btn ghost', href: '../PaceYourRide/index.html', title: 'Tracer des parcours, régler des athlètes' }, 'PaceYourRide'));
+    box.append(h('a', { class: 'btn ghost', href: (PYR.root || '') + 'index.html', title: 'Choisir ou créer un parcours et un athlète' }, 'Accueil'));
   }
 
   async function refresh() {
@@ -55,47 +57,29 @@
     renderAll();
   }
 
-  /** Ajoute un parcours (fichier GPX) à la bibliothèque, puis le choisit. */
-  function addRoute() {
-    PYR.libPick.chooseGpx(async (r) => {
-      D.toast(`Ajout de « ${r.name} »…`);
-      const res = await C.store('route', r.name, r.data);
-      afterAdd(res, 'route', r.name, r.hasEle === false ? ' (le fichier n\'a pas d\'altitude : pas de dénivelé)' : '');
-    });
-  }
-  function addAthlete() {
-    PYR.libPick.athleteDialog(async (a) => afterAdd(await C.store('athlete', a.name, a.data), 'athlete', a.name, ''));
-  }
-  function afterAdd(res, kind, name, note) {
-    D.toast(`« ${name} » ajouté${note}` + (res.sent ? ' et envoyé à Dropbox.' : res.error ? ` (restera sur cet appareil : ${res.error})` : ' (sur cet appareil : connecte Dropbox pour le retrouver ailleurs).'), res.error ? 'error' : undefined, 6000);
-    store.state.game.pick[kind] = res.item.id;
-    renderAll();
-  }
-
   /* ---------- 1. parcours ---------- */
 
   const fmt = (x, d) => (Math.round(x * Math.pow(10, d || 0)) / Math.pow(10, d || 0)).toLocaleString('fr-FR');
 
-  const removeAction = (kind) => (it) => (it.project ? [] : [{ label: '✕', title: `Retirer « ${it.name} » de la bibliothèque`, fn: () => removeItem(kind, it) }]);
-  async function removeItem(kind, it) {
-    if (!confirm(`Retirer « ${it.name} » de ta bibliothèque (et de Dropbox) ?`)) return;
-    L.remove(C.state.lib, kind, it.id);
-    C.state.memo = {}; C.save();
-    if (PYR.cloud.status().connected) { try { C.state.lib = await PYR.cloud.saveLibrary(C.state.lib); C.state.memo = {}; C.save(); } catch (e) { D.toast(e.message, 'error'); } }
-    renderAll();
-  }
+  /** Page d'accueil du site : c'est là qu'on choisit (et qu'on crée) le parcours et l'athlète, pour toutes les applications. */
+  const homeUrl = () => (PYR.root || '') + 'index.html';
+  const goHome = () => { store.saveNow(); location.href = homeUrl(); };
 
   function renderRoutes() {
     for (const v of S.views) v.destroy();
-    S.views = [PYR.libPick.routePicker($('#gs-routes'), { items: items('route'), pick: pickId('route'), defaultView: is3d() ? '3d' : '2d', onAdd: addRoute, onPick: (id) => setPick('route', id), actions: removeAction('route'),
-      emptyText: 'Aucun parcours pour le moment. Ajoute un fichier GPX avec « Ajouter un parcours », ou trace-en un dans PaceYourRide.' })];
+    const cur = chosen('route');
+    S.views = [PYR.libPick.routePicker($('#gs-routes'), { items: cur ? [cur] : [], pick: cur ? cur.id : '', defaultView: is3d() ? '3d' : '2d', onPick: () => {}, projectLabel: "Choisi sur l'accueil",
+      extra: [{ label: "↩ Changer de parcours (page d'accueil)", title: "Le parcours se choisit, se crée ou se modifie sur la page d'accueil du site, pour toutes les applications", fn: goHome }],
+      emptyText: "Aucun parcours choisi : choisis ou crée un parcours sur la page d'accueil du site." })];
   }
 
   /* ---------- 2. athlète, vélo, tenue ---------- */
 
   function renderAthletes() {
-    PYR.libPick.athletePicker($('#gs-athletes'), { items: items('athlete'), pick: pickId('athlete'), onAdd: addAthlete, onPick: (id) => setPick('athlete', id), actions: removeAction('athlete'), pros: true,
-      emptyText: "Aucun athlète enregistré : l'athlète par défaut sera utilisé. Ajoute le tien avec « Ajouter un athlète »." });
+    const cur = chosen('athlete'), host = $('#gs-athletes');
+    PYR.libPick.athletePicker(host, { items: cur ? [cur] : [], pick: cur ? cur.id : '', onPick: () => {}, actions: () => [],
+      emptyText: "Aucun athlète choisi : l'athlète par défaut sera utilisé. Choisis ou crée un athlète (ou un coureur du World Tour) sur la page d'accueil du site." });
+    host.querySelector('.gs-add').appendChild(h('button', { class: 'btn', type: 'button', title: "L'athlète (et les coureurs du World Tour) se choisit, se crée ou se modifie sur la page d'accueil du site, pour toutes les applications", onclick: goHome }, "↩ Changer d'athlète (page d'accueil)"));
     for (const kind of ['bike', 'outfit']) {
       const sel = $(kind === 'bike' ? '#gs-bike' : '#gs-outfit'), all = items(kind), id = store.state.game.pick[kind];
       D.clear(sel);
@@ -120,7 +104,7 @@
     G.display = is3d() ? '3d' : '2d';
     const keyBefore = store.profile ? We.routeKey(store.profile) : '';
     const wxBefore = st.weather;
-    const route = C.compose(st, G.pick);
+    const route = C.compose(st, Object.assign({}, G.pick, { route: pickId('route'), athlete: pickId('athlete') }));
     if (route) {
       st.weather = wxBefore || freshWeather();       // (la météo du parcours enregistré n'est pas reprise : voir plus bas)
       PYR.routeModel.computeMissing();
@@ -242,6 +226,10 @@
       // VirtualRide3D : matériel modifié sur la vue 3D (gear-edit.js) ; les changements sont enregistrés tout de suite
       if ($('#gs-gear3d')) PYR.gearEdit.init($('#gs-gear3d'), () => { PYR.app.refreshBindings(); });
       setMode(S.mode, true);
+      // le choix se fait sur la page d'accueil : on le relit au retour sur cette page et quand une autre page le change
+      const reread = () => { C.load(); renderAll(); };
+      window.addEventListener('pageshow', (e) => { if (e.persisted) reread(); });
+      window.addEventListener('storage', (e) => { if (e.key === 'paceyourride.v1' || e.key === 'paceyourride.library.v1') reread(); });
       store.on('weather', () => { randomSummary(); renderSummary(); });      // météo récupérée, ou tirée à nouveau
       // lecture de Dropbox à l'ouverture, quand l'appareil est connecté
       if (PYR.cloud.status().connected) refresh();

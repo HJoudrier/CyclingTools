@@ -67,3 +67,28 @@ test('lib-cache : sans bibliothèque ni projet, compose ne change rien', () => {
   assert.equal(C.compose(st, {}), null);
   assert.deepEqual(st.route, {});
 });
+
+test('lib-cache : le choix de l\'accueil (projet et bibliothèque de PaceYourRide, même navigateur) est lu directement, avec les coureurs du World Tour', () => {
+  store.clear();
+  const home = L.empty();
+  L.add(home, 'athlete', 'Camille', { rider: { name: 'Camille', weight: 58, ftp: 210 } }, 2000);
+  store.set('paceyourride.library.v1', JSON.stringify(home));
+  store.set('paceyourride.v1', JSON.stringify(Object.assign({ version: 1 }, route('Choisi à l\'accueil'), { rider: { name: 'Tadej Pogačar', weight: 66, ftp: 436 } })));
+  store.set('paceyourride.v1.mtime', '5000');
+  C.load();
+  assert.ok(C.state.lib.athletes.some((a) => a.name === 'Camille'), 'la bibliothèque de l\'accueil est lue');
+  assert.equal(C.current('route').data.route.name, 'Choisi à l\'accueil');
+  assert.equal(C.find('athlete', C.PROJECT_ID).data.rider.name, 'Tadej Pogačar');
+  assert.equal(C.pickId('route', C.PROJECT_ID), C.PROJECT_ID);
+  // un coureur du World Tour se retrouve par son identifiant, et sa version modifiée enregistrée dans la bibliothèque le remplace
+  assert.equal(C.find('athlete', 'pro:remco-evenepoel').name, 'Remco Evenepoel');
+  assert.equal(C.pickId('athlete', 'pro:remco-evenepoel'), 'pro:remco-evenepoel');
+  const mod = JSON.parse(JSON.stringify(C.find('athlete', 'pro:remco-evenepoel').data));
+  mod.rider.cp = 500;
+  L.add(home, 'athlete', 'Remco Evenepoel', mod, 3000);
+  store.set('paceyourride.library.v1', JSON.stringify(home));
+  C.load();
+  assert.equal(C.find('athlete', 'pro:remco-evenepoel').data.rider.cp, 500);
+  assert.equal(C.find('athlete', 'pro:remco-evenepoel').edited, true);
+  PYR.pros.setOverrides([]);
+});

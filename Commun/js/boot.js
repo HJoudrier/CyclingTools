@@ -7,6 +7,7 @@
  *   jeu3d     VirtualRide3D/          le jeu dans l'univers 3D de Bike3D
  *   jeu3dr    VirtualRide3DRealiste/  le même jeu dans un monde 3D réaliste (PC et consoles de salon : VirtualRide3DRealiste/monde/)
  *   compteur  Compteur/       le compteur de la vraie sortie
+ *   portail   (racine)        la page d'accueil : choix du parcours et de l'athlète pour toutes les applications, et lancement des applications
  * La page dit laquelle elle est avec l'attribut data-app de la balise qui charge ce fichier, en fin de corps :
  *   <script src="../Commun/js/boot.js" data-app="jeu2d"></script>
  * PYR.root : adresse de la racine du site (avec la barre finale) ; PYR.appId, PYR.appDir : l'application et son dossier ;
@@ -53,15 +54,14 @@
     jeu3d: { dir: 'VirtualRide3D', ns: 'paceyourride.jeu3d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     jeu3dr: { dir: 'VirtualRide3DRealiste', ns: 'paceyourride.jeu3dr', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     compteur: { dir: 'Compteur', ns: 'paceyourride.compteur', scripts: ENGINE.concat(SHARED_UI, ['Commun/vendor/qrcode-generator/qrcode.js', 'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js', 'Compteur/js/tab-ride.js']) },
-    // accueil de PaceYourRide : le projet en cours et la bibliothèque (pas de Commun/js/app.js)
-    'pro-home': {
-      dir: 'PaceYourRide', ns: 'paceyourride', light: true,
+    // la page d'accueil du site (racine) : choix du parcours et de l'athlète (ou d'un coureur du World Tour) pour toutes les applications, projet en cours,
+    // bibliothèque, Dropbox (aussi adresse de retour de la connexion : home.js) et lancement des applications (pas de Commun/js/app.js)
+    portail: {
+      dir: '', ns: 'paceyourride', light: true,
       scripts: ['Commun/vendor/leaflet/leaflet.js', 'Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js',
-        'Commun/js/engine/catalog.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js', 'Commun/js/ui/services.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'],
+        'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
+        'Commun/js/ui/services.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'],
     },
-    // le portail (racine) : retour de Dropbox et liens vers les applications
-    portail: { dir: '', ns: 'paceyourride', light: true,
-      scripts: ['Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/core/dom.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/portail.js'] },
   };
 
   const self = document.currentScript;

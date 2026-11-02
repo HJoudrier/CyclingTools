@@ -371,11 +371,35 @@ LOT|Andreas Kron|1998|179|66|p|64
   });
 
   const cache = new Map();
-  /** Élément « athlète » de la bibliothèque pour un coureur : { id ('pro:nom'), name, savedAt, data ({ rider }), pro }. */
+  let overrides = new Map();          // 'pro:nom' → élément de la bibliothèque qui remplace le profil d'origine (le coureur modifié et enregistré)
+
+  /**
+   * Coureurs modifiés par l'utilisateur : un athlète de la bibliothèque (library.js) qui porte le nom d'un coureur du World Tour remplace son profil
+   * d'origine (on ouvre le coureur sur la page Athlète, on le modifie, puis « Enregistrer » le range dans la bibliothèque sous le même nom).
+   * À appeler avec la liste des athlètes de la bibliothèque à chaque lecture de celle-ci ; sans modification, tout reste d'origine.
+   */
+  function setOverrides(list) {
+    const next = new Map();
+    for (const it of list || []) {
+      if (!it || !it.data || !it.data.rider || typeof it.name !== 'string') continue;
+      const id = 'pro:' + slug(it.name);
+      if (RIDERS.some((r) => r.id === id) && (!next.has(id) || it.savedAt > next.get(id).savedAt)) next.set(id, it);
+    }
+    const same = next.size === overrides.size && Array.from(next).every(([k, v]) => overrides.get(k) && overrides.get(k).savedAt === v.savedAt && overrides.get(k).id === v.id);
+    if (same) return;
+    overrides = next;
+    cache.clear();
+  }
+
+  /** Élément « athlète » de la bibliothèque pour un coureur : { id ('pro:nom'), name, savedAt, data ({ rider }), pro, edited, libId }. */
   function item(r) {
     if (!cache.has(r.id)) {
-      const b = build(r);
-      cache.set(r.id, { id: r.id, name: r.name, savedAt: 0, data: { rider: b.rider }, pro: b.pro });
+      const b = build(r), ov = overrides.get(r.id);
+      if (ov) {
+        const rider = ov.data.rider;
+        cache.set(r.id, { id: r.id, name: r.name, savedAt: ov.savedAt, data: { rider }, edited: true, libId: ov.id,
+          pro: Object.assign({}, b.pro, { wkg: round((Number(rider.cp) || Number(rider.ftp) || 0) / (Number(rider.weight) || 72), 2), p5: Math.round(PYR.physio && PYR.physio.buildAthlete ? PYR.physio.buildAthlete(rider).mmp(300) : b.pro.p5) }) });
+      } else cache.set(r.id, { id: r.id, name: r.name, savedAt: 0, data: { rider: b.rider }, pro: b.pro });
     }
     return cache.get(r.id);
   }
@@ -384,6 +408,8 @@ LOT|Andreas Kron|1998|179|66|p|64
   const all = () => RIDERS.map(item);
   const find = (id) => { const r = RIDERS.find((x) => x.id === id); return r ? item(r) : null; };
   const has = (id) => RIDERS.some((x) => x.id === id);
+  /** Identifiant « pro:nom » du coureur du World Tour qui porte ce nom, ou '' (insensible aux accents et à la casse). */
+  const idOfName = (name) => { const id = 'pro:' + slug(String(name || '')); return has(id) ? id : ''; };
 
   /** Rapport FTP / CdA estimé (W/m²) en position route : CdA ≈ 0,9 × surface frontale de Bassett (taille, poids). */
   function wattsPerCdA(it) {
@@ -392,5 +418,5 @@ LOT|Andreas Kron|1998|179|66|p|64
     return round(r.ftp / (0.9 * a), 0);
   }
 
-  PYR.pros = { TYPES, TEAMS, RIDERS, build, item, all, find, has, wattsPerCdA };
+  PYR.pros = { TYPES, TEAMS, RIDERS, build, item, all, find, has, idOfName, setOverrides, wattsPerCdA };
 })(globalThis.PYR = globalThis.PYR || {});

@@ -90,7 +90,7 @@
       const s = L.summary('athlete', it.data) || { title: it.name, detail: '' };
       box.appendChild(h('div', { class: 'gs-ath', role: 'option', tabindex: '0', 'aria-selected': String(it.id === o.pick), dataset: { id: it.id },
         onclick: () => o.onPick(it.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); o.onPick(it.id); } } },
-      h('b', null, it.project ? s.title + ' (projet en cours)' : it.name), h('small', null, s.detail), actionsEl(it, o.actions)));
+      h('b', null, it.project ? s.title + ' (' + String(o.projectLabel || 'projet en cours').toLowerCase() + ')' : it.name), h('small', null, s.detail), actionsEl(it, o.actions)));
     }
     host.appendChild(box);
     if (!o.items.length) host.appendChild(h('p', { class: 'hint gs-empty' }, o.emptyText || "Aucun athlète enregistré : l'athlète par défaut sera utilisé."));
@@ -115,6 +115,11 @@
     const norm = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const KEY = { wkg: (it) => it.pro.wkg, watts: (it) => it.data.rider.cp, cda: (it) => Pr.wattsPerCdA(it), pmax: (it) => it.data.rider.pmax };
 
+    // ✎ ouvre le coureur sur la page Athlète pour le modifier (« Enregistrer » le range dans la bibliothèque, sous son nom) ; ↺ rend le profil d'origine
+    const proActions = (it) => ((o.onEdit || o.onReset) ? h('div', { class: 'gs-card-acts' },
+      o.onEdit ? h('button', { class: 'btn ghost icon', type: 'button', title: `Ouvrir et modifier « ${it.name} » sur la page Athlète`, 'aria-label': `Ouvrir et modifier ${it.name}`, onclick: (e) => { e.stopPropagation(); o.onEdit(it); } }, '✎') : null,
+      o.onReset && it.edited ? h('button', { class: 'btn ghost icon', type: 'button', title: `Rendre à « ${it.name} » son profil d'origine`, 'aria-label': `Rétablir le profil d'origine de ${it.name}`, onclick: (e) => { e.stopPropagation(); o.onReset(it); } }, '↺') : null) : null);
+
     function render() {
       const q = norm(search.value.trim());
       let rows = all.filter((it) => (!teamSel.value || it.pro.team === teamSel.value) && (!typeSel.value || it.pro.type === typeSel.value) && (!q || norm(it.name).includes(q)));
@@ -126,10 +131,12 @@
         const r = it.data.rider, p = it.pro;
         list.appendChild(h('div', { class: 'gs-ath gs-pro', role: 'option', tabindex: '0', 'aria-selected': String(it.id === o.pick), dataset: { id: it.id },
           onclick: () => o.onPick(it.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); o.onPick(it.id); } } },
-        h('b', null, it.name), h('small', { class: 'gs-pro-team' }, Pr.TEAMS[p.team] + ' · ' + p.typeLabel),
+        h('b', null, it.name, it.edited ? h('span', { class: 'gs-pro-edited', title: "Profil modifié et enregistré dans ta bibliothèque" }, ' · modifié') : null),
+        h('small', { class: 'gs-pro-team' }, Pr.TEAMS[p.team] + ' · ' + p.typeLabel),
         h('small', null, fmt(r.weight, 0) + ' kg · ' + fmt(r.height) + ' cm · ' + r.age + ' ans'),
         h('small', null, 'PC ' + fmt(r.cp) + ' W (' + fmt(p.wkg, 2) + ' W/kg) · W′ ' + fmt(r.wPrime, 1) + ' kJ'),
-        h('small', null, 'Pmax ' + fmt(r.pmax) + ' W · ' + fmt(Pr.wattsPerCdA(it)) + ' W/CdA')));
+        h('small', null, 'Pmax ' + fmt(r.pmax) + ' W · ' + fmt(Pr.wattsPerCdA(it)) + ' W/CdA'),
+        proActions(it)));
       }
       if (!rows.length) list.appendChild(h('p', { class: 'hint gs-empty' }, 'Aucun coureur ne correspond.'));
     }

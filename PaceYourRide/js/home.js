@@ -13,7 +13,9 @@
   const MTIME_KEY = 'paceyourride.v1.mtime';       // date de la dernière modification du projet (js/core/store.js), pour la synchronisation
 
   /** Pages du site où se modifie chaque rubrique. */
-  const PAGE = { route: 'parcours.html', rider: 'athlete.html', bike: 'equipement.html', perf: 'pacing.html' };
+  // (la page d'accueil est à la racine du site : les pages de PaceYourRide sont dans son dossier ; UP : de la page vers la racine)
+  const IN_PYR = PYR.appDir === 'PaceYourRide', BASE = IN_PYR ? '' : 'PaceYourRide/', UP = IN_PYR ? '../' : '';
+  const PAGE = { route: BASE + 'parcours.html', rider: BASE + 'athlete.html', bike: BASE + 'equipement.html', perf: BASE + 'pacing.html' };
 
   /** Rubriques, dans l'ordre de l'assistant : libellé, page (PAGE) où les modifier. */
   const KINDS = [
@@ -33,7 +35,13 @@
     try { localStorage.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); return false; }
   }
   const readProject = () => { const p = readJSON(PROJECT_KEY); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; };
-  const readLibrary = () => L.normalize(readJSON(LIBRARY_KEY));
+  const readLibrary = () => {
+    const lib = L.normalize(readJSON(LIBRARY_KEY));
+    if (PYR.pros) PYR.pros.setOverrides(lib.athletes);       // coureurs du World Tour modifiés et enregistrés dans la bibliothèque
+    return lib;
+  };
+  /** Un élément de la bibliothèque, ou — pour un athlète — un coureur du World Tour (identifiant « pro:nom »). */
+  const findItem = (lib, kind, id) => L.find(lib, kind, id) || (kind === 'athlete' && PYR.pros ? PYR.pros.find(id) : null);
 
   /** Le projet contient-il quelque chose pour cette rubrique ? (sinon les pages utilisent les valeurs par défaut) */
   function hasData(kind, project) {
@@ -247,7 +255,7 @@
     const cur = describeCurrent(kind, project);
     const canCurrent = !(kind === 'route' && cur.empty);
 
-    if (W.sel[kind] !== 'current' && !L.find(lib, kind, W.sel[kind])) W.sel[kind] = canCurrent ? 'current' : (items[0] ? items[0].id : 'current');
+    if (W.sel[kind] !== 'current' && !findItem(lib, kind, W.sel[kind])) W.sel[kind] = canCurrent ? 'current' : (items[0] ? items[0].id : 'current');
     if (W.sel[kind] === 'current' && !canCurrent) W.sel[kind] = items[0] ? items[0].id : 'current';
 
     body.appendChild(h('p', { class: 'wz-ask' }, k.pick + ' :'));
@@ -321,7 +329,8 @@
     for (const v of W.views || []) if (v && v.destroy) v.destroy();
     W.views = [];
     const list = canCurrent ? [{ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data: L.extract(kind, project), project: true }] : [];
-    list.push(...items);
+    // un athlète enregistré sous le nom d'un coureur du World Tour est la version modifiée de ce coureur : il se retrouve dans la catégorie « Coureurs World Tour »
+    list.push(...(kind === 'athlete' && PYR.pros ? items.filter((it) => !PYR.pros.idOfName(it.name)) : items));
     const acts = (it) => (it.project ? [] : [
       { label: '✎', title: `Renommer « ${it.name} »`, fn: () => {
         const name = prompt('Nouveau nom :', it.name);
@@ -347,9 +356,23 @@
       emptyText: kind === 'route' ? 'Aucun parcours : ajoute un fichier GPX ou trace-en un.' : 'Aucun athlète : ajoute-en un.' };
     const view = kind === 'route'
       ? PYR.libPick.routePicker(host, Object.assign(common, { onAdd: addGpx, extra: [{ label: '✎ Tracer un parcours', title: 'Un parcours vide, à tracer sur la carte', fn: createRoute }] }))
-      : PYR.libPick.athletePicker(host, Object.assign(common, { onAdd: openAddAthlete }));
+      : PYR.libPick.athletePicker(host, Object.assign(common, { onAdd: openAddAthlete, pros: true, onEdit: editPro, onReset: resetPro }));
     W.views.push(view);
     return canCurrent || items.length > 0;
+  }
+
+  /** ✎ sur un coureur du World Tour : il devient l'athlète du projet et la page Athlète s'ouvre pour le modifier (« Enregistrer » le range dans la bibliothèque). */
+  function editPro(it) {
+    W.sel.athlete = it.id;
+    if (applySelection()) { dlg.close(); location.href = PAGE.rider; }
+  }
+
+  /** ↺ : on retire de la bibliothèque la version modifiée d'un coureur du World Tour, il retrouve son profil d'origine. */
+  function resetPro(it) {
+    if (!confirm(`Rendre à « ${it.name} » son profil d'origine ? Tes modifications enregistrées dans la bibliothèque seront perdues.`)) return;
+    const lib = readLibrary();
+    L.remove(lib, 'athlete', it.libId);
+    if (writeJSON(LIBRARY_KEY, lib)) { readLibrary(); D.toast(`« ${it.name} » retrouve son profil d'origine.`); renderWizard(); }
   }
 
   function defaultName(kind, project) {
@@ -394,7 +417,7 @@
         title = c.title; detail = c.detail; tag = 'Projet en cours';
         if (k.id === 'route' && c.empty) ok = false;
       } else {
-        const it = L.find(lib, k.id, id);
+        const it = findItem(lib, k.id, id);
         if (!it) { ok = false; title = k.empty; detail = ''; } else {
           const s = L.summary(k.id, it.data) || { title: '', detail: '' };
           title = it.name; detail = [s.title, s.detail].filter(Boolean).join(' · '); tag = 'Bibliothèque'; replaced = true;
@@ -417,7 +440,7 @@
     for (const k of KINDS) {
       const id = W.sel[k.id];
       if (!id || id === 'current' || (W.mode === 'single' && !W.steps.includes(k.id))) continue;
-      const it = L.find(lib, k.id, id);
+      const it = findItem(lib, k.id, id);
       if (it) { L.apply(k.id, project, it.data); setProjectName(k.id, project, it.name); }
     }
     const ok = writeJSON(PROJECT_KEY, project);
@@ -502,8 +525,8 @@
 
   function init() {
     // un ancien lien de partage pointait sur la page d'ouverture : un défi s'ouvre sur la page Jeu, une invitation sur l'écran de course
-    if (/^#defi=/.test(location.hash)) { location.replace('../VirtualRide2D/index.html' + location.hash); return; }
-    if (/^#live=/.test(location.hash)) { location.replace('../VirtualRide2D/course.html' + location.hash); return; }
+    if (/^#defi=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/index.html' + location.hash); return; }
+    if (/^#live=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/course.html' + location.hash); return; }
     dlg = $('#wiz');
     preview = PYR.routePreview.create($('#hm-route'));
     renderProject();

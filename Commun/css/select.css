@@ -58,6 +58,8 @@ body.gs-page .topbar { position: sticky; top: 0; z-index: 40; }
 .gs-pros-ty { display: inline-block; margin-right: 4px; }
 .gs-pros-list { max-height: 460px; overflow-y: auto; padding: 2px; }
 .gs-pro-team { font-weight: 600; }
+.gs-pro-edited { font-weight: 400; font-size: 11px; color: var(--accent); }
+.gs-pro { position: relative; }
 .gs-gear { margin-top: 12px; }
 
 /* météo */
