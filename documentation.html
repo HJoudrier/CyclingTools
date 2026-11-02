@@ -186,9 +186,11 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
 .back{font-family:var(--f-ui);font-size:13px}
 @media (max-width:600px){body{font-size:16px}.eq .f{font-size:16px}}
 @media print{.toc,.reader,.mtoc{display:none}.page{display:block}.exp{break-inside:avoid}figure.fig{break-inside:avoid}}
+.home-brand{position:fixed;top:10px;right:max(16px,env(safe-area-inset-right,0px));z-index:50;display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--accent);font-family:var(--f-ui);font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 1px 6px rgba(0,0,0,.08)}.home-brand span{color:var(--ink)}.home-brand:hover{border-color:var(--accent)}@media (max-width:600px){.home-brand span{display:none}.home-brand{padding:5px}}
 </style>
 </head>
 <body>
+<a class="home-brand" href="index.html" title="Retour à l'accueil" aria-label="PaceYourRide — retour à l'accueil"><svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg><span>PaceYourRide</span></a>
 <div class="page">
 
 <nav class="toc" aria-label="Sommaire">

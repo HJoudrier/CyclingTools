@@ -418,13 +418,13 @@ Les tests (Node ≥ 18, aucune dépendance) vérifient le moteur — dont le mod
 
 ```
 index.html                 accueil : choix du parcours et de l'athlète (dont les coureurs du World Tour, PaceYourRide/js/home.js), lancement des applications, retour de la connexion Dropbox (Commun/js/portail.js)
+documentation.html          documentation de l'application ; DocModelePhysioCycliste.html : rapport du modèle physiologique ; doc/ : sa spécification en PDF
 PaceYourRide/              application « pro »
   index.html               accueil de PaceYourRide : projet en cours (parcours et athlète choisis sur l'accueil du site), matériel, météo, stratégie, synchronisation (js/home.js ; css/home.css)
   parcours.html            parcours, portions, points en jeu, météo
   athlete.html             athlète : profil, courbe de puissance record, carte athlète
   equipement.html          équipements : réglages du vélo, de la tenue et de la position, magasin
   pacing.html              pacing optimal : stratégie d'allure et exports
-  documentation.html       documentation ; DocModelePhysioCycliste.html : rapport du modèle physiologique
   js/                      sections des pages : tab-route, tab-rider, rider-physio, rider-import, tab-bike, calibration, tab-shop, tab-perf, route-preview, home
   tools/                   lp (solveur de référence), shop-art (prompts et guides des photos du magasin)
 VirtualRide2D/                     index.html : choix du jeu (parcours, athlète, météo, réglages) ; course.html : la course sur la carte
