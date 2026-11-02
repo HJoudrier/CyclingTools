@@ -28,6 +28,78 @@
   }
 
   /**
+   * Profil d'élévation d'un parcours (SVG), avec ce que le parcours y place : côtes classées (zone du pied au sommet, catégorie), sprints,
+   * zones de ravitaillement et revêtements autres que la route lisse. p : profil (library.routeProfile), data : le parcours (checkpoints,
+   * feedZones, surfaces ; distances en km). Renvoie { svg, legend } ou null sans altitude.
+   */
+  function elevationProfile(p, data) {
+    if (!p || !p.hasEle || !p.ele || p.n < 2) return null;
+    const NS = 'http://www.w3.org/2000/svg', Wd = 360, Hh = 92, top = 16, bot = 14, left = 2, right = 2;
+    const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k of Object.keys(attrs || {})) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+    const km = p.length / 1000;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < p.n; i++) { lo = Math.min(lo, p.ele[i]); hi = Math.max(hi, p.ele[i]); }
+    const span = Math.max(40, hi - lo), base = lo - span * 0.06, rng = span * 1.12;
+    const X = (k) => left + Math.min(1, Math.max(0, k / km)) * (Wd - left - right);
+    const Y = (e) => top + (1 - (e - base) / rng) * (Hh - top - bot);
+    const eleAt = (k) => p.ele[Math.min(p.n - 1, Math.max(0, Math.round((k * 1000) / p.step)))];
+    const svg = el('svg', { class: 'gp', viewBox: `0 0 ${Wd} ${Hh}`, role: 'img', 'aria-label': 'Profil d\'élévation du parcours' });
+    const stride = Math.max(1, Math.floor(p.n / 240));
+    let line = '';
+    for (let i = 0; i < p.n; i += stride) line += (line ? 'L' : 'M') + X((i * p.step) / 1000).toFixed(1) + ' ' + Y(p.ele[i]).toFixed(1);
+    line += 'L' + X(km).toFixed(1) + ' ' + Y(p.ele[p.n - 1]).toFixed(1);
+    const cps = Array.isArray(data && data.checkpoints) ? data.checkpoints : [], feeds = Array.isArray(data && data.feedZones) ? data.feedZones : [];
+    const kom = cps.filter((c) => c && c.type === 'kom' && Number(c.km) > 0), spr = cps.filter((c) => c && c.type === 'sprint' && Number(c.km) > 0);
+    // côtes : du pied au sommet, sous la courbe
+    for (const c of kom) {
+      const a = Math.max(0, Number(c.startKm) || 0), b = Math.min(km, Number(c.km));
+      if (b <= a) continue;
+      let d = `M${X(a).toFixed(1)} ${(Hh - bot).toFixed(1)}`;
+      for (let k = a; k < b; k += Math.max(0.05, (b - a) / 40)) d += `L${X(k).toFixed(1)} ${Y(eleAt(k)).toFixed(1)}`;
+      d += `L${X(b).toFixed(1)} ${Y(eleAt(b)).toFixed(1)}L${X(b).toFixed(1)} ${(Hh - bot).toFixed(1)}Z`;
+      el('path', { d, class: 'gp-kom' }, svg);
+    }
+    el('path', { d: line + `L${X(km).toFixed(1)} ${(Hh - bot).toFixed(1)}L${X(0).toFixed(1)} ${(Hh - bot).toFixed(1)}Z`, class: 'gp-area' }, svg);
+    el('path', { d: line, class: 'gp-line', fill: 'none' }, svg);
+    // revêtements (bande du bas) puis ravitaillements
+    const strip = Hh - bot + 3;
+    const Ph = PYR.physics;
+    const surf = (Array.isArray(data && data.surfaces) ? data.surfaces : []).filter((r) => r && Number(r.endKm) > Number(r.startKm));
+    let rough = 0;
+    for (const r of surf) {
+      const f = Ph && Ph.surfaceFactor ? Ph.surfaceFactor(r) : 1;
+      if (!(f > 1.15)) continue;
+      rough++;
+      const t = Math.min(0.999, Math.log(f) / Math.log(6));
+      el('rect', { x: X(Number(r.startKm)).toFixed(1), y: strip, width: Math.max(1.5, X(Number(r.endKm)) - X(Number(r.startKm))).toFixed(1), height: 3, class: 'gp-surf', 'fill-opacity': (0.45 + 0.55 * t).toFixed(2) }, svg).appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: 'Revêtement dégradé' }));
+    }
+    for (const z of feeds) {
+      const a = Number(z.startKm), b = Number(z.endKm);
+      if (!(b > a)) continue;
+      el('rect', { x: X(a).toFixed(1), y: strip + 4, width: Math.max(2, X(b) - X(a)).toFixed(1), height: 4, rx: 1, class: 'gp-feed' }, svg).appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: `Ravitaillement km ${fmt(a, 1)}–${fmt(b, 1)}` }));
+    }
+    // sprints (point vert sur la courbe), sommets (triangle et catégorie)
+    for (const c of spr) {
+      const x = X(Number(c.km)), y = Y(eleAt(Number(c.km)));
+      el('line', { x1: x, x2: x, y1: y, y2: Hh - bot, class: 'gp-stem' }, svg);
+      const g = el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 3.6, class: 'gp-sprint' }, svg);
+      g.appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: `Sprint km ${fmt(Number(c.km), 1)}` }));
+    }
+    for (const c of kom) {
+      const x = X(Number(c.km)), y = Y(eleAt(Number(c.km))), cat = PYR.classif && PYR.classif.catOf ? PYR.classif.catOf(c.cat) : null;
+      const t = el('path', { d: `M${(x - 4.5).toFixed(1)} ${(y - 1).toFixed(1)}L${x.toFixed(1)} ${(y - 8).toFixed(1)}L${(x + 4.5).toFixed(1)} ${(y - 1).toFixed(1)}Z`, class: 'gp-summit' }, svg);
+      t.appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: `Côte ${cat ? cat.name : ''} : sommet km ${fmt(Number(c.km), 1)}` }));
+      const lbl = el('text', { x: x.toFixed(1), y: Math.max(8, y - 10).toFixed(1), class: 'gp-cat', 'text-anchor': 'middle' }, svg);
+      lbl.textContent = cat ? (cat.id === 'hc' ? 'HC' : cat.id) : '';
+    }
+    // distances aux extrémités
+    el('text', { x: 2, y: Hh - 1, class: 'gp-ax' }, svg).textContent = '0 km';
+    el('text', { x: Wd - 2, y: Hh - 1, class: 'gp-ax', 'text-anchor': 'end' }, svg).textContent = fmt(km, 1) + ' km';
+    const legend = [kom.length ? `▲ ${kom.length} côte${kom.length > 1 ? 's' : ''}` : '', spr.length ? `● ${spr.length} sprint${spr.length > 1 ? 's' : ''}` : '', feeds.length ? `▬ ${feeds.length} ravito${feeds.length > 1 ? 's' : ''}` : '', rough ? '▬ revêtement dégradé' : ''].filter(Boolean);
+    return { svg, legend };
+  }
+
+  /**
    * Carrousel de parcours dans `host`. o : {items, pick (identifiant choisi), view ('2d' : le tracé sur la carte ; '3d' : une vue 3D), onPick(id),
    * actions(it), projectLabel, emptyText}. Renvoie {destroy, setPick(id)}.
    */
@@ -46,6 +118,11 @@
       const vis = is3d ? h('canvas', { 'aria-hidden': 'true' }) : h('div', { class: 'gs-map', 'aria-hidden': 'true' });
       const stat = (cls, label, value) => h('span', { class: cls }, h('small', null, label), h('b', null, value));
       const on = it.id === o.pick;
+      const profileBox = (pp, item) => {
+        const ep = elevationProfile(pp, item.data);
+        if (!ep) return null;
+        return h('div', { class: 'gs-profile' }, ep.svg, ep.legend.length ? h('div', { class: 'gp-legend' }, ep.legend.map((t) => h('span', null, t))) : null);
+      };
       const card = h('div', { class: 'gs-route', role: 'option', tabindex: '-1', 'aria-selected': String(on), dataset: { id: it.id },
         'aria-label': `${it.name}, ${fmt(p.length / 1000, 1)} km, D+ ${fmt(p.up)} m, D− ${fmt(p.down)} m` },
       vis,
@@ -54,10 +131,12 @@
         h('div', { class: 'gs-route-stats' },
           stat('', 'Distance', fmt(p.length / 1000, 1) + ' km'),
           stat('up', 'D+', p.hasEle ? '▲ ' + fmt(p.up) + ' m' : '—'),
-          stat('down', 'D−', p.hasEle ? '▼ ' + fmt(p.down) + ' m' : '—'),
-          stat('', 'Altitude', p.hasEle ? fmt(Math.min.apply(null, p.ele)) + '–' + fmt(Math.max.apply(null, p.ele)) + ' m' : '—')),
+          stat('down', 'D−', p.hasEle ? '▼ ' + fmt(p.down) + ' m' : '—')),
+        h('div', { class: 'gs-route-stats gs-route-alt' },
+          stat('', 'Altitude min', p.hasEle ? fmt(Math.min.apply(null, p.ele)) + ' m' : '—'),
+          stat('', 'Altitude max', p.hasEle ? fmt(Math.max.apply(null, p.ele)) + ' m' : '—')),
+        profileBox(p, it),
         it.project ? h('span', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours de PaceYourRide') : null,
-        h('div', { class: 'gs-pick' }, on ? '✓ Parcours choisi' : 'Choisir ce parcours'),
         actionsEl(it, o.actions)));
       card.addEventListener('click', () => { if (vis.dataset.dragged === '1') { vis.dataset.dragged = ''; return; } o.onPick(it.id); });
       track.appendChild(card);
@@ -74,11 +153,7 @@
     return {
       destroy() { for (const v of views) v.destroy(); },
       setPick(id) {
-        $$('.gs-route', track).forEach((c) => {
-          const on2 = c.dataset.id === id;
-          c.setAttribute('aria-selected', String(on2));
-          c.querySelector('.gs-pick').textContent = on2 ? '✓ Parcours choisi' : 'Choisir ce parcours';
-        });
+        $$('.gs-route', track).forEach((c) => c.setAttribute('aria-selected', String(c.dataset.id === id)));
       },
     };
   }
@@ -254,5 +329,5 @@
     return athleteCards(area, o);
   }
 
-  PYR.libPick = { routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
+  PYR.libPick = { elevationProfile, routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
 })(globalThis.PYR = globalThis.PYR || {});

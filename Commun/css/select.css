@@ -41,6 +41,22 @@ body.gs-page .topbar { position: sticky; top: 0; z-index: 40; }
 .gs-route-tag { display: inline-block; margin-top: 6px; font-size: 11px; color: var(--muted); }
 .gs-pick { margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--accent); }
 
+/* vignette de parcours : altitude sur une 2ᵉ ligne, profil d'élévation avec côtes, sprints et ravitaillements */
+.gs-route-alt { margin-top: 2px; }
+.gs-profile { margin-top: 8px; }
+.gs-profile .gp { width: 100%; height: auto; display: block; overflow: visible; }
+.gp-area { fill: var(--accent); fill-opacity: .16; }
+.gp-line { stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.gp-kom { fill: #e8791d; fill-opacity: .38; }
+.gp-summit { fill: #c2410c; }
+.gp-sprint { fill: #1d9a4a; stroke: var(--surface); stroke-width: 1.4; }
+.gp-stem { stroke: #1d9a4a; stroke-opacity: .5; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.gp-feed { fill: #0a7ea4; }
+.gp-surf { fill: #86592b; }
+.gp-cat { font-size: 9px; font-weight: 700; fill: #c2410c; }
+.gp-ax { font-size: 8px; fill: var(--muted); }
+.gp-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 11px; color: var(--ink-2); }
+
 /* fond de carte introuvable : pastille sur la vignette du parcours */
 .gs-route { position: relative; }
 .gs-tile-fail { position: absolute; top: 8px; left: 8px; z-index: 2; font: inherit; font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-2); cursor: pointer; }
