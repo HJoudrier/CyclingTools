@@ -28,6 +28,42 @@
   }
 
   /**
+   * Position du défilement d'un carrousel, par élément hôte : un carrousel redessiné (autre élément choisi, passage 2D / 3D) reprend là où l'autre
+   * en était, sans repartir du début ni défiler jusqu'à l'élément choisi.
+   */
+  const SCROLL = new WeakMap();
+
+  /** Place le défilement tout de suite (sans l'animation ni l'accroche au bord des cartes, le temps du geste). */
+  function jump(track, left) {
+    const sb = track.style.scrollBehavior, ss = track.style.scrollSnapType;
+    track.style.scrollBehavior = 'auto'; track.style.scrollSnapType = 'none';
+    track.scrollLeft = left;
+    requestAnimationFrame(() => { track.style.scrollBehavior = sb; track.style.scrollSnapType = ss; });
+  }
+
+  /**
+   * Met un carrousel en place : à la position qu'il avait avant son redessin (memo de l'hôte) tant que l'élément choisi y reste visible, sinon
+   * l'élément choisi au centre ; à la première fois, l'élément choisi au centre (ou le début). Renvoie faux si le carrousel n'a pas encore de taille.
+   */
+  function settle(track, key, sel) {
+    if (!track.clientWidth) return false;
+    const saved = SCROLL.get(key);
+    const centerOf = (el) => el.offsetLeft - track.offsetLeft - (track.clientWidth - el.clientWidth) / 2;
+    let left;
+    if (saved !== undefined) {
+      left = saved;
+      if (sel) {
+        const a = sel.offsetLeft - track.offsetLeft;
+        if (a + sel.clientWidth < saved || a > saved + track.clientWidth) left = centerOf(sel);      // le choix a changé ailleurs : on le montre
+      }
+    } else left = sel ? centerOf(sel) : 0;
+    left = Math.max(0, Math.min(left, track.scrollWidth - track.clientWidth));
+    if (Math.abs(track.scrollLeft - left) > 1) jump(track, left);
+    SCROLL.set(key, left);
+    return true;
+  }
+
+  /**
    * Profil d'élévation d'un parcours (SVG), avec ce que le parcours y place : côtes classées (zone du pied au sommet, catégorie), sprints,
    * zones de ravitaillement et revêtements autres que la route lisse. p : profil (library.routeProfile), data : le parcours (checkpoints,
    * feedZones, surfaces ; distances en km). Renvoie { svg, legend } ou null sans altitude.
@@ -112,7 +148,9 @@
     const prev = h('button', { class: 'gs-arrow', type: 'button', 'aria-label': 'Parcours précédent', onclick: () => track.scrollBy({ left: -track.clientWidth * 0.8 }) }, '‹');
     const next = h('button', { class: 'gs-arrow', type: 'button', 'aria-label': 'Parcours suivant', onclick: () => track.scrollBy({ left: track.clientWidth * 0.8 }) }, '›');
     const arrows = () => { prev.disabled = track.scrollLeft <= 4; next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4; };
+    const key = o.scrollKey || host;
     track.addEventListener('scroll', PYR.util.debounce(arrows, 80));
+    track.addEventListener('scroll', () => SCROLL.set(key, track.scrollLeft));
     track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') { e.preventDefault(); next.click(); } else if (e.key === 'ArrowLeft') { e.preventDefault(); prev.click(); } });
     for (const { it, p } of list) {
       const vis = is3d ? h('canvas', { 'aria-hidden': 'true' }) : h('div', { class: 'gs-map', 'aria-hidden': 'true' });
@@ -145,11 +183,10 @@
     host.append(h('div', { class: 'gs-car' }, prev, track, next));
     if (list.length && PYR.mapTile) host.append(h('p', { class: 'gs-attr' }, 'Fond de carte : ' + PYR.mapTile.attribution));
     if (!list.length) host.appendChild(h('p', { class: 'hint gs-empty' }, o.emptyText || 'Aucun parcours pour le moment.'));
-    const sel = track.querySelector('[aria-selected="true"]');
-    // le carrousel n'est pas toujours affiché quand on le remplit (fenêtre fermée) : on le centre dès qu'il a une taille
-    const center = () => { const s = track.querySelector('[aria-selected="true"]'); if (s && track.clientWidth) track.scrollTo({ left: s.offsetLeft - track.offsetLeft - (track.clientWidth - s.clientWidth) / 2, behavior: 'auto' }); arrows(); };
-    if (sel) center(); else arrows();
-    setTimeout(center, 60);
+    // le carrousel n'est pas toujours affiché quand on le remplit (fenêtre fermée) : on le place dès qu'il a une taille
+    const place = () => { settle(track, key, track.querySelector('[aria-selected="true"]')); arrows(); };
+    place();
+    setTimeout(place, 60);
     return {
       destroy() { for (const v of views) v.destroy(); },
       setPick(id) {
@@ -173,12 +210,12 @@
     let pick = o.pick, io = null;
     const norm = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
-    const tabBtn = (id, label) => h('button', { type: 'button', role: 'radio', 'aria-pressed': String(ATH.tab === id), onclick: () => { ATH.tab = id; redraw(); } }, label);
-    const teamSel = Pr ? h('select', { 'aria-label': 'Équipe', onchange: (e) => { ATH.team = e.target.value; drawTrack(); } }, h('option', { value: '' }, 'Toutes les équipes'), Object.keys(Pr.TEAMS).map((k) => h('option', { value: k, selected: ATH.team === k }, Pr.TEAMS[k]))) : null;
-    const typeSel = Pr ? h('select', { 'aria-label': 'Type de coureur', onchange: (e) => { ATH.type = e.target.value; drawTrack(); } }, h('option', { value: '' }, 'Tous les types'), Object.keys(Pr.TYPES).map((k) => h('option', { value: k, selected: ATH.type === k }, Pr.TYPES[k].label))) : null;
+    const tabBtn = (id, label) => h('button', { type: 'button', role: 'radio', 'aria-pressed': String(ATH.tab === id), onclick: () => { ATH.tab = id; SCROLL.delete(host); redraw(); } }, label);
+    const teamSel = Pr ? h('select', { 'aria-label': 'Équipe', onchange: (e) => { ATH.team = e.target.value; drawTrack(true); } }, h('option', { value: '' }, 'Toutes les équipes'), Object.keys(Pr.TEAMS).map((k) => h('option', { value: k, selected: ATH.team === k }, Pr.TEAMS[k]))) : null;
+    const typeSel = Pr ? h('select', { 'aria-label': 'Type de coureur', onchange: (e) => { ATH.type = e.target.value; drawTrack(true); } }, h('option', { value: '' }, 'Tous les types'), Object.keys(Pr.TYPES).map((k) => h('option', { value: k, selected: ATH.type === k }, Pr.TYPES[k].label))) : null;
     const sorts = [['team', 'Par équipe'], ['wkg', 'Par W/kg'], ['watts', 'Par puissance (W)'], ['cda', 'Par W/CdA'], ['pmax', 'Par Pmax'], ['name', 'Par nom']];
-    const sortSel = Pr ? h('select', { 'aria-label': 'Tri', onchange: (e) => { ATH.sort = e.target.value; drawTrack(); } }, sorts.map(([v, t]) => h('option', { value: v, selected: ATH.sort === v }, t))) : null;
-    const search = Pr ? h('input', { type: 'search', placeholder: 'Rechercher un coureur…', 'aria-label': 'Rechercher un coureur', autocomplete: 'off', value: ATH.q, oninput: (e) => { ATH.q = e.target.value; drawTrack(); } }) : null;
+    const sortSel = Pr ? h('select', { 'aria-label': 'Tri', onchange: (e) => { ATH.sort = e.target.value; drawTrack(true); } }, sorts.map(([v, t]) => h('option', { value: v, selected: ATH.sort === v }, t))) : null;
+    const search = Pr ? h('input', { type: 'search', placeholder: 'Rechercher un coureur…', 'aria-label': 'Rechercher un coureur', autocomplete: 'off', value: ATH.q, oninput: (e) => { ATH.q = e.target.value; drawTrack(true); } }) : null;
     const nPro = Pr ? Pr.RIDERS.length : 0;
     const bar = h('div', { class: 'gs-add gs-ath-bar' },
       o.onAdd ? h('button', { class: 'btn', type: 'button', onclick: o.onAdd }, '＋ Nouvel athlète') : null,
@@ -189,6 +226,7 @@
     const next = h('button', { class: 'gs-arrow', type: 'button', 'aria-label': 'Athlète suivant', onclick: () => track.scrollBy({ left: track.clientWidth * 0.8 }) }, '›');
     const arrows = () => { prev.disabled = track.scrollLeft <= 4; next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4; };
     track.addEventListener('scroll', PYR.util.debounce(arrows, 80));
+    track.addEventListener('scroll', () => SCROLL.set(host, track.scrollLeft));
     track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') { e.preventDefault(); next.click(); } else if (e.key === 'ArrowLeft') { e.preventDefault(); prev.click(); } });
     const count = h('span', { class: 'gs-pros-n' });
     const note = h('p', { class: 'gs-attr' });
@@ -246,7 +284,8 @@
       });
     }
 
-    function drawTrack() {
+    function drawTrack(fresh) {
+      if (fresh) SCROLL.delete(host);
       if (io) io.disconnect();
       D.clear(track);
       const list = items();
@@ -258,9 +297,9 @@
         io = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) { loadPhoto(e.target); io.unobserve(e.target); } }, { root: track, rootMargin: '300px' });
         $$('.gs-ath-photo', track).forEach((b) => io.observe(b));
       } else $$('.gs-ath-photo', track).forEach(loadPhoto);
-      const center = () => { const sel = track.querySelector('[aria-selected="true"]'); if (sel && track.clientWidth) track.scrollTo({ left: sel.offsetLeft - track.offsetLeft - (track.clientWidth - sel.clientWidth) / 2, behavior: 'auto' }); else track.scrollTo({ left: 0 }); arrows(); };
-      center();
-      setTimeout(center, 60);
+      const place = () => { settle(track, host, track.querySelector('[aria-selected="true"]')); arrows(); };
+      place();
+      setTimeout(place, 60);
     }
 
     let child = null;
@@ -422,7 +461,7 @@
     host.append(bar, area);
     function draw() {
       if (car) car.destroy();
-      car = routeCarousel(area, Object.assign({}, o, { pick, view, onPick: (id) => { pick = id; o.onPick(id); } }));
+      car = routeCarousel(area, Object.assign({}, o, { pick, view, scrollKey: host, onPick: (id) => { pick = id; o.onPick(id); } }));
     }
     function setView(v) {
       if (v === view) return;
