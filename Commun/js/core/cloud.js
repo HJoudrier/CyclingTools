@@ -132,6 +132,26 @@
     return true;
   }
 
+  /**
+   * Fichiers annexes dans le dossier de l'application Dropbox (en plus du fichier principal) : par exemple les tuiles de fond de carte des parcours
+   * (Commun/js/ui/map-tile.js, « /tiles/<clé>.json »). readFile renvoie le texte, ou null si le fichier n'existe pas ; writeFile écrase.
+   */
+  const SAFE_PATH = /^\/[A-Za-z0-9_\-]+\/[A-Za-z0-9_\-.]+$/;
+  async function readFile(path) {
+    if (!SAFE_PATH.test(path)) throw new Error('Chemin Dropbox invalide.');
+    const res = await fetch(DOWNLOAD_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + await accessToken(), 'Dropbox-API-Arg': JSON.stringify({ path }) } });
+    if (res.status === 409) return null;
+    if (!res.ok) throw new Error('Lecture sur Dropbox impossible (' + res.status + ').');
+    return res.text();
+  }
+  async function writeFile(path, text) {
+    if (!SAFE_PATH.test(path)) throw new Error('Chemin Dropbox invalide.');
+    const res = await fetch(UPLOAD_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + await accessToken(), 'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({ path, mode: { '.tag': 'overwrite' }, autorename: false, mute: true }) }, body: text });
+    if (!res.ok) throw new Error(res.status === 507 ? 'Ton Dropbox est plein.' : 'Envoi sur Dropbox impossible (' + res.status + ').');
+    return true;
+  }
+
   // ---------- Fusion ----------
 
   const hasProject = (p) => !!p && typeof p === 'object' && L.routeLength(p) > 0;
@@ -250,5 +270,5 @@
     } finally { S.busy = false; emit(); }
   }
 
-  PYR.cloud = { status, setKey, login, completeLogin, logout, sync, syncSoon, pushSoon, pull, saveLibrary, onChange: (fn) => listeners.push(fn) };
+  PYR.cloud = { status, setKey, login, completeLogin, logout, sync, syncSoon, pushSoon, pull, saveLibrary, readFile, writeFile, onChange: (fn) => listeners.push(fn) };
 })(globalThis.PYR = globalThis.PYR || {});

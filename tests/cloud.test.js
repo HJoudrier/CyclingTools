@@ -100,3 +100,22 @@ test('cloud : saveLibrary crée le fichier s\'il n\'existe pas encore, et recomm
   assert.equal(sent.project, null);
   assert.equal(sent.library.routes[0].name, 'Col');
 });
+
+test('cloud : fichiers annexes (tuiles de fond de carte) lus et écrits dans le dossier de l\'application, chemins contrôlés', async () => {
+  localStorage.setItem('paceyourride.cloud.v1', JSON.stringify({ access: 'tok', refresh: '', expiresAt: Date.now() + 1e9 }));
+  let sent = null;
+  mock((url, init) => {
+    const arg = JSON.parse(init.headers['Dropbox-API-Arg']);
+    if (/download/.test(url)) return arg.path === '/tiles/tabc.json' ? reply(200, '{"key":"tabc"}') : reply(409, '{}');
+    sent = { path: arg.path, mode: arg.mode['.tag'], body: init.body };
+    return reply(200, '{}');
+  });
+  assert.equal(await C.readFile('/tiles/tabc.json'), '{"key":"tabc"}');
+  assert.equal(await C.readFile('/tiles/absent.json'), null);
+  assert.equal(await C.writeFile('/tiles/tabc.json', '{"key":"tabc"}'), true);
+  assert.deepEqual(sent, { path: '/tiles/tabc.json', mode: 'overwrite', body: '{"key":"tabc"}' });
+  await assert.rejects(C.readFile('/../paceyourride.json'), /invalide/);
+  await assert.rejects(C.writeFile('/tiles/a/b.json', 'x'), /invalide/);
+  mock(() => reply(507, '{}'));
+  await assert.rejects(C.writeFile('/tiles/x.json', 'x'), /plein/);
+});

@@ -63,7 +63,9 @@
       const a = Math.max(0, i - h), b = Math.min(N - 1, i + h), d = dist[b] - dist[a];
       grade.push(d > 1 && profile.ele ? (me[b] - me[a]) / d : 0);
     }
-    return { n: N, x, y, z, grade, height: relief * k * exag, exag, span: SPAN };
+    // cadre du fond de carte (map-tile.js) : centre du tracé et étendue réelle (m), dans le repère de la scène
+    const frame = { latc: lat0 - cz / kz, lngc: lng0 + cx / kx, extent, kx, kz };
+    return { n: N, x, y, z, grade, height: relief * k * exag, exag, span: SPAN, frame };
   }
 
   /** Ruban plat suivant le tracé : sommets (haut gauche/droite par point), couleurs, indices ; et rideau jusqu'au sol (haut/bas par point). */
@@ -109,6 +111,7 @@
   /* ---------- moteur commun à toutes les vignettes ---------- */
 
   const E = { three: null, renderer: null, ok: null, views: new Set(), raf: 0, last: 0, tried: false };
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const reduced = () => !!(globalThis.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   async function ensureEngine() {
@@ -143,6 +146,7 @@
     const grid = new T.GridHelper(SPAN * 1.35, 12, 0x8a8f98, 0x8a8f98);
     grid.material.transparent = true; grid.material.opacity = 0.28; grid.position.y = -0.005;
     scene.add(grid);
+    scene.userData.grid = grid;
     const marker = (i, color) => {
       const m = new T.Mesh(new T.SphereGeometry(0.2, 16, 12), new T.MeshBasicMaterial({ color }));
       m.position.set(g.x[i], g.y[i] + 0.1, g.z[i]);
@@ -150,6 +154,25 @@
     };
     marker(0, 0x2e9e4f); marker(g.n - 1, 0xd62828);
     return scene;
+  }
+
+  /**
+   * Sol plat de la vue 3D : le fond de carte du parcours (map-tile.js). La tuile est un rectangle 3 : 2 centré sur le tracé (2,1 × 1,4 étendues) ;
+   * le sol carré en prend le milieu (1,4 × 1,4 étendues, soit FRAME_H × SPAN dans la scène), le nord vers le fond de la scène. Remplace la grille.
+   */
+  function addGround(T, scene, tile, img) {
+    if (!tile || !img || scene.userData.ground) return;
+    const tex = new T.Texture(img);
+    if (T.SRGBColorSpace) tex.colorSpace = T.SRGBColorSpace; else if (T.sRGBEncoding) tex.encoding = T.sRGBEncoding;
+    const share = (PYR.mapTile.FRAME_H / PYR.mapTile.FRAME_W);     // part de la largeur de la tuile qui forme le carré
+    tex.repeat.set(share, 1); tex.offset.set((1 - share) / 2, 0);
+    tex.anisotropy = 4; tex.needsUpdate = true;
+    const side = PYR.mapTile.FRAME_H * SPAN;
+    const ground = new T.Mesh(new T.PlaneGeometry(side, side), new T.MeshBasicMaterial({ map: tex }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.renderOrder = -1;
+    scene.add(ground);
+    scene.userData.ground = ground;
+    if (scene.userData.grid) scene.userData.grid.visible = false;
   }
 
   function frame(now) {
@@ -204,6 +227,7 @@
         view.scene = buildScene(T, g);
         view.camera = new T.PerspectiveCamera(36, 1, 0.1, 100);
       }
+      if (view.img && !view.scene.userData.ground) addGround(T, view.scene, view.tile, view.img);       // le fond de carte est arrivé
       if (view.hold > 0) view.hold -= dt; else if (!reduced()) view.az += dt * 0.28;
       const dist = g.span * 1.5, el = 0.62, ty = g.height * 0.4;
       const cam = view.camera;
@@ -233,37 +257,77 @@
     }
     view.destroy = () => { view.destroyed = true; E.views.delete(view); if (io) io.disconnect(); };
     ensureEngine().then(() => { if (view.destroyed) return; E.views.add(view); view.draw(0); kick(); });
+    // fond de carte : la vue n'attend pas la tuile (la grille d'abord, le sol dès qu'elle est là) ; sans WebGL, rien à poser
+    if (g && PYR.mapTile) PYR.mapTile.get(profile).then((tile) => PYR.mapTile.image(tile).then((img) => { if (!view.destroyed && img) { view.tile = tile; view.img = img; kick(); } }));
     return view;
   }
 
   /**
-   * Vignette 2D d'un parcours dans `box` : le tracé (liseré blanc, trait bleu, départ vert, arrivée rouge) sur le fond de carte de l'application,
-   * cadré sur le parcours. La carte ne bouge pas (rien ne capte la molette ni le doigt : la page continue de défiler) et n'est créée que
-   * lorsque la vignette devient visible (un fond de carte par parcours, c'est autant de tuiles à charger).
+   * Vignette 2D d'un parcours dans `box` : le tracé (liseré blanc, trait bleu, départ vert, arrivée rouge) sur la tuile de fond de carte du
+   * parcours (map-tile.js : gardée sur l'appareil et dans Dropbox, donc sans réseau de cartes une fois assemblée), cadré sur le parcours.
+   * Rien ne capte la molette ni le doigt (la page continue de défiler). La tuile n'est cherchée que lorsque la vignette devient visible ;
+   * en attendant (ou hors ligne, parcours jamais vu), le tracé est dessiné sur un fond neutre.
    */
   function mountMap(box, profile) {
-    const view = { destroyed: false, map: null, destroy() { view.destroyed = true; if (io) io.disconnect(); if (view.map) { view.map.remove(); view.map = null; } } };
-    let io = null;
-    const build = () => {
-      if (view.destroyed || view.map || !globalThis.L || !profile || !(profile.n >= 2)) return;
-      const L = globalThis.L, pts = [], stride = Math.max(1, Math.floor(profile.n / 400));
-      for (let i = 0; i < profile.n; i += stride) pts.push([profile.lat[i], profile.lng[i]]);
-      pts.push([profile.lat[profile.n - 1], profile.lng[profile.n - 1]]);
-      const map = view.map = L.map(box, { zoomControl: false, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25, attributionControl: true });
-      map.attributionControl.setPrefix('');
-      const spec = PYR.map && PYR.map.baseSpec ? PYR.map.baseSpec() : { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: '&copy; OpenStreetMap' };   // sans la carte principale (accueil)
-      if (spec) L.tileLayer(spec.url, { maxZoom: spec.maxZoom, subdomains: spec.subdomains || 'abc', attribution: spec.attribution, crossOrigin: true }).addTo(map);
-      const line = L.polyline(pts, { color: '#fff', weight: 7, opacity: 0.9, interactive: false }).addTo(map);
-      L.polyline(pts, { color: '#2a78d6', weight: 4, opacity: 1, interactive: false }).addTo(map);
-      const dot = (p, color) => L.circleMarker(p, { radius: 6, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1, interactive: false }).addTo(map);
+    const view = { destroyed: false, destroy() { view.destroyed = true; if (io) io.disconnect(); if (ro) ro.disconnect(); } };
+    let io = null, ro = null, tile = null, img = null;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'gs-map-canvas';
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
+    box.style.position = box.style.position || 'relative';
+    box.appendChild(canvas);
+    const stride = profile && profile.n >= 2 ? Math.max(1, Math.floor(profile.n / 400)) : 1, idx = [];
+    if (profile && profile.n >= 2) { for (let i = 0; i < profile.n; i += stride) idx.push(i); idx.push(profile.n - 1); }
+
+    const draw = () => {
+      if (view.destroyed || !idx.length) return;
+      const r = box.getBoundingClientRect(), dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      const cw = Math.max(2, Math.round(r.width * dpr)), ch = Math.max(2, Math.round(r.height * dpr));
+      if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+      const ctx = canvas.getContext('2d');
+      // points du tracé dans le repère de la source : pixels de la tuile, ou (sans tuile) plan local en mètres
+      let pts, src;
+      if (tile && img) {
+        pts = idx.map((i) => PYR.mapTile.toPx(tile, profile.lat[i], profile.lng[i]));
+        src = { w: tile.w, h: tile.h };
+      } else {
+        const k = Math.cos(profile.lat[idx[0]] * Math.PI / 180);
+        pts = idx.map((i) => [profile.lng[i] * k * 111320, -profile.lat[i] * 111320]);
+        src = null;
+      }
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+      // fenêtre de la source : le tracé et sa marge, au rapport de la vignette
+      const asp = cw / ch, bw = Math.max(x1 - x0, 1e-6), bh = Math.max(y1 - y0, 1e-6);
+      let ww = Math.max(bw * 1.32, bh * 1.32 * asp), wh = ww / asp;
+      if (src) {
+        const s = Math.min(1, src.w / ww, src.h / wh);
+        ww *= s; wh *= s;
+      }
+      let wx = (x0 + x1) / 2 - ww / 2, wy = (y0 + y1) / 2 - wh / 2;
+      if (src) { wx = clamp(wx, 0, src.w - ww); wy = clamp(wy, 0, src.h - wh); }
+      if (src) ctx.drawImage(img, wx, wy, ww, wh, 0, 0, cw, ch);
+      else { ctx.fillStyle = '#e9e7e1'; ctx.fillRect(0, 0, cw, ch); }
+      const sx = cw / ww, sy = ch / wh;
+      const path = () => { ctx.beginPath(); pts.forEach((p, i) => { const X = (p[0] - wx) * sx, Y = (p[1] - wy) * sy; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); };
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      path(); ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = 7 * dpr; ctx.stroke();
+      path(); ctx.strokeStyle = '#2a78d6'; ctx.lineWidth = 4 * dpr; ctx.stroke();
+      const dot = (p, color) => { ctx.beginPath(); ctx.arc((p[0] - wx) * sx, (p[1] - wy) * sy, 6 * dpr, 0, 7); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#fff'; ctx.stroke(); };
       dot(pts[0], '#2e9e4f'); dot(pts[pts.length - 1], '#d62828');
-      map.invalidateSize({ animate: false });
-      map.fitBounds(line.getBounds(), { padding: [18, 18], animate: false });
     };
+
+    const start = () => {
+      if (view.destroyed || !profile || !(profile.n >= 2)) return;
+      draw();
+      if (!PYR.mapTile) return;
+      PYR.mapTile.get(profile).then((t) => PYR.mapTile.image(t).then((im) => { if (!view.destroyed && im) { tile = t; img = im; draw(); } }));
+    };
+    if (globalThis.ResizeObserver) { ro = new ResizeObserver(() => draw()); ro.observe(box); }
     if (globalThis.IntersectionObserver) {
-      io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) { build(); if (io) io.disconnect(); } }, { rootMargin: '200px' });
+      io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) { start(); if (io) io.disconnect(); } }, { rootMargin: '200px' });
       io.observe(box);
-    } else build();
+    } else start();
     return view;
   }
 

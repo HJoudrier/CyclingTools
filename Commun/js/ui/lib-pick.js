@@ -64,6 +64,7 @@
       views.push(is3d ? PYR.routeThumb.mount(vis, p) : PYR.routeThumb.mountMap(vis, p));
     }
     host.append(h('div', { class: 'gs-car' }, prev, track, next));
+    if (list.length && PYR.mapTile) host.append(h('p', { class: 'gs-attr' }, 'Fond de carte : ' + PYR.mapTile.attribution));
     if (!list.length) host.appendChild(h('p', { class: 'hint gs-empty' }, o.emptyText || 'Aucun parcours pour le moment.'));
     const sel = track.querySelector('[aria-selected="true"]');
     // le carrousel n'est pas toujours affiché quand on le remplit (fenêtre fermée) : on le centre dès qu'il a une taille
