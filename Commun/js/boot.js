@@ -45,7 +45,7 @@
 
   // scripts de l'accueil (sélecteur de parcours, d'athlète, de vélo et de tenue ; projet en cours ; Dropbox)
   const HOME = ['Commun/vendor/leaflet/leaflet.js', 'Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js',
-    'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
+    'Commun/js/engine/catalog.js', 'Commun/js/engine/metabo.js', 'Commun/js/engine/pros.js', 'Commun/js/engine/rider-radar.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
     'Commun/js/ui/services.js', 'Commun/js/ui/map-tile.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/pro-photo.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'];
 
   const APPS = {

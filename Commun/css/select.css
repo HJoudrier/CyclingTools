@@ -75,6 +75,21 @@ body.gs-page .topbar { position: sticky; top: 0; z-index: 40; }
 .gs-ath-level { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
 .gs-ath-level i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
+/* toile d'araignée des spécialités d'un athlète */
+.gs-ath-radar { display: flex; flex-direction: column; align-items: center; margin: 0 -4px; }
+.gs-radar { width: min(100%, 250px); height: auto; display: block; overflow: visible; }
+.gr-ring { fill: none; stroke: var(--border); stroke-width: .7; }
+.gr-out { stroke: var(--border-strong); }
+.gr-axis { stroke: var(--border); stroke-width: .7; }
+.gr-ref { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: .8; }
+.gr-area { fill: var(--accent); fill-opacity: .26; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; }
+.gr-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 1; }
+.gr-dot.gr-top { fill: #e8791d; }
+.gr-lbl { font-size: 9.5px; fill: var(--ink-2); }
+.gr-lbl.gr-top { font-weight: 800; fill: var(--ink); }
+.gr-val { font-size: 9px; font-weight: 700; fill: var(--accent); }
+.gs-ath-spec { font-size: 12px; color: var(--ink-2); margin-top: -2px; }
+
 /* fond de carte introuvable : pastille sur la vignette du parcours */
 .gs-route { position: relative; }
 .gs-tile-fail { position: absolute; top: 8px; left: 8px; z-index: 2; font: inherit; font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-2); cursor: pointer; }

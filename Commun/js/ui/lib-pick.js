@@ -196,6 +196,34 @@
   }
 
   /**
+   * Toile d'araignée des sept spécialités d'un athlète (rider-radar.js) : anneaux à 25, 50, 75 et 100, un axe par spécialité, la surface des scores, et en
+   * pointillés la moyenne du peloton World Tour. r : résultat de riderRadar.scores. opts.w : largeur du dessin (viewBox 240 × 178).
+   */
+  function radarSvg(r) {
+    const NS = 'http://www.w3.org/2000/svg', Wd = 240, Hh = 178, cx = Wd / 2, cy = 92, R = 58, RL = 70;
+    const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k of Object.keys(attrs || {})) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+    const cats = PYR.riderRadar.CATEGORIES, n = cats.length;
+    const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+    const pt = (i, v, rr) => [cx + Math.cos(ang(i)) * (rr || R) * v / 100, cy + Math.sin(ang(i)) * (rr || R) * v / 100];
+    const poly = (vals) => vals.map((v, i) => pt(i, v).map((x) => x.toFixed(1)).join(',')).join(' ');
+    const svg = el('svg', { class: 'gs-radar', viewBox: `0 0 ${Wd} ${Hh}`, role: 'img', 'aria-label': 'Forces et faiblesses : ' + cats.map((c) => `${c.label} ${r.scores[c.id]}`).join(', ') });
+    for (const ring of [25, 50, 75, 100]) el('polygon', { points: poly(cats.map(() => ring)), class: 'gr-ring' + (ring === 100 ? ' gr-out' : '') }, svg);
+    cats.forEach((c, i) => { const [x, y] = pt(i, 100); el('line', { x1: cx, y1: cy, x2: x.toFixed(1), y2: y.toFixed(1), class: 'gr-axis' }, svg); });
+    el('polygon', { points: poly(cats.map((c) => PYR.riderRadar.REF[c.id])), class: 'gr-ref' }, svg).appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: 'Moyenne du peloton World Tour' }));
+    el('polygon', { points: poly(cats.map((c) => r.scores[c.id])), class: 'gr-area' }, svg);
+    cats.forEach((c, i) => {
+      const [x, y] = pt(i, r.scores[c.id]), top = r.best[0] === c.id;
+      const dot = el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: top ? 3.6 : 2.4, class: 'gr-dot' + (top ? ' gr-top' : '') }, svg);
+      dot.appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: `${c.label} : ${r.scores[c.id]} / 100 — ${c.info}` }));
+      const [lx, ly] = pt(i, 100, RL), a = Math.cos(ang(i));
+      const t = el('text', { x: lx.toFixed(1), y: (ly + 3).toFixed(1), class: 'gr-lbl' + (top ? ' gr-top' : ''), 'text-anchor': Math.abs(a) < 0.2 ? 'middle' : a > 0 ? 'start' : 'end' }, svg);
+      t.textContent = c.short + ' ';
+      el('tspan', { class: 'gr-val' }, t).textContent = String(r.scores[c.id]);
+    });
+    return svg;
+  }
+
+  /**
    * Carrousel d'athlètes (accueil) : deux onglets, « Mes athlètes » (la bibliothèque et l'athlète du projet) et « Coureurs World Tour » (pros.js, avec
    * filtres par équipe et par type, tri et recherche) ; chaque carte donne la photo (celle de l'athlète, ou pour un pro celle de Wikipédia, pro-photo.js),
    * l'identité, la morphologie, FTP, W/kg, PC, W′, Pmax (et W/CdA pour un pro), le niveau, et les actions de actions(it).
@@ -245,12 +273,20 @@
       const avatar = !it.pro && PYR.avatar ? PYR.avatar.span(64, color, r) : null;
       if (avatar) photo.appendChild(avatar); else photo.appendChild(h('span', { class: 'gs-ath-ini' }, initials(r.name || it.name)));
       if (it.pro && PYR.proPhoto) photo.dataset.pro = it.name;
+      let radar = null;
+      if (PYR.riderRadar) {
+        try {
+          const rs = PYR.riderRadar.scores(r);
+          radar = h('div', { class: 'gs-ath-radar' }, radarSvg(rs), h('div', { class: 'gs-ath-spec', title: 'Spécialités qui se détachent le plus du peloton World Tour' }, 'Profil : ', h('b', null, PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[0]).label), ' · ', PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[1]).short));
+        } catch (e) { radar = null; }
+      }
       const who = it.pro ? `${Pr.TEAMS[it.pro.team]} · ${it.pro.typeLabel}` : [r.sex === 'f' ? 'Femme' : 'Homme', age ? `${age} ans` : ''].filter(Boolean).join(' · ');
       const on = it.id === pick;
       const el = h('div', { class: 'gs-athc', role: 'option', tabindex: '-1', 'aria-selected': String(on), dataset: { id: it.id } },
         h('div', { class: 'gs-ath-head' }, photo,
           h('div', { class: 'gs-ath-id' }, h('b', { class: 'gs-ath-name', title: r.name || it.name }, (r.name || it.name || 'Athlète sans nom'), it.edited ? h('span', { class: 'gs-pro-edited', title: 'Profil modifié et enregistré dans ta bibliothèque' }, ' · modifié') : null),
             h('small', { class: 'gs-ath-who', title: who }, who), it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
+        radar,
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Poids', kg ? fmt(kg, 1) + ' kg' : '—'), stat('Taille', Number(r.height) ? fmt(Number(r.height)) + ' cm' : '—'), stat('FTP', ftp ? fmt(ftp) + ' W' : '—')),
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('W/kg', wkg ? fmt(wkg, 2) : '—'), stat('PC', a ? fmt(a.cp) + ' W' : '—'), stat("W′", a ? fmt(a.w0 / 1000, 1) + ' kJ' : '—')),
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Pmax', a ? fmt(a.pmax) + ' W' : '—'), it.pro && Pr ? stat('W/CdA', fmt(Pr.wattsPerCdA(it))) : stat('Niveau', level ? level.label : '—'), it.pro && level ? stat('Niveau', level.label) : null),
@@ -482,5 +518,5 @@
     return athleteCards(area, o);
   }
 
-  PYR.libPick = { athleteCarousel, elevationProfile, routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
+  PYR.libPick = { radarSvg, athleteCarousel, elevationProfile, routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
 })(globalThis.PYR = globalThis.PYR || {});
