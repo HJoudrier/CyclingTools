@@ -196,8 +196,8 @@
   }
 
   /**
-   * Toile d'araignée des sept spécialités d'un athlète (rider-radar.js) : anneaux à 25, 50, 75 et 100, un axe par spécialité, la surface des scores, et en
-   * pointillés la moyenne du peloton World Tour. r : résultat de riderRadar.scores. opts.w : largeur du dessin (viewBox 240 × 178).
+   * Toile d'araignée des sept spécialités d'un athlète (rider-radar.js) : anneaux à 25, 50, 75 et 100, un axe par spécialité, la surface des scores (par rapport à la
+   * catégorie de l'athlète : Pro, Élite, 1ʳᵉ catégorie…), et en pointillés la moyenne de sa catégorie. r : résultat de riderRadar.scores. opts.w : largeur du dessin (viewBox 240 × 178).
    */
   function radarSvg(r) {
     const NS = 'http://www.w3.org/2000/svg', Wd = 240, Hh = 178, cx = Wd / 2, cy = 92, R = 58, RL = 70;
@@ -209,7 +209,7 @@
     const svg = el('svg', { class: 'gs-radar', viewBox: `0 0 ${Wd} ${Hh}`, role: 'img', 'aria-label': 'Forces et faiblesses : ' + cats.map((c) => `${c.label} ${r.scores[c.id]}`).join(', ') });
     for (const ring of [25, 50, 75, 100]) el('polygon', { points: poly(cats.map(() => ring)), class: 'gr-ring' + (ring === 100 ? ' gr-out' : '') }, svg);
     cats.forEach((c, i) => { const [x, y] = pt(i, 100); el('line', { x1: cx, y1: cy, x2: x.toFixed(1), y2: y.toFixed(1), class: 'gr-axis' }, svg); });
-    el('polygon', { points: poly(cats.map((c) => PYR.riderRadar.REF[c.id])), class: 'gr-ref' }, svg).appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: 'Moyenne du peloton World Tour' }));
+    el('polygon', { points: poly(cats.map((c) => PYR.riderRadar.REF[c.id])), class: 'gr-ref' }, svg).appendChild(Object.assign(document.createElementNS(NS, 'title'), { textContent: 'Moyenne de la catégorie' }));
     el('polygon', { points: poly(cats.map((c) => r.scores[c.id])), class: 'gr-area' }, svg);
     cats.forEach((c, i) => {
       const [x, y] = pt(i, r.scores[c.id]), top = r.best[0] === c.id;
@@ -266,18 +266,18 @@
       let a = null;
       try { a = PYR.physio.buildAthlete(r); } catch (e) { /* profil illisible : identité seule */ }
       const kg = Number(r.weight) || 0, ftp = a ? Math.round(a.ftp) : Number(r.ftp) || 0, wkg = kg && ftp ? ftp / kg : 0;
-      const level = wkg && PYR.bench ? PYR.bench.classify(r.sex === 'f' ? 'f' : 'm', 'ftp', wkg).level : null;
       const born = PYR.util.ageFrom(r.birthDate), age = born !== null ? born : Number(r.age) || 0;
       const color = it.pro && Pr ? Pr.TEAM_COLORS[it.pro.team] || '#6f6d66' : '#eb6834';
       const photo = h('div', { class: 'gs-ath-photo', style: { '--tc': color }, 'aria-hidden': 'true' });
       const avatar = !it.pro && PYR.avatar ? PYR.avatar.span(64, color, r) : null;
       if (avatar) photo.appendChild(avatar); else photo.appendChild(h('span', { class: 'gs-ath-ini' }, initials(r.name || it.name)));
       if (it.pro && PYR.proPhoto) photo.dataset.pro = it.name;
-      let radar = null;
+      let radar = null, division = null;
       if (PYR.riderRadar) {
         try {
-          const rs = PYR.riderRadar.scores(r);
-          radar = h('div', { class: 'gs-ath-radar' }, radarSvg(rs), h('div', { class: 'gs-ath-spec', title: 'Spécialités qui se détachent le plus du peloton World Tour' }, 'Profil : ', h('b', null, PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[0]).label), ' · ', PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[1]).short));
+          const rs = PYR.riderRadar.scores(r, { worldTour: !!it.pro });
+          division = rs.division;
+          radar = h('div', { class: 'gs-ath-radar' }, radarSvg(rs), h('div', { class: 'gs-ath-spec', title: `Échelle de la catégorie « ${division.label} » : un score de 100 est le meilleur de cette catégorie. Spécialités qui s'en détachent le plus.` }, 'Profil : ', h('b', null, PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[0]).label), ' · ', PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[1]).short));
         } catch (e) { radar = null; }
       }
       const who = it.pro ? `${Pr.TEAMS[it.pro.team]} · ${it.pro.typeLabel}` : [r.sex === 'f' ? 'Femme' : 'Homme', age ? `${age} ans` : ''].filter(Boolean).join(' · ');
@@ -285,12 +285,11 @@
       const el = h('div', { class: 'gs-athc', role: 'option', tabindex: '-1', 'aria-selected': String(on), dataset: { id: it.id } },
         h('div', { class: 'gs-ath-head' }, photo,
           h('div', { class: 'gs-ath-id' }, h('b', { class: 'gs-ath-name', title: r.name || it.name }, (r.name || it.name || 'Athlète sans nom'), it.edited ? h('span', { class: 'gs-pro-edited', title: 'Profil modifié et enregistré dans ta bibliothèque' }, ' · modifié') : null),
-            h('small', { class: 'gs-ath-who', title: who }, who), it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
+            h('small', { class: 'gs-ath-who', title: who }, who), division ? h('span', { class: 'gs-div gs-div-' + division.id, title: `Catégorie : ${division.label} (d'après les watts par kilo à la FTP et sur 5 min)` }, division.label) : null, it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
         radar,
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Poids', kg ? fmt(kg, 1) + ' kg' : '—'), stat('Taille', Number(r.height) ? fmt(Number(r.height)) + ' cm' : '—'), stat('FTP', ftp ? fmt(ftp) + ' W' : '—')),
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('W/kg', wkg ? fmt(wkg, 2) : '—'), stat('PC', a ? fmt(a.cp) + ' W' : '—'), stat("W′", a ? fmt(a.w0 / 1000, 1) + ' kJ' : '—')),
-        h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Pmax', a ? fmt(a.pmax) + ' W' : '—'), it.pro && Pr ? stat('W/CdA', fmt(Pr.wattsPerCdA(it))) : stat('Niveau', level ? level.label : '—'), it.pro && level ? stat('Niveau', level.label) : null),
-        level ? h('span', { class: 'gs-ath-level' }, h('i', { style: { background: level.color }, 'aria-hidden': 'true' }), level.who) : null,
+        h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Pmax', a ? fmt(a.pmax) + ' W' : '—'), it.pro && Pr ? stat('W/CdA', fmt(Pr.wattsPerCdA(it))) : stat('W/CdA', a ? fmt(PYR.riderRadar ? PYR.riderRadar.metrics(r).wCdaRoad : 0) : '—')),
         actionsEl(it, o.actions));
       el.addEventListener('click', () => o.onPick(it.id));
       return el;

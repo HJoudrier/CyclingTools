@@ -5,8 +5,8 @@
  *   - métabolisme (metabo.js, carte athlète) : VO₂max, proportion de fibres lentes, oxydation des lipides, pouvoir tampon ;
  *   - aérodynamique : le CdA du corps (taille, poids) en position route et en position contre-la-montre, d'où les watts par m² de CdA ;
  *   - poids : les watts par kilo (la montée) et la puissance absolue (le plat, le vent).
- * L'échelle est celle du peloton professionnel : 100 = le meilleur du World Tour dans cette spécialité, 0 = un cycliste de loisir. Les scores sont
- * des repères relatifs (une spécialité n'exclut pas les autres) : un grimpeur léger a un faible score de rouleur, un rouleur lourd un faible score de
+ * L'échelle dépend de la catégorie de l'athlète (Pro, Élite, 1ʳᵉ à 4ᵉ catégorie, Loisir : DIVISIONS, d'après ses watts par kilo) : un score de 100 est le
+ * meilleur d'une catégorie dans cette spécialité, pas du peloton. Les scores sont des repères relatifs (une spécialité n'exclut pas les autres) : un grimpeur léger a un faible score de rouleur, un rouleur lourd un faible score de
  * grimpeur, un leader de grand tour est bon presque partout.
  *   const r = PYR.riderRadar.scores(rider);   // { scores: { climb, sprint, flat, tt, stage, classic, punch }, metrics, best: [ids triés], profile }
  * Pure (testée sous Node) : aucune interface. */
@@ -24,15 +24,29 @@
     { id: 'punch', label: 'Puncheur', short: 'Puncheur', info: 'Efforts de 1 à 5 min : puissance par kilo, W′, pouvoir tampon.' },
   ];
 
-  const STRETCH_LO = 32, STRETCH_HI = 98;
+  const STRETCH_LO = 30, STRETCH_HI = 98;
   /** Score moyen du peloton World Tour (pros.js) dans chaque spécialité : la spécialité d'un athlète est celle où il s'en détache le plus. */
-  const REF = { climb: 70, sprint: 68, flat: 77, tt: 78, stage: 71, classic: 72, punch: 73 };
+  const REF = { climb: 61, sprint: 59, flat: 70, tt: 71, stage: 62, classic: 64, punch: 65 };
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+
+  /**
+   * Catégories de niveau (du plus haut au plus bas), avec le rapport minimal de l'athlète au niveau « classe mondiale » de Coggan et Allen
+   * (benchmarks.js : 60 % de la FTP et 40 % de la puissance sur 5 min, rapportées au poids ; ni le sprint ni la durée d'un effort ne comptent : la catégorie est un niveau d'endurance et de PMA) et le facteur rho par lequel on réduit les échelles du graphique
+   * (le centre de la catégorie rapporté à celui du peloton World Tour, dont les échelles sont celles du code ci-dessous). Les seuils prolongent ceux de
+   * Coggan : « exceptionnel » (pro continental, élite nationale) ≈ 0,91, « excellent » (catégorie 1) ≈ 0,82, « très bon » (catégorie 2) ≈ 0,735…
+   */
+  const DIVISIONS = [
+    { id: 'pro', label: 'Pro (World Tour)', short: 'Pro', min: 0.91, rho: 1.0 },
+    { id: 'elite', label: 'Élite', short: 'Élite', min: 0.85, rho: 0.92 },
+    { id: 'cat1', label: '1ʳᵉ catégorie', short: '1ʳᵉ cat.', min: 0.78, rho: 0.85 },
+    { id: 'cat2', label: '2ᵉ catégorie', short: '2ᵉ cat.', min: 0.70, rho: 0.77 },
+    { id: 'cat3', label: '3ᵉ catégorie', short: '3ᵉ cat.', min: 0.61, rho: 0.68 },
+    { id: 'cat4', label: '4ᵉ catégorie', short: '4ᵉ cat.', min: 0.52, rho: 0.59 },
+    { id: 'leisure', label: 'Loisir', short: 'Loisir', min: 0, rho: 0.47 },
+  ];
+
   /** x ramené de [lo, hi] à [0, 100]. */
-  // (les bornes données plus bas vont du 5ᵉ centile du peloton pro, moins une marge, au 95ᵉ ; EXT prolonge l'échelle vers le bas pour que le profil d'un
-  // cycliste amateur, loin du peloton, reste lisible au lieu de tomber à 0 partout)
-  const EXT = 0.3;
-  const sc = (x, lo, hi) => 100 * clamp((x - (lo - EXT * (hi - lo))) / ((hi - lo) * (1 + EXT)), 0, 1);
+  const sc = (x, lo, hi) => 100 * clamp((x - lo) / (hi - lo), 0, 1);
   /** Moyenne pondérée de [poids, score]. */
   const mix = (...parts) => { let w = 0, s = 0; for (const [k, v] of parts) { w += k; s += k * v; } return s / w; };
 
@@ -73,27 +87,53 @@
   }
 
   /**
-   * Scores de l'athlète (0–100) dans chaque spécialité. rider : le profil au format de la bibliothèque (poids, taille, FTP, records, carte physio…).
-   * Renvoie { scores, metrics, best (identifiants triés de la spécialité qui se détache le plus de la moyenne du peloton à la moins marquée), profile (libellé de la première) }.
+   * Catégorie de l'athlète d'après ses watts par kilo (FTP et 5 min) rapportés aux seuils « classe mondiale » de benchmarks.js (selon son
+   * sexe). Renvoie { division (une entrée de DIVISIONS), ratio }.
    */
-  function scores(rider) {
-    const m = metrics(rider);
-    // échelles : de la valeur d'un cycliste de loisir bien entraîné (0) à celle du meilleur du World Tour (≈ 100) ; le 5ᵉ centile du peloton pro est vers 50
-    // endurance : fibres lentes (la fatigue d'une longue étape, la récupération d'un jour à l'autre) et VO₂max
-    const endurance = mix([0.7, sc(m.slow, 34, 70)], [0.3, sc(m.vo2, 65, 87)]);
-    const climb = mix([0.5, sc(m.ftpKg, 3.8, 6.6)], [0.25, sc(m.p5Kg, 5.1, 7.8)], [0.15, sc(m.p20Kg, 4.4, 7.1)], [0.1, sc(m.vo2, 57, 87)]);
-    const sprint = mix([0.4, sc(m.pmax, 300, 1900)], [0.2, sc(m.pmaxKg, 8, 24.4)], [0.2, sc(m.p15s, 250, 1300)], [0.1, sc(m.wPrime, 0, 30)], [0.1, sc(100 - m.slow, 5, 54)]);
-    const flat = mix([0.4, sc(m.wCdaRoad, 830, 1500)], [0.3, sc(m.ftp, 140, 465)], [0.15, sc(m.p20, 120, 505)], [0.15, endurance]);
-    const tt = mix([0.55, sc(m.wCdaTT, 1000, 2150)], [0.2, sc(m.ftp, 140, 465)], [0.15, sc(m.p20Kg, 4.4, 7.1)], [0.1, endurance]);
-    const stage = mix([0.4, climb], [0.2, tt], [0.25, endurance], [0.15, sc(m.ftpKg, 3.8, 6.6)]);
-    const classic = mix([0.25, sc(m.ftp, 140, 465)], [0.2, sc(m.pmax, 300, 1900)], [0.15, sc(m.wPrime, 0, 30)], [0.2, sc(m.wCdaRoad, 830, 1500)], [0.2, endurance]);
-    const punch = mix([0.25, sc(m.p1Kg, 6.0, 10.7)], [0.35, sc(m.p5Kg, 5.1, 7.8)], [0.2, sc(m.wPrimeKg, 0.05, 0.39)], [0.1, sc(m.buffer, 0.7, 1.29)], [0.1, sc(m.pmaxKg, 8, 24.4)]);
-    const out = { climb, sprint, flat, tt, stage, classic, punch };
-    // le peloton pro occupe le haut de l'échelle ci-dessus ; on étire de 32 à 98 vers 0 à 100 pour que les forces et les faiblesses d'un athlète se voient
-    for (const k of Object.keys(out)) out[k] = Math.round(clamp((out[k] - STRETCH_LO) / (STRETCH_HI - STRETCH_LO), 0, 1) * 100);
-    const best = CATEGORIES.map((c) => c.id).sort((x, y) => (out[y] - REF[y]) - (out[x] - REF[x]));
-    return { scores: out, metrics: m, best, profile: CATEGORIES.find((c) => c.id === best[0]).label };
+  function division(rider, m) {
+    m = m || metrics(rider);
+    const B = PYR.bench, sex = rider && rider.sex === 'f' ? 'f' : 'm';
+    let ratio;
+    if (B && B.thresholds) {
+      const t = (e) => B.thresholds(sex, e)[0];
+      ratio = 0.6 * (m.ftpKg / t('ftp')) + 0.4 * (m.p5Kg / t('p300'));
+    } else ratio = m.ftpKg / (sex === 'f' ? 5.36 : 6.04);
+    return { division: DIVISIONS.find((d) => ratio >= d.min) || DIVISIONS[DIVISIONS.length - 1], ratio };
   }
 
-  PYR.riderRadar = { CATEGORIES, REF, scores, metrics, sc };
+  /**
+   * Scores de l'athlète (0–100) dans chaque spécialité, par rapport à sa catégorie : les échelles sont celles du peloton World Tour réduites du facteur
+   * de la catégorie (division), pour que le graphique montre les forces et les faiblesses d'un coureur parmi ses pairs, pas son niveau absolu.
+   * rider : le profil au format de la bibliothèque (poids, taille, FTP, records, carte physio…). opts.worldTour : coureur du World Tour (catégorie Pro,
+   * quelle que soit sa puissance). Renvoie { scores, division, ratio, metrics, best (identifiants triés de la spécialité qui se détache le plus de la
+   * moyenne à la moins marquée), profile (libellé de la première) }.
+   */
+  function scores(rider, opts) {
+    const m = metrics(rider);
+    const d = division(rider, m);
+    const div = opts && opts.worldTour ? DIVISIONS[0] : d.division;
+    const k = div.rho, kv = Math.pow(k, 0.6);
+    // échelles du peloton pro (5ᵉ centile moins une marge, 95ᵉ centile) ramenées à la catégorie : puissances × k, VO₂max × k^0,6 ; les fibres lentes et le
+    // pouvoir tampon sont des qualités de l'athlète, pas de son niveau : leurs échelles ne changent pas
+    const S = (x, lo, hi) => sc(x, lo * k, hi * k);
+    const V = (x, lo, hi) => sc(x, lo * kv, hi * kv);
+    // la puissance de sprint dépend moins de la catégorie que celle d'endurance (un amateur sprinte à 1 100–1 400 W, un pro à 1 500–2 000 W) : k^0,45
+    const ks = Math.pow(k, 0.45), Q = (x, lo, hi) => sc(x, lo * ks, hi * ks);
+    // endurance : fibres lentes (la fatigue d'une longue étape, la récupération d'un jour à l'autre) et VO₂max
+    const endurance = mix([0.7, sc(m.slow, 34, 70)], [0.3, V(m.vo2, 65, 87)]);
+    const climb = mix([0.5, S(m.ftpKg, 3.8, 6.6)], [0.25, S(m.p5Kg, 5.1, 7.8)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, V(m.vo2, 57, 87)]);
+    const sprint = mix([0.4, Q(m.pmax, 300, 1900)], [0.2, Q(m.pmaxKg, 8, 24.4)], [0.2, Q(m.p15s, 250, 1300)], [0.1, Q(m.wPrime, 0, 30)], [0.1, sc(100 - m.slow, 5, 54)]);
+    const flat = mix([0.4, S(m.wCdaRoad, 830, 1500)], [0.3, S(m.ftp, 140, 465)], [0.15, S(m.p20, 120, 505)], [0.15, endurance]);
+    const tt = mix([0.55, S(m.wCdaTT, 1000, 2150)], [0.2, S(m.ftp, 140, 465)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, endurance]);
+    const stage = mix([0.4, climb], [0.2, tt], [0.25, endurance], [0.15, S(m.ftpKg, 3.8, 6.6)]);
+    const classic = mix([0.25, S(m.ftp, 140, 465)], [0.2, Q(m.pmax, 300, 1900)], [0.15, Q(m.wPrime, 0, 30)], [0.2, S(m.wCdaRoad, 830, 1500)], [0.2, endurance]);
+    const punch = mix([0.25, S(m.p1Kg, 6.0, 10.7)], [0.35, S(m.p5Kg, 5.1, 7.8)], [0.2, Q(m.wPrimeKg, 0.05, 0.39)], [0.1, sc(m.buffer, 0.7, 1.29)], [0.1, Q(m.pmaxKg, 8, 24.4)]);
+    const out = { climb, sprint, flat, tt, stage, classic, punch };
+    // le peloton occupe le haut de l'échelle ; on étire de 30 à 98 vers 0 à 100 pour que les forces et les faiblesses d'un athlète se voient
+    for (const id of Object.keys(out)) out[id] = Math.round(clamp((out[id] - STRETCH_LO) / (STRETCH_HI - STRETCH_LO), 0, 1) * 100);
+    const best = CATEGORIES.map((c) => c.id).sort((x, y) => (out[y] - REF[y]) - (out[x] - REF[x]));
+    return { scores: out, division: div, ratio: d.ratio, metrics: m, best, profile: CATEGORIES.find((c) => c.id === best[0]).label };
+  }
+
+  PYR.riderRadar = { CATEGORIES, DIVISIONS, REF, scores, division, metrics, sc };
 })(globalThis.PYR = globalThis.PYR || {});

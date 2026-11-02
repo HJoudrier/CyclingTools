@@ -88,6 +88,14 @@ body.gs-page .topbar { position: sticky; top: 0; z-index: 40; }
 .gr-lbl { font-size: 9.5px; fill: var(--ink-2); }
 .gr-lbl.gr-top { font-weight: 800; fill: var(--ink); }
 .gr-val { font-size: 9px; font-weight: 700; fill: var(--accent); }
+.gs-div { align-self: flex-start; margin-top: 3px; padding: 1px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: #6a7fb5; }
+.gs-div-pro { background: #b3261e; }
+.gs-div-elite { background: #d9622b; }
+.gs-div-cat1 { background: #c8941a; }
+.gs-div-cat2 { background: #3f9d4f; }
+.gs-div-cat3 { background: #2a9d8f; }
+.gs-div-cat4 { background: #3d85c6; }
+.gs-div-leisure { background: #8a8f98; }
 .gs-ath-spec { font-size: 12px; color: var(--ink-2); margin-top: -2px; }
 
 /* fond de carte introuvable : pastille sur la vignette du parcours */
