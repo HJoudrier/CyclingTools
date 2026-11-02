@@ -417,11 +417,11 @@ LOT|Andreas Kron|1998|179|66|p|64
   /** Identifiant « pro:nom » du coureur du World Tour qui porte ce nom, ou '' (insensible aux accents et à la casse). */
   const idOfName = (name) => { const id = 'pro:' + slug(String(name || '')); return has(id) ? id : ''; };
 
-  /** Rapport FTP / CdA estimé (W/m²) en position route : CdA ≈ 0,9 × surface frontale de Bassett (taille, poids). */
+  /** Rapport FTP / CdA (W/m²) en position route, avec le CdA du corps seul (physics.bodyCda : taille, poids, ou valeur saisie). */
   function wattsPerCdA(it) {
     const r = it.data.rider, P = PYR.physics;
-    const a = P && P.frontalRef ? P.frontalRef(r.height, r.weight) : 0.335;
-    return round(r.ftp / (0.9 * a), 0);
+    const cda = P && P.bodyCda ? P.bodyCda(r).road : 0.92 * 0.335;
+    return round(r.ftp / cda, 0);
   }
 
   PYR.pros = { TYPES, TEAMS, TEAM_COLORS, RIDERS, build, item, all, find, has, idOfName, setOverrides, wattsPerCdA };

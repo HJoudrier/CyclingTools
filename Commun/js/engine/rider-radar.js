@@ -26,7 +26,7 @@
 
   const STRETCH_LO = 30, STRETCH_HI = 98;
   /** Score moyen du peloton World Tour (pros.js) dans chaque spécialité : la spécialité d'un athlète est celle où il s'en détache le plus. */
-  const REF = { climb: 61, sprint: 60, flat: 70, tt: 71, stage: 62, classic: 64, punch: 65 };
+  const REF = { climb: 61, sprint: 59, flat: 66, tt: 61, stage: 60, classic: 62, punch: 65 };
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
   /**
@@ -50,20 +50,6 @@
   /** Moyenne pondérée de [poids, score]. */
   const mix = (...parts) => { let w = 0, s = 0; for (const [k, v] of parts) { w += k; s += k * v; } return s / w; };
 
-  // vélo et tenue de référence : le CdA ne doit dépendre que du corps de l'athlète (taille, poids), pas de son équipement du moment
-  const BIKE = { weight: 7.5, load: 1.5, frame: 'road', wheels: 'low', tire: 'road', drivetrain: 'clean', shoes: 'road', wheelMass: 2.2 };
-  const ROAD = { position: 'drops', helmet: 'road', clothing: 'fitted', glasses: 'sport', socks: 'classic', shave: 'legs' };
-  const CHRONO = { position: 'tt', helmet: 'tt', clothing: 'skinsuit_tt', glasses: 'sport', socks: 'aero', shave: 'legs' };
-
-  function cdaOf(rider, outfit) {
-    const P = PYR.physics;
-    if (P && P.buildSetup) {
-      try { return P.buildSetup(Object.assign({}, rider, outfit), BIKE).cda; } catch (e) { /* repli ci-dessous */ }
-    }
-    const a = P && P.frontalRef ? P.frontalRef(rider.height, rider.weight) : 0.335;
-    return a * (outfit === CHRONO ? 0.74 : 0.92);
-  }
-
   /** Mesures dont les scores sont tirés (voir en tête de fichier). */
   function metrics(rider) {
     const r = rider || {};
@@ -81,8 +67,11 @@
       cp: a.cp,
       vo2: card ? card.vo2max : 0, slow: card ? card.fI : 55, buffer: card ? card.buffer : 1,
     };
-    m.cdaRoad = cdaOf(r, ROAD); m.cdaTT = cdaOf(r, CHRONO);
+    // CdA du corps seul (taille, poids ; ou valeurs saisies sur la page Athlète), sans vélo ni tenue : route, sprint (hors selle) et chrono
+    const c = PYR.physics.bodyCda(r);
+    m.cdaRoad = c.road; m.cdaSprint = c.sprint; m.cdaTT = c.tt;
     m.wCdaRoad = a.ftp / m.cdaRoad; m.wCdaTT = a.ftp / m.cdaTT;
+    m.wCdaSprint = m.p15s / m.cdaSprint;       // la puissance sur 15 s par m² de CdA : à puissance égale, un petit gabarit sprinte plus vite
     return m;
   }
 
@@ -122,12 +111,13 @@
     // endurance : fibres lentes (la fatigue d'une longue étape, la récupération d'un jour à l'autre) et VO₂max
     const endurance = mix([0.7, sc(m.slow, 34, 70)], [0.3, V(m.vo2, 65, 87)]);
     const climb = mix([0.5, S(m.ftpKg, 3.8, 6.6)], [0.25, S(m.p5Kg, 5.1, 7.8)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, V(m.vo2, 57, 87)]);
-    // sprint : de la pointe (5 s) au sprint long (15, 30 s) et à la séquence d'approche (1 min : rouler vite pour se placer) ; la Pmax d'une seconde n'y compte plus
-    const sprint = mix([0.22, Q(m.p5s, 258, 1615)], [0.28, Q(m.p15s, 300, 1302)], [0.20, Q(m.p30s, 321, 1052)], [0.15, Q(m.p1, 333, 824)], [0.05, Q(m.wPrime, 0, 30)], [0.10, sc(100 - m.slow, 5, 54)]);
-    const flat = mix([0.4, S(m.wCdaRoad, 830, 1500)], [0.3, S(m.ftp, 140, 465)], [0.15, S(m.p20, 120, 505)], [0.15, endurance]);
-    const tt = mix([0.55, S(m.wCdaTT, 1000, 2150)], [0.2, S(m.ftp, 140, 465)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, endurance]);
+    // sprint : de la pointe (5 s) au sprint long (15, 30 s) et à la séquence d'approche (1 min : rouler vite pour se placer) ; la Pmax d'une seconde n'y compte plus.
+    // La puissance sur 15 s par m² de CdA en position sprint s'y ajoute : à puissance égale, un petit gabarit sprinte plus vite qu'un grand
+    const sprint = mix([0.18, Q(m.p5s, 258, 1615)], [0.22, Q(m.p15s, 300, 1302)], [0.16, Q(m.p30s, 321, 1052)], [0.12, Q(m.p1, 333, 824)], [0.20, Q(m.wCdaSprint, 1464, 3649)], [0.04, Q(m.wPrime, 0, 30)], [0.08, sc(100 - m.slow, 5, 54)]);
+    const flat = mix([0.4, S(m.wCdaRoad, 965, 1462)], [0.3, S(m.ftp, 140, 465)], [0.15, S(m.p20, 120, 505)], [0.15, endurance]);
+    const tt = mix([0.55, S(m.wCdaTT, 1200, 1817)], [0.2, S(m.ftp, 140, 465)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, endurance]);
     const stage = mix([0.4, climb], [0.2, tt], [0.25, endurance], [0.15, S(m.ftpKg, 3.8, 6.6)]);
-    const classic = mix([0.25, S(m.ftp, 140, 465)], [0.2, Q(m.pmax, 300, 1900)], [0.15, Q(m.wPrime, 0, 30)], [0.2, S(m.wCdaRoad, 830, 1500)], [0.2, endurance]);
+    const classic = mix([0.25, S(m.ftp, 140, 465)], [0.2, Q(m.pmax, 300, 1900)], [0.15, Q(m.wPrime, 0, 30)], [0.2, S(m.wCdaRoad, 965, 1462)], [0.2, endurance]);
     const punch = mix([0.25, S(m.p1Kg, 6.0, 10.7)], [0.35, S(m.p5Kg, 5.1, 7.8)], [0.2, Q(m.wPrimeKg, 0.05, 0.39)], [0.1, sc(m.buffer, 0.7, 1.29)], [0.1, Q(m.pmaxKg, 8, 24.4)]);
     const out = { climb, sprint, flat, tt, stage, classic, punch };
     // le peloton occupe le haut de l'échelle ; on étire de 30 à 98 vers 0 à 100 pour que les forces et les faiblesses d'un athlète se voient

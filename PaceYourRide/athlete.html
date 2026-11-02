@@ -157,6 +157,13 @@
           <div class="field"><label for="r-weight">Poids (kg)</label><input type="number" id="r-weight" min="25" max="200" step="0.1" data-bind="rider.weight"></div>
           <div class="field"><label for="r-height">Taille (cm)</label><input type="number" id="r-height" min="120" max="230" step="1" data-bind="rider.height"></div>
         </div>
+        <!-- CdA du corps seul : estimés d'après la taille et le poids (js/tab-rider.js), remplaçables ; ils servent aux scores rouleur, contre-la-montre et sprinteur -->
+        <div class="grid3">
+          <div class="field"><label for="r-cda-road">CdA route (m²)</label><input type="number" id="r-cda-road" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaRoad" placeholder="auto"><small class="hint phy-src" id="r-cda-road-src"></small></div>
+          <div class="field"><label for="r-cda-sprint">CdA sprint (m²)</label><input type="number" id="r-cda-sprint" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaSprint" placeholder="auto"><small class="hint phy-src" id="r-cda-sprint-src"></small></div>
+          <div class="field"><label for="r-cda-tt">CdA CLM (m²)</label><input type="number" id="r-cda-tt" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaTT" placeholder="auto"><small class="hint phy-src" id="r-cda-tt-src"></small></div>
+        </div>
+        <p class="hint">Surface équivalente de <b>ton corps seul</b> (sans vélo, roues, casque ni tenue : ceux-là se règlent sur la page Équipements), dans trois positions : sur la route (mains en bas du cintre), au sprint (hors selle) et en contre-la-montre (prolongateurs). Une case vide prend l'estimation d'après ta taille et ton poids (Bassett et al.) ; une mesure en soufflerie la remplace. Ces valeurs servent aux scores de rouleur, de contre-la-montre et de sprinteur (watts par m² de CdA) sur l'accueil.</p>
         <div class="field">
           <label for="r-gut">Intestin (absorption des glucides en course)</label>
           <select id="r-gut" data-bind="rider.gut"></select>

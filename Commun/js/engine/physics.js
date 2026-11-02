@@ -154,6 +154,29 @@
     return 0.0293 * Math.pow(h, 0.725) * Math.pow(m, 0.425) + 0.0604;
   }
 
+  /** Facteur de la surface frontale de la position « hors selle, mains en bas du cintre » du sprint (calage : plus ouvert que les drops assis, 0,92). */
+  const SPRINT_FACTOR = 1.0;
+
+  /**
+   * CdA du corps seul (m²), sans vélo, roues, casque ni tenue : la surface frontale de référence (Bassett et al.) multipliée par le facteur de la
+   * position — route (mains en bas du cintre, « drops »), sprint (hors selle) ou contre-la-montre (prolongateurs). Estimé d'après la taille et le poids ;
+   * les champs cdaRoad, cdaSprint et cdaTT du profil (m², page Athlète) le remplacent quand ils sont renseignés.
+   * Renvoie { road, sprint, tt (valeurs retenues), est: { road, sprint, tt } (estimations), src: { road, sprint, tt } ('saisie' | 'estimée') }.
+   */
+  function bodyCda(rider) {
+    const r = rider || {};
+    const a = frontalRef(r.height, r.weight);
+    const est = { road: a * byId(POSITIONS, 'drops').factor, sprint: a * SPRINT_FACTOR, tt: a * byId(POSITIONS, 'tt').factor };
+    const ov = { road: Number(r.cdaRoad), sprint: Number(r.cdaSprint), tt: Number(r.cdaTT) };
+    const out = { est, src: {} };
+    for (const k of ['road', 'sprint', 'tt']) {
+      const given = ov[k] > 0.05 && ov[k] < 1;
+      out[k] = given ? ov[k] : est[k];
+      out.src[k] = given ? 'saisie' : 'estimée';
+    }
+    return out;
+  }
+
   /** Densité de l'air (kg/m³) à l'altitude donnée (atmosphère standard) et à la température donnée. */
   function airDensity(altM, tempC) {
     const p = 101325 * Math.pow(Math.max(0.2, 1 - 2.25577e-5 * altM), 5.25588);
@@ -281,6 +304,6 @@
 
   PYR.physics = {
     G, POSITIONS, HELMETS, CLOTHING, GLASSES, SOCKS, SHAVE, FRAMES, WHEELS, TIRES, PUNCT_TERRAINS, SHOES, DRIVETRAINS, SURFACES, ROAD_W, ROAD_W_MIN, ROAD_W_MAX,
-    byId, frontalRef, airDensity, airDensityHumid, surfaceFactor, surfaceRisk, roadWidth, surfaceWidth, buildSetup, steadyPower, steadySpeed,
+    byId, frontalRef, bodyCda, SPRINT_FACTOR, airDensity, airDensityHumid, surfaceFactor, surfaceRisk, roadWidth, surfaceWidth, buildSetup, steadyPower, steadySpeed,
   };
 })(globalThis.PYR = globalThis.PYR || {});

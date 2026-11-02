@@ -209,6 +209,14 @@
         inp.classList.toggle('estimated', src !== 'saisie');
         $(`#r-${k}-src`).textContent = src === 'saisie' ? 'saisie' : `estimée : ${U.fmt(est, dec)}`;
       });
+      // CdA du corps seul : estimation d'après la taille et le poids en gris, source sous chaque champ
+      const bc = PYR.physics.bodyCda(r);
+      [['road', 'cda-road'], ['sprint', 'cda-sprint'], ['tt', 'cda-tt']].forEach(([k, id]) => {
+        const inp = $('#r-' + id);
+        inp.placeholder = U.fmt(bc.est[k], 3);
+        inp.classList.toggle('estimated', bc.src[k] !== 'saisie');
+        $(`#r-${id}-src`).textContent = bc.src[k] === 'saisie' ? 'saisi' : `estimé : ${U.fmt(bc.est[k], 3)}`;
+      });
       // note du modèle
       const note = $('#rider-model-note');
       D.clear(note);

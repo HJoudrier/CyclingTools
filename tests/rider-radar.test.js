@@ -94,3 +94,35 @@ test('radar : le poids, la puissance, l\'aérodynamisme et la carte physiologiqu
   // le CdA ne dépend que du corps : l'équipement du moment ne change pas les scores
   assert.deepEqual(R.scores(rider({ ftp: 380, weight: 72, pmax: 1100, position: 'upright', clothing: 'loose' }), { worldTour: true }).scores, base.scores);
 });
+
+test('CdA du corps : estimé d\'après la taille et le poids (route, sprint, chrono), remplaçable par des valeurs saisies', () => {
+  const Ph = PYR.physics;
+  const a = Ph.bodyCda(rider({ height: 178, weight: 72 }));
+  // aRef = 0,0293 · h^0,725 · m^0,425 + 0,0604 ; route = drops (0,92), sprint hors selle (1,00), chrono prolongateurs (0,74)
+  const aRef = Ph.frontalRef(178, 72);
+  assert.ok(Math.abs(a.road - 0.92 * aRef) < 1e-9 && Math.abs(a.sprint - aRef) < 1e-9 && Math.abs(a.tt - 0.74 * aRef) < 1e-9);
+  assert.ok(a.tt < a.road && a.road < a.sprint, 'chrono < route < sprint');
+  assert.deepEqual(a.src, { road: 'estimée', sprint: 'estimée', tt: 'estimée' });
+  // un grand coureur a un plus grand CdA qu'un petit, à même poids
+  assert.ok(Ph.bodyCda(rider({ height: 192, weight: 72 })).road > Ph.bodyCda(rider({ height: 168, weight: 72 })).road);
+  // valeurs saisies : retenues ; absurdes ou vides : ignorées
+  const o = Ph.bodyCda(rider({ cdaRoad: 0.27, cdaSprint: '', cdaTT: 3 }));
+  assert.equal(o.road, 0.27); assert.equal(o.src.road, 'saisie');
+  assert.equal(o.sprint, o.est.sprint); assert.equal(o.tt, o.est.tt);
+  // le calcul des scores utilise ces valeurs : un CdA chrono plus bas = meilleur contre-la-montre, à puissance égale
+  const base = rider({ ftp: 380, weight: 72, height: 178 });
+  assert.ok(R.scores(Object.assign({}, base, { cdaTT: 0.2 }), { worldTour: true }).scores.tt > R.scores(base, { worldTour: true }).scores.tt + 10);
+  assert.ok(R.scores(Object.assign({}, base, { cdaRoad: 0.25 }), { worldTour: true }).scores.flat > R.scores(base, { worldTour: true }).scores.flat + 10);
+  assert.ok(R.metrics(Object.assign({}, base, { cdaTT: 0.2 })).wCdaTT > R.metrics(base).wCdaTT);
+});
+
+test('sprint : à puissance égale, un petit gabarit sprinte mieux (watts sur 15 s par m² de CdA en position sprint)', () => {
+  const rec = { 1: 1500, 5: 1400, 15: 1150, 30: 900, 60: 700, 300: 440, 1200: 400, 3600: 380 };
+  const small = R.scores(rider({ ftp: 380, weight: 66, height: 168, records: rec }), { worldTour: true });
+  const tall = R.scores(rider({ ftp: 380, weight: 82, height: 192, records: rec }), { worldTour: true });
+  assert.ok(R.metrics(rider({ weight: 66, height: 168, records: rec })).wCdaSprint > R.metrics(rider({ weight: 82, height: 192, records: rec })).wCdaSprint);
+  assert.ok(small.scores.sprint > tall.scores.sprint + 5, `${small.scores.sprint} > ${tall.scores.sprint}`);
+  // et un CdA sprint saisi plus bas améliore le score à tout le reste égal
+  const base = rider({ ftp: 380, weight: 72, height: 178, records: { 1: 1100, 5: 1000, 15: 800, 30: 640, 60: 520, 300: 440, 1200: 400, 3600: 380 } });
+  assert.ok(R.scores(Object.assign({}, base, { cdaSprint: 0.27 }), { worldTour: true }).scores.sprint > R.scores(base, { worldTour: true }).scores.sprint + 5);
+});
