@@ -31,6 +31,7 @@
       outfitName: '',          // nom de la tenue et position (pour la retrouver dans la bibliothèque de l'accueil)
       gut: 0,                  // intestin : 0 non entraîné, 0.5 habitué, 1 très entraîné (absorption des glucides en course)
       ftp: 250, cp: '', wPrime: '', pmax: '', records: {},
+      division: '',      // catégorie de l'athlète pour le graphique en toile d'araignée : '' = d'après ses watts par kilo, ou 'pro', 'elite', 'cat1' … 'cat4', 'leisure' (page Athlète)
       cdaRoad: '', cdaSprint: '', cdaTT: '',   // CdA du corps seul (m²), sans vélo ni tenue : route, sprint, contre-la-montre ; '' = estimé d'après la taille et le poids (physics.bodyCda)
       // carte athlète du modèle physiologique (metabo.js FIELDS) : '' = valeur estimée d'après le profil
       physio: physioDefaults(),
@@ -266,6 +267,7 @@
     r.wPrime = num(src.wPrime, 2, 60, '');
     r.pmax = num(src.pmax, 100, 3000, '', true);
     const cda = (v) => (Number.isFinite(Number(v)) && v !== '' && v !== null && Number(v) > 0.05 && Number(v) < 1 ? Math.round(Number(v) * 1000) / 1000 : '');
+    r.division = ['pro', 'elite', 'cat1', 'cat2', 'cat3', 'cat4', 'leisure'].includes(src.division) ? src.division : '';
     r.cdaRoad = cda(src.cdaRoad); r.cdaSprint = cda(src.cdaSprint); r.cdaTT = cda(src.cdaTT);
     const durations = PYR.physio ? PYR.physio.DURATIONS : null;
     if (src.records && typeof src.records === 'object') {

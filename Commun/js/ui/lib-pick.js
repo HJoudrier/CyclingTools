@@ -272,11 +272,11 @@
       const avatar = !it.pro && PYR.avatar ? PYR.avatar.span(64, color, r) : null;
       if (avatar) photo.appendChild(avatar); else photo.appendChild(h('span', { class: 'gs-ath-ini' }, initials(r.name || it.name)));
       if (it.pro && PYR.proPhoto) photo.dataset.pro = it.name;
-      let radar = null, division = null;
+      let radar = null, division = null, divisionChosen = false;
       if (PYR.riderRadar) {
         try {
           const rs = PYR.riderRadar.scores(r, { worldTour: !!it.pro });
-          division = rs.division;
+          division = rs.division; divisionChosen = rs.chosen;
           radar = h('div', { class: 'gs-ath-radar' }, radarSvg(rs), h('div', { class: 'gs-ath-spec', title: `Échelle de la catégorie « ${division.label} » : un score de 100 est le meilleur de cette catégorie. Spécialités qui s'en détachent le plus.` }, 'Profil : ', h('b', null, PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[0]).label), ' · ', PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[1]).short));
         } catch (e) { radar = null; }
       }
@@ -285,7 +285,7 @@
       const el = h('div', { class: 'gs-athc', role: 'option', tabindex: '-1', 'aria-selected': String(on), dataset: { id: it.id } },
         h('div', { class: 'gs-ath-head' }, photo,
           h('div', { class: 'gs-ath-id' }, h('b', { class: 'gs-ath-name', title: r.name || it.name }, (r.name || it.name || 'Athlète sans nom'), it.edited ? h('span', { class: 'gs-pro-edited', title: 'Profil modifié et enregistré dans ta bibliothèque' }, ' · modifié') : null),
-            h('small', { class: 'gs-ath-who', title: who }, who), division ? h('span', { class: 'gs-div gs-div-' + division.id, title: `Catégorie : ${division.label} (d'après les watts par kilo à la FTP et sur 5 min)` }, division.label) : null, it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
+            h('small', { class: 'gs-ath-who', title: who }, who), division ? h('span', { class: 'gs-div gs-div-' + division.id, title: divisionChosen ? `Catégorie choisie sur la page Athlète : ${division.full || division.label}` : `Catégorie : ${division.full || division.label} (d'après les watts par kilo à la FTP et sur 5 min)` }, division.label) : null, it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
         radar,
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Poids', kg ? fmt(kg, 1) + ' kg' : '—'), stat('Taille', Number(r.height) ? fmt(Number(r.height)) + ' cm' : '—'), stat('FTP', ftp ? fmt(ftp) + ' W' : '—')),
         h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('W/kg', wkg ? fmt(wkg, 2) : '—'), stat('PC', a ? fmt(a.cp) + ' W' : '—'), stat("W′", a ? fmt(a.w0 / 1000, 1) + ' kJ' : '—')),

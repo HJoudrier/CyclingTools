@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="../Commun/css/style.css">
   <link rel="stylesheet" href="../Commun/css/game-mobile.css">
   <link rel="stylesheet" href="../Commun/css/ride.css">
+  <link rel="stylesheet" href="../Commun/css/select.css">
 </head>
 <body data-page="rider" data-tab="rider">
   <header class="topbar">
@@ -164,6 +165,14 @@
           <div class="field"><label for="r-cda-tt">CdA CLM (m²)</label><input type="number" id="r-cda-tt" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaTT" placeholder="auto"><small class="hint phy-src" id="r-cda-tt-src"></small></div>
         </div>
         <p class="hint">Surface équivalente de <b>ton corps seul</b> (sans vélo, roues, casque ni tenue : ceux-là se règlent sur la page Équipements), dans trois positions : sur la route (mains en bas du cintre), au sprint (hors selle) et en contre-la-montre (prolongateurs). Une case vide prend l'estimation d'après ta taille et ton poids (Bassett et al.) ; une mesure en soufflerie la remplace. Ces valeurs servent aux scores de rouleur, de contre-la-montre et de sprinteur (watts par m² de CdA) sur l'accueil.</p>
+        <!-- catégorie et toile d'araignée des spécialités (js/tab-rider.js, js/engine/rider-radar.js) -->
+        <div class="field">
+          <label for="r-division">Catégorie</label>
+          <select id="r-division" data-bind="rider.division"></select>
+          <small class="hint" id="r-division-note"></small>
+        </div>
+        <div class="r-radar" id="r-radar" aria-live="polite"></div>
+        <p class="hint">La catégorie sert d'échelle à la toile d'araignée ci-dessus : chaque spécialité est notée par rapport aux athlètes de cette catégorie (100 = le meilleur de la catégorie). « Automatique » la déduit de tes watts par kilo (FTP et 5 min). Choisis-en une autre pour te comparer à tes pairs réels (ta licence, ton groupe) ; un coureur du World Tour est Pro.</p>
         <div class="field">
           <label for="r-gut">Intestin (absorption des glucides en course)</label>
           <select id="r-gut" data-bind="rider.gut"></select>

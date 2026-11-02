@@ -36,13 +36,13 @@
    * Coggan : « exceptionnel » (pro continental, élite nationale) ≈ 0,91, « excellent » (catégorie 1) ≈ 0,82, « très bon » (catégorie 2) ≈ 0,735…
    */
   const DIVISIONS = [
-    { id: 'pro', label: 'Pro (World Tour)', short: 'Pro', min: 0.91, rho: 1.0 },
-    { id: 'elite', label: 'Élite', short: 'Élite', min: 0.85, rho: 0.92 },
-    { id: 'cat1', label: '1ʳᵉ catégorie', short: '1ʳᵉ cat.', min: 0.78, rho: 0.85 },
-    { id: 'cat2', label: '2ᵉ catégorie', short: '2ᵉ cat.', min: 0.70, rho: 0.77 },
-    { id: 'cat3', label: '3ᵉ catégorie', short: '3ᵉ cat.', min: 0.61, rho: 0.68 },
-    { id: 'cat4', label: '4ᵉ catégorie', short: '4ᵉ cat.', min: 0.52, rho: 0.59 },
-    { id: 'leisure', label: 'Loisir', short: 'Loisir', min: 0, rho: 0.47 },
+    { id: 'pro', label: 'Pro (World Tour)', full: 'Pro World Tour', short: 'Pro', min: 0.91, rho: 1.0 },
+    { id: 'elite', label: 'Élite', full: 'Élite nationale / pro continental', short: 'Élite', min: 0.85, rho: 0.92 },
+    { id: 'cat1', full: '1ʳᵉ catégorie', label: '1ʳᵉ catégorie', short: '1ʳᵉ cat.', min: 0.78, rho: 0.85 },
+    { id: 'cat2', full: '2ᵉ catégorie', label: '2ᵉ catégorie', short: '2ᵉ cat.', min: 0.70, rho: 0.77 },
+    { id: 'cat3', full: '3ᵉ catégorie', label: '3ᵉ catégorie', short: '3ᵉ cat.', min: 0.61, rho: 0.68 },
+    { id: 'cat4', full: '4ᵉ catégorie (cyclosportif)', label: '4ᵉ catégorie', short: '4ᵉ cat.', min: 0.52, rho: 0.59 },
+    { id: 'leisure', label: 'Loisir', full: 'Loisir', short: 'Loisir', min: 0, rho: 0.47 },
   ];
 
   /** x ramené de [lo, hi] à [0, 100]. */
@@ -93,14 +93,16 @@
   /**
    * Scores de l'athlète (0–100) dans chaque spécialité, par rapport à sa catégorie : les échelles sont celles du peloton World Tour réduites du facteur
    * de la catégorie (division), pour que le graphique montre les forces et les faiblesses d'un coureur parmi ses pairs, pas son niveau absolu.
-   * rider : le profil au format de la bibliothèque (poids, taille, FTP, records, carte physio…). opts.worldTour : coureur du World Tour (catégorie Pro,
-   * quelle que soit sa puissance). Renvoie { scores, division, ratio, metrics, best (identifiants triés de la spécialité qui se détache le plus de la
+   * rider : le profil au format de la bibliothèque (poids, taille, FTP, records, carte physio…). rider.division : catégorie choisie sur la page Athlète (identifiant de DIVISIONS ; vide : automatique) ; opts.worldTour : coureur du World Tour (catégorie Pro,
+   * quelle que soit sa puissance, sauf catégorie choisie). Renvoie { scores, division, chosen (vrai si la catégorie vient du profil), auto (la catégorie des watts par kilo), ratio, metrics, best (identifiants triés de la spécialité qui se détache le plus de la
    * moyenne à la moins marquée), profile (libellé de la première) }.
    */
   function scores(rider, opts) {
     const m = metrics(rider);
     const d = division(rider, m);
-    const div = opts && opts.worldTour ? DIVISIONS[0] : d.division;
+    // catégorie : celle choisie sur la page Athlète (rider.division), sinon Pro pour un coureur du World Tour, sinon celle que donnent les watts par kilo
+    const chosen = DIVISIONS.find((x) => x.id === (rider && rider.division));
+    const div = chosen || (opts && opts.worldTour ? DIVISIONS[0] : d.division);
     const k = div.rho, kv = Math.pow(k, 0.6);
     // échelles du peloton pro (5ᵉ centile moins une marge, 95ᵉ centile) ramenées à la catégorie : puissances × k, VO₂max × k^0,6 ; les fibres lentes et le
     // pouvoir tampon sont des qualités de l'athlète, pas de son niveau : leurs échelles ne changent pas
@@ -123,7 +125,7 @@
     // le peloton occupe le haut de l'échelle ; on étire de 30 à 98 vers 0 à 100 pour que les forces et les faiblesses d'un athlète se voient
     for (const id of Object.keys(out)) out[id] = Math.round(clamp((out[id] - STRETCH_LO) / (STRETCH_HI - STRETCH_LO), 0, 1) * 100);
     const best = CATEGORIES.map((c) => c.id).sort((x, y) => (out[y] - REF[y]) - (out[x] - REF[x]));
-    return { scores: out, division: div, ratio: d.ratio, metrics: m, best, profile: CATEGORIES.find((c) => c.id === best[0]).label };
+    return { scores: out, division: div, chosen: !!chosen, auto: d.division, ratio: d.ratio, metrics: m, best, profile: CATEGORIES.find((c) => c.id === best[0]).label };
   }
 
   PYR.riderRadar = { CATEGORIES, DIVISIONS, REF, scores, division, metrics, sc };

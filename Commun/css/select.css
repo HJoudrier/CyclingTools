@@ -181,3 +181,7 @@ body.gs-page .topbar { position: sticky; top: 0; z-index: 40; }
 /* bascule 2D / 3D du sélecteur de parcours */
 .gs-add .gs-view { margin-left: auto; }
 .gs-view button { min-width: 38px; }
+
+/* page Athlète : toile d'araignée de l'athlète à l'échelle de sa catégorie */
+.r-radar { display: flex; flex-direction: column; align-items: center; margin: 4px 0 6px; }
+.r-radar .gs-radar { width: min(100%, 340px); }

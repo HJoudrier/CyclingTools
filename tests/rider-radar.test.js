@@ -126,3 +126,26 @@ test('sprint : à puissance égale, un petit gabarit sprinte mieux (watts sur 15
   const base = rider({ ftp: 380, weight: 72, height: 178, records: { 1: 1100, 5: 1000, 15: 800, 30: 640, 60: 520, 300: 440, 1200: 400, 3600: 380 } });
   assert.ok(R.scores(Object.assign({}, base, { cdaSprint: 0.27 }), { worldTour: true }).scores.sprint > R.scores(base, { worldTour: true }).scores.sprint + 5);
 });
+
+test('catégorie choisie sur la page Athlète : elle l\'emporte sur le calcul et sur le World Tour, et fixe l\'échelle du graphique', () => {
+  const r = rider({ ftp: 320, weight: 78, height: 184 });
+  const auto = R.scores(r);
+  assert.equal(auto.chosen, false);
+  assert.equal(auto.division.id, 'cat2');
+  // choisie : la catégorie change, le calcul automatique reste disponible (auto)
+  const pro = R.scores(Object.assign({}, r, { division: 'pro' }));
+  assert.equal(pro.chosen, true);
+  assert.equal(pro.division.id, 'pro');
+  assert.equal(pro.auto.id, 'cat2');
+  // l'échelle suit : comparé à des pros, un athlète de 2ᵉ catégorie est partout plus bas ; comparé à des loisirs, plus haut
+  const leisure = R.scores(Object.assign({}, r, { division: 'leisure' }));
+  for (const id of ids) { assert.ok(pro.scores[id] <= auto.scores[id], id); assert.ok(leisure.scores[id] >= auto.scores[id], id); }
+  assert.ok(pro.scores.climb < auto.scores.climb && leisure.scores.climb > auto.scores.climb);
+  // un identifiant inconnu est ignoré ; sur un coureur du World Tour, la catégorie choisie remplace « Pro d'office »
+  assert.equal(R.scores(Object.assign({}, r, { division: 'xxx' })).chosen, false);
+  const wt = P.all().find((x) => x.name === 'Sepp Kuss').data.rider;
+  assert.equal(R.scores(wt, { worldTour: true }).division.id, 'pro');
+  assert.equal(R.scores(Object.assign({}, wt, { division: 'elite' }), { worldTour: true }).division.id, 'elite');
+  // libellés complets proposés dans la liste de la page Athlète
+  assert.deepEqual(R.DIVISIONS.map((d) => d.full).slice(0, 3), ['Pro World Tour', 'Élite nationale / pro continental', '1ʳᵉ catégorie']);
+});
