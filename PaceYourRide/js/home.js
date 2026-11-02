@@ -101,6 +101,7 @@
   /** Vélo et tenue du projet (carte Matériel) : nom d'abord, puis résumé. */
   function renderGear(project) {
     const box = $('#hm-gear');
+    if (!box) return;       // (la page d'accueil du site ne montre que le parcours et l'athlète)
     D.clear(box);
     const row = (label, kind) => {
       const d = describeCurrent(kind, project);
@@ -113,6 +114,7 @@
   /** Météo du projet (carte Météo) : source, nombre de portions ou jour de départ. */
   function renderWeather(project) {
     const box = $('#hm-weather');
+    if (!box) return;
     D.clear(box);
     const w = project.weather;
     if (!w || !w.enabled || !w.snapshot) {
@@ -137,6 +139,7 @@
   /** Profil de l'athlète du projet (carte Athlète) : identité, morphologie, FTP, W/kg, puissance critique, W′ et niveau. */
   function renderAthlete(project) {
     const box = $('#hm-athlete');
+    if (!box) return;
     D.clear(box);
     if (!hasData('athlete', project)) {
       box.appendChild(h('a', { class: 'hm-rempty hm-alink', href: PAGE.rider, title: "Renseigner l'athlète sur la page Athlète" }, h('b', null, 'Aucun athlète'), h('small', null, "Ajoute-en un, renseigne ton profil sur la page Athlète (touche ici) ou choisis-en un dans ta bibliothèque.")));
@@ -464,6 +467,7 @@
   const when = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais');
 
   function renderCloud() {
+    if (!cdlg) return;       // (la page d'accueil du site a son propre encadré Dropbox : Commun/js/portail.js)
     const st = PYR.cloud.status();
     const label = $('#hm-cloud-txt'), btn = $('#hm-cloud');
     btn.classList.toggle('is-on', st.connected && !st.error);
@@ -510,6 +514,13 @@
 
   function initCloud() {
     cdlg = $('#cloud-dlg');
+    if (!cdlg) {
+      // page d'accueil du site : portail.js affiche la connexion et en reçoit le retour ; ici on relit le projet et la bibliothèque venus du nuage
+      seenPulls = PYR.cloud.status().pulls;
+      PYR.cloud.onChange(onCloudChange);
+      if (PYR.cloud.status().connected) PYR.cloud.sync();
+      return;
+    }
     $('#hm-cloud').addEventListener('click', () => { cdlg.showModal(); renderCloud(); });
     $('#cloud-close').addEventListener('click', () => cdlg.close());
     cdlg.addEventListener('click', (e) => { if (e.target === cdlg) cdlg.close(); });
@@ -528,24 +539,26 @@
     if (/^#defi=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/index.html' + location.hash); return; }
     if (/^#live=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/course.html' + location.hash); return; }
     dlg = $('#wiz');
-    preview = PYR.routePreview.create($('#hm-route'));
+    const on = (sel, evt, fn) => { const el = $(sel); if (el) el.addEventListener(evt, fn); };      // (chaque page n'a qu'une partie de ces éléments)
+    const pv = $('#hm-route');
+    if (pv) preview = PYR.routePreview.create(pv);
     renderProject();
-    $('#hm-new-route').addEventListener('click', createRoute);
-    $('#hm-pick-route').addEventListener('click', () => openWizard('single', 'route'));
-    $('#hm-pick-athlete').addEventListener('click', () => openWizard('single', 'athlete'));
-    $('#hm-pick-bike').addEventListener('click', () => openWizard('single', 'bike'));
-    $('#hm-pick-outfit').addEventListener('click', () => openWizard('single', 'outfit'));
+    on('#hm-new-route', 'click', createRoute);
+    on('#hm-pick-route', 'click', () => openWizard('single', 'route'));
+    on('#hm-pick-athlete', 'click', () => openWizard('single', 'athlete'));
+    on('#hm-pick-bike', 'click', () => openWizard('single', 'bike'));
+    on('#hm-pick-outfit', 'click', () => openWizard('single', 'outfit'));
     adlg = $('#ath-dlg');
-    $('#hm-add-athlete').addEventListener('click', openAddAthlete);
-    $('#ath-form').addEventListener('submit', addAthlete);
-    $('#ath-close').addEventListener('click', () => adlg.close());
-    $('#ath-cancel').addEventListener('click', () => adlg.close());
-    adlg.addEventListener('click', (e) => { if (e.target === adlg) adlg.close(); });
-    $('#hm-plan').addEventListener('click', () => openWizard('plan'));
-    $('#wiz-close').addEventListener('click', () => dlg.close());
-    $('#wiz-back').addEventListener('click', () => { if (W.i > 0) { W.i--; renderWizard(); } });
-    $('#wiz-next').addEventListener('click', onNext);
-    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });      // clic sur le fond
+    on('#hm-add-athlete', 'click', openAddAthlete);
+    on('#ath-form', 'submit', addAthlete);
+    on('#ath-close', 'click', () => adlg.close());
+    on('#ath-cancel', 'click', () => adlg.close());
+    if (adlg) adlg.addEventListener('click', (e) => { if (e.target === adlg) adlg.close(); });
+    on('#hm-plan', 'click', () => openWizard('plan'));
+    on('#wiz-close', 'click', () => dlg.close());
+    on('#wiz-back', 'click', () => { if (W.i > 0) { W.i--; renderWizard(); } });
+    on('#wiz-next', 'click', onNext);
+    if (dlg) dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });      // clic sur le fond
     // une autre page a pu changer le projet pendant que celle-ci était en arrière-plan
     initCloud();
     window.addEventListener('pageshow', () => { renderProject(); PYR.cloud.syncSoon(300); });

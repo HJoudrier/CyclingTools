@@ -43,6 +43,11 @@
     'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js',
   ];
 
+  // scripts de l'accueil (sélecteur de parcours, d'athlète, de vélo et de tenue ; projet en cours ; Dropbox)
+  const HOME = ['Commun/vendor/leaflet/leaflet.js', 'Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js',
+    'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
+    'Commun/js/ui/services.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'];
+
   const APPS = {
     pro: {
       dir: 'PaceYourRide', ns: 'paceyourride',
@@ -54,14 +59,11 @@
     jeu3d: { dir: 'VirtualRide3D', ns: 'paceyourride.jeu3d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     jeu3dr: { dir: 'VirtualRide3DRealiste', ns: 'paceyourride.jeu3dr', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     compteur: { dir: 'Compteur', ns: 'paceyourride.compteur', scripts: ENGINE.concat(SHARED_UI, ['Commun/vendor/qrcode-generator/qrcode.js', 'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js', 'Compteur/js/tab-ride.js']) },
-    // la page d'accueil du site (racine) : choix du parcours et de l'athlète (ou d'un coureur du World Tour) pour toutes les applications, projet en cours,
-    // bibliothèque, Dropbox (aussi adresse de retour de la connexion : home.js) et lancement des applications (pas de Commun/js/app.js)
-    portail: {
-      dir: '', ns: 'paceyourride', light: true,
-      scripts: ['Commun/vendor/leaflet/leaflet.js', 'Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js',
-        'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
-        'Commun/js/ui/services.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'],
-    },
+    // accueil de PaceYourRide : le projet en cours, le matériel, la météo, la stratégie et la bibliothèque (pas de Commun/js/app.js)
+    'pro-home': { dir: 'PaceYourRide', ns: 'paceyourride', light: true, scripts: HOME },
+    // la page d'accueil du site (racine) : choix du parcours et de l'athlète (ou d'un coureur du World Tour) pour toutes les applications (home.js),
+    // lancement des applications, retour de la connexion Dropbox (portail.js)
+    portail: { dir: '', ns: 'paceyourride', light: true, scripts: HOME.concat(['Commun/js/portail.js']) },
   };
 
   const self = document.currentScript;
