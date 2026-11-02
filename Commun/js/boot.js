@@ -33,7 +33,7 @@
   const SHARED_UI = [
     'Commun/js/ui/services.js', 'Commun/js/ui/route-model.js', 'Commun/js/ui/charts.js', 'Commun/js/ui/chart-config.js', 'Commun/js/ui/map-poi.js', 'Commun/js/ui/map.js',
     'Commun/js/ui/classif-view.js', 'Commun/js/ui/tab-weather.js', 'Commun/js/ui/weather-fx.js', 'Commun/js/ui/sensors.js', 'Commun/js/ui/gear-art.js',
-    'Commun/js/ui/sim-inputs.js', 'Commun/js/ui/plan-link.js', 'Commun/js/ui/map-tile.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js',
+    'Commun/js/ui/sim-inputs.js', 'Commun/js/ui/plan-link.js', 'Commun/js/ui/map-tile.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/pro-photo.js', 'Commun/js/ui/lib-pick.js',
   ];
 
   // interface commune aux deux jeux (carte 2D, 3D) : la page de choix et l'écran de course
@@ -46,7 +46,7 @@
   // scripts de l'accueil (sélecteur de parcours, d'athlète, de vélo et de tenue ; projet en cours ; Dropbox)
   const HOME = ['Commun/vendor/leaflet/leaflet.js', 'Commun/js/core/util.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js',
     'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/core/dom.js', 'Commun/js/core/avatar.js', 'Commun/js/core/library.js', 'Commun/js/core/cloud.js', 'Commun/js/core/lib-cache.js', 'Commun/js/core/route-file.js',
-    'Commun/js/ui/services.js', 'Commun/js/ui/map-tile.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'];
+    'Commun/js/ui/services.js', 'Commun/js/ui/map-tile.js', 'Commun/js/ui/route-thumb.js', 'Commun/js/ui/pro-photo.js', 'Commun/js/ui/lib-pick.js', 'PaceYourRide/js/route-preview.js', 'PaceYourRide/js/home.js'];
 
   const APPS = {
     pro: {

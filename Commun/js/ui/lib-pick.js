@@ -158,6 +158,120 @@
     };
   }
 
+  /**
+   * Carrousel d'athlètes (accueil) : deux onglets, « Mes athlètes » (la bibliothèque et l'athlète du projet) et « Coureurs World Tour » (pros.js, avec
+   * filtres par équipe et par type, tri et recherche) ; chaque carte donne la photo (celle de l'athlète, ou pour un pro celle de Wikipédia, pro-photo.js),
+   * l'identité, la morphologie, FTP, W/kg, PC, W′, Pmax (et W/CdA pour un pro), le niveau, et les actions de actions(it).
+   * o : { mine: [éléments], pick, onPick(id), actions(it), onAdd, pros (bool), emptyText }. Renvoie { destroy, setPick(id) }.
+   */
+  const ATH = { tab: 'mine', team: '', type: '', sort: 'team', q: '' };       // l'état des filtres survit aux redessins
+
+  function athleteCarousel(host, o) {
+    D.clear(host);
+    const Pr = o.pros && PYR.pros ? PYR.pros : null;
+    if (!Pr) ATH.tab = 'mine';
+    let pick = o.pick, io = null;
+    const norm = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const initials = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+    const tabBtn = (id, label) => h('button', { type: 'button', role: 'radio', 'aria-pressed': String(ATH.tab === id), onclick: () => { ATH.tab = id; redraw(); } }, label);
+    const teamSel = Pr ? h('select', { 'aria-label': 'Équipe', onchange: (e) => { ATH.team = e.target.value; drawTrack(); } }, h('option', { value: '' }, 'Toutes les équipes'), Object.keys(Pr.TEAMS).map((k) => h('option', { value: k, selected: ATH.team === k }, Pr.TEAMS[k]))) : null;
+    const typeSel = Pr ? h('select', { 'aria-label': 'Type de coureur', onchange: (e) => { ATH.type = e.target.value; drawTrack(); } }, h('option', { value: '' }, 'Tous les types'), Object.keys(Pr.TYPES).map((k) => h('option', { value: k, selected: ATH.type === k }, Pr.TYPES[k].label))) : null;
+    const sorts = [['team', 'Par équipe'], ['wkg', 'Par W/kg'], ['watts', 'Par puissance (W)'], ['cda', 'Par W/CdA'], ['pmax', 'Par Pmax'], ['name', 'Par nom']];
+    const sortSel = Pr ? h('select', { 'aria-label': 'Tri', onchange: (e) => { ATH.sort = e.target.value; drawTrack(); } }, sorts.map(([v, t]) => h('option', { value: v, selected: ATH.sort === v }, t))) : null;
+    const search = Pr ? h('input', { type: 'search', placeholder: 'Rechercher un coureur…', 'aria-label': 'Rechercher un coureur', autocomplete: 'off', value: ATH.q, oninput: (e) => { ATH.q = e.target.value; drawTrack(); } }) : null;
+    const nPro = Pr ? Pr.RIDERS.length : 0;
+    const bar = h('div', { class: 'gs-add gs-ath-bar' },
+      o.onAdd ? h('button', { class: 'btn', type: 'button', onclick: o.onAdd }, '＋ Nouvel athlète') : null,
+      Pr ? h('div', { class: 'seg-control', role: 'radiogroup', 'aria-label': 'Athlètes' }, tabBtn('mine', `Mes athlètes (${o.mine.length})`), tabBtn('pro', `Coureurs World Tour (${nPro})`)) : null,
+      Pr && ATH.tab === 'pro' ? h('div', { class: 'gs-ath-filters' }, teamSel, typeSel, sortSel, search) : null);
+    const track = h('div', { class: 'gs-track gs-ath-track', tabindex: '0', role: 'listbox', 'aria-label': 'Athlètes' });
+    const prev = h('button', { class: 'gs-arrow', type: 'button', 'aria-label': 'Athlète précédent', onclick: () => track.scrollBy({ left: -track.clientWidth * 0.8 }) }, '‹');
+    const next = h('button', { class: 'gs-arrow', type: 'button', 'aria-label': 'Athlète suivant', onclick: () => track.scrollBy({ left: track.clientWidth * 0.8 }) }, '›');
+    const arrows = () => { prev.disabled = track.scrollLeft <= 4; next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4; };
+    track.addEventListener('scroll', PYR.util.debounce(arrows, 80));
+    track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') { e.preventDefault(); next.click(); } else if (e.key === 'ArrowLeft') { e.preventDefault(); prev.click(); } });
+    const count = h('span', { class: 'gs-pros-n' });
+    const note = h('p', { class: 'gs-attr' });
+    host.append(bar, h('div', { class: 'gs-car' }, prev, track, next), note);
+
+    const stat = (label, value, cls) => h('span', { class: cls || '' }, h('small', null, label), h('b', null, value));
+    function card(it) {
+      const r = Object.assign({}, PYR.library.newAthlete().rider, it.data && it.data.rider);
+      let a = null;
+      try { a = PYR.physio.buildAthlete(r); } catch (e) { /* profil illisible : identité seule */ }
+      const kg = Number(r.weight) || 0, ftp = a ? Math.round(a.ftp) : Number(r.ftp) || 0, wkg = kg && ftp ? ftp / kg : 0;
+      const level = wkg && PYR.bench ? PYR.bench.classify(r.sex === 'f' ? 'f' : 'm', 'ftp', wkg).level : null;
+      const born = PYR.util.ageFrom(r.birthDate), age = born !== null ? born : Number(r.age) || 0;
+      const color = it.pro && Pr ? Pr.TEAM_COLORS[it.pro.team] || '#6f6d66' : '#eb6834';
+      const photo = h('div', { class: 'gs-ath-photo', style: { '--tc': color }, 'aria-hidden': 'true' });
+      const avatar = !it.pro && PYR.avatar ? PYR.avatar.span(64, color, r) : null;
+      if (avatar) photo.appendChild(avatar); else photo.appendChild(h('span', { class: 'gs-ath-ini' }, initials(r.name || it.name)));
+      if (it.pro && PYR.proPhoto) photo.dataset.pro = it.name;
+      const who = it.pro ? `${Pr.TEAMS[it.pro.team]} · ${it.pro.typeLabel}` : [r.sex === 'f' ? 'Femme' : 'Homme', age ? `${age} ans` : ''].filter(Boolean).join(' · ');
+      const on = it.id === pick;
+      const el = h('div', { class: 'gs-athc', role: 'option', tabindex: '-1', 'aria-selected': String(on), dataset: { id: it.id } },
+        h('div', { class: 'gs-ath-head' }, photo,
+          h('div', { class: 'gs-ath-id' }, h('b', { class: 'gs-ath-name', title: r.name || it.name }, (r.name || it.name || 'Athlète sans nom'), it.edited ? h('span', { class: 'gs-pro-edited', title: 'Profil modifié et enregistré dans ta bibliothèque' }, ' · modifié') : null),
+            h('small', { class: 'gs-ath-who', title: who }, who), it.project ? h('small', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours') : null)),
+        h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Poids', kg ? fmt(kg, 1) + ' kg' : '—'), stat('Taille', Number(r.height) ? fmt(Number(r.height)) + ' cm' : '—'), stat('FTP', ftp ? fmt(ftp) + ' W' : '—')),
+        h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('W/kg', wkg ? fmt(wkg, 2) : '—'), stat('PC', a ? fmt(a.cp) + ' W' : '—'), stat("W′", a ? fmt(a.w0 / 1000, 1) + ' kJ' : '—')),
+        h('div', { class: 'gs-route-stats gs-ath-stats' }, stat('Pmax', a ? fmt(a.pmax) + ' W' : '—'), it.pro && Pr ? stat('W/CdA', fmt(Pr.wattsPerCdA(it))) : stat('Niveau', level ? level.label : '—'), it.pro && level ? stat('Niveau', level.label) : null),
+        level ? h('span', { class: 'gs-ath-level' }, h('i', { style: { background: level.color }, 'aria-hidden': 'true' }), level.who) : null,
+        actionsEl(it, o.actions));
+      el.addEventListener('click', () => o.onPick(it.id));
+      return el;
+    }
+
+    function items() {
+      if (ATH.tab !== 'pro' || !Pr) return o.mine;
+      const q = norm(ATH.q.trim());
+      let rows = Pr.all().filter((it) => (!ATH.team || it.pro.team === ATH.team) && (!ATH.type || it.pro.type === ATH.type) && (!q || norm(it.name).includes(q)));
+      const key = { wkg: (it) => it.pro.wkg, watts: (it) => it.data.rider.cp, cda: (it) => Pr.wattsPerCdA(it), pmax: (it) => it.data.rider.pmax }[ATH.sort];
+      if (ATH.sort === 'name') rows = rows.slice().sort((x, y) => x.name.localeCompare(y.name, 'fr'));
+      else if (key) rows = rows.slice().sort((x, y) => key(y) - key(x));
+      return rows;
+    }
+
+    function loadPhoto(box) {
+      if (box.dataset.loaded || !box.dataset.pro) return;
+      box.dataset.loaded = '1';
+      PYR.proPhoto.get(box.dataset.pro).then((ph) => {
+        if (!ph || !box.isConnected) return;
+        box.style.backgroundImage = `url("${ph.src}")`;
+        box.classList.add('has-photo');
+        box.title = 'Photo : Wikipédia / Wikimedia Commons';
+        const ini = box.querySelector('.gs-ath-ini');
+        if (ini) ini.remove();
+        box.dataset.page = ph.page;
+      });
+    }
+
+    function drawTrack() {
+      if (io) io.disconnect();
+      D.clear(track);
+      const list = items();
+      for (const it of list) track.appendChild(card(it));
+      count.textContent = '';
+      note.textContent = ATH.tab === 'pro' ? `${list.length} coureur${list.length > 1 ? 's' : ''} · ${PYR.proPhoto ? PYR.proPhoto.credit : ''}` : '';
+      if (!list.length) track.appendChild(h('p', { class: 'hint gs-empty' }, ATH.tab === 'pro' ? 'Aucun coureur ne correspond.' : (o.emptyText || 'Aucun athlète.')));
+      if (globalThis.IntersectionObserver) {
+        io = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) { loadPhoto(e.target); io.unobserve(e.target); } }, { root: track, rootMargin: '300px' });
+        $$('.gs-ath-photo', track).forEach((b) => io.observe(b));
+      } else $$('.gs-ath-photo', track).forEach(loadPhoto);
+      const center = () => { const sel = track.querySelector('[aria-selected="true"]'); if (sel && track.clientWidth) track.scrollTo({ left: sel.offsetLeft - track.offsetLeft - (track.clientWidth - sel.clientWidth) / 2, behavior: 'auto' }); else track.scrollTo({ left: 0 }); arrows(); };
+      center();
+      setTimeout(center, 60);
+    }
+
+    let child = null;
+    function redraw() { if (io) io.disconnect(); child = athleteCarousel(host, Object.assign({}, o, { pick })); }
+    drawTrack();
+    return {
+      destroy() { if (io) io.disconnect(); if (child) child.destroy(); },
+      setPick(id) { if (child) { child.setPick(id); return; } pick = id; $$('.gs-athc', track).forEach((c) => c.setAttribute('aria-selected', String(c.dataset.id === id))); },
+    };
+  }
+
   /** Cartes d'athlète dans `host`. o : {items, pick, onPick(id), actions(it), emptyText}. */
   function athleteCards(host, o) {
     D.clear(host);
@@ -329,5 +443,5 @@
     return athleteCards(area, o);
   }
 
-  PYR.libPick = { elevationProfile, routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
+  PYR.libPick = { athleteCarousel, elevationProfile, routeCarousel, athleteCards, routePicker, athletePicker, viewPref, chooseGpx, athleteDialog, profileOf };
 })(globalThis.PYR = globalThis.PYR || {});

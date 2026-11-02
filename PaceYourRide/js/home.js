@@ -94,6 +94,7 @@
     const project = readProject();
     if (preview) preview.update(project);
     renderCarousel(project);
+    renderAthleteCarousel(project);
     renderAthlete(project);
     renderWeather(project);
     renderGear(project);
@@ -454,6 +455,74 @@
       extra: [{ label: '＋ Nouveau parcours', title: 'Un parcours vide, à tracer sur la carte (ou à remplir avec un fichier GPX) dans l\'éditeur de parcours', fn: createRoute }],
       onPick: (id) => { if (id !== 'current') chooseRoute(id); },
       emptyText: 'Aucun parcours : crée-en un avec « Nouveau parcours ».',
+    });
+  }
+
+  // ---------- Carrousel des athlètes (page d'accueil du site) ----------
+
+  let athCarousel = null;
+
+  /** Athlète du projet en cours → identifiant de la carte à cocher : un coureur du World Tour du même nom, un athlète de la bibliothèque du même nom, sinon « current ». */
+  function selectedAthleteId(project, lib) {
+    if (!hasData('athlete', project)) return '';
+    const name = String(project.rider && project.rider.name || '').trim();
+    const proId = PYR.pros && PYR.pros.idOfName(name);
+    if (proId) return proId;
+    const mine = lib.athletes.find((it) => it.name === name || (it.data.rider && it.data.rider.name === name));
+    return mine ? mine.id : 'current';
+  }
+
+  /**
+   * Carrousel des athlètes : « Mes athlètes » (bibliothèque, et athlète du projet s'il n'y est pas) et « Coureurs World Tour » (photo, caractéristiques).
+   * Cliquer une carte la met dans le projet en cours ; Modifier ouvre la page Athlète ; Dupliquer range une copie dans la bibliothèque ; Supprimer retire un
+   * athlète de la bibliothèque (pour un coureur du World Tour modifié : ↺ Rétablir son profil d'origine).
+   */
+  function renderAthleteCarousel(project) {
+    const host = $('#hm-athlete-car');
+    if (!host) return;
+    if (athCarousel) athCarousel.destroy();
+    const lib = readLibrary(), sel = selectedAthleteId(project, lib);
+    const mine = lib.athletes.filter((it) => !(PYR.pros && PYR.pros.idOfName(it.name)));
+    if (sel === 'current') {
+      const cur = describeCurrent('athlete', project);
+      mine.unshift({ id: 'current', name: (project.rider && project.rider.name) || cur.title, savedAt: 0, data: L.extract('athlete', project), project: true });
+    }
+    const itemOf = (id) => (id === 'current' ? { id, name: (project.rider && project.rider.name) || 'Athlète', data: L.extract('athlete', readProject()) } : findItem(readLibrary(), 'athlete', id));
+    const apply = (id) => {
+      const p = readProject(), it = id === 'current' ? null : findItem(readLibrary(), 'athlete', id);
+      if (id !== 'current') { if (!it) return false; L.apply('athlete', p, it.data); }
+      const ok = writeJSON(PROJECT_KEY, p);
+      if (ok) { try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ } PYR.cloud.syncSoon(); }
+      return ok;
+    };
+    const choose = (id) => { if (id !== 'current' && apply(id)) renderProject(); };
+    const edit = (it) => { if (apply(it.id)) location.href = PAGE.rider; };
+    const duplicate = (it) => {
+      const l = readLibrary(), src = itemOf(it.id);
+      if (!src) return;
+      const taken = new Set(l.athletes.map((a) => a.name.toLowerCase()));
+      let name = `${it.name} (copie)`;
+      for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${it.name} (copie ${k})`;
+      const data = JSON.parse(JSON.stringify(src.data));
+      if (data.rider) data.rider.name = name.slice(0, 30);
+      const added = L.add(l, 'athlete', name, data);
+      if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${added.name} » ajouté à ta bibliothèque.`); renderProject(); }
+    };
+    const remove = (it) => {
+      if (it.id === 'current') return;
+      const lbl = it.edited ? `Rendre à « ${it.name} » son profil d'origine ? Tes modifications seront perdues.` : `Supprimer « ${it.name} » de ta bibliothèque ?`;
+      if (!confirm(lbl)) return;
+      const l = readLibrary();
+      L.remove(l, 'athlete', it.edited ? it.libId : it.id);
+      if (writeJSON(LIBRARY_KEY, l)) { readLibrary(); renderProject(); }
+    };
+    athCarousel = PYR.libPick.athleteCarousel(host, {
+      mine, pros: true, pick: sel, projectLabel: 'Projet en cours', emptyText: "Aucun athlète : ajoute-en un, ou prends un coureur du World Tour.",
+      onAdd: openAddAthlete,
+      onPick: choose,
+      actions: (it) => [{ label: '✎ Modifier', title: `Modifier « ${it.name} » sur la page Athlète`, fn: () => edit(it) },
+        { label: '⧉ Dupliquer', title: `Dupliquer « ${it.name} » dans ta bibliothèque`, fn: () => duplicate(it) }]
+        .concat(it.id === 'current' || (it.pro && !it.edited) ? [] : [{ label: it.edited ? '↺ Rétablir' : '✕ Supprimer', title: it.edited ? `Rendre à « ${it.name} » son profil d'origine` : `Supprimer « ${it.name} »`, fn: () => remove(it) }]),
     });
   }
 

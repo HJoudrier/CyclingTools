@@ -44,6 +44,12 @@
     TPP: 'Picnic PostNL', TBV: 'Bahrain Victorious', XDS: 'XDS Astana', LOT: 'Lotto',
   };
 
+  /** Couleur de maillot de chaque équipe (à peu près) : anneau des cartes de coureur et fond sans photo. */
+  const TEAM_COLORS = {
+    UAE: '#c8102e', TVL: '#e8b900', SOQ: '#1b4fa0', RBH: '#1d2d50', IGD: '#a3182a', LTK: '#c8102e', ADC: '#1e5aa8', DAT: '#5b3a24', GFC: '#0b57a4', EFE: '#e0509a',
+    MOV: '#2a5db0', JAY: '#00968f', ICW: '#b8bf00', COF: '#c8102e', IPT: '#1f8fc6', UXM: '#2c3e50', TPP: '#0090d4', TBV: '#d81e2a', XDS: '#4aaed8', LOT: '#d6001c',
+  };
+
   const T = { c: 'climber', s: 'stage', t: 'tt', k: 'classic', p: 'puncher', v: 'sprinter', d: 'domestique' };
 
   /** Coureurs : équipe | nom | année de naissance | taille cm | poids kg | type (c grimpeur, s étapes, t rouleur-chrono, k classiques, p puncheur,
@@ -418,5 +424,5 @@ LOT|Andreas Kron|1998|179|66|p|64
     return round(r.ftp / (0.9 * a), 0);
   }
 
-  PYR.pros = { TYPES, TEAMS, RIDERS, build, item, all, find, has, idOfName, setOverrides, wattsPerCdA };
+  PYR.pros = { TYPES, TEAMS, TEAM_COLORS, RIDERS, build, item, all, find, has, idOfName, setOverrides, wattsPerCdA };
 })(globalThis.PYR = globalThis.PYR || {});
