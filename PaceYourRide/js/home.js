@@ -405,29 +405,55 @@
     const same = data ? lib.routes.find((it) => it.name === pname && Math.abs(L.routeLength(it.data) - len) < 2) : null;
     const items = lib.routes.slice();
     if (data && !same) items.unshift({ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data, project: true });
-    const rename = (it) => {
-      const name = prompt('Nouveau nom :', it.name);
-      if (name === null || !name.trim()) return;
-      const l = readLibrary();
-      L.rename(l, 'route', it.id, name);
-      if (writeJSON(LIBRARY_KEY, l)) renderProject();
+    // chaque vignette : modifier (l'éditeur de parcours), dupliquer, supprimer ; « Nouveau parcours » est au-dessus du carrousel
+    const isCurrent = (it) => data && (it.id === 'current' || (same && it.id === same.id));
+    const edit = (it) => {
+      if (it.id !== 'current') {
+        const p = readProject(), lib2 = readLibrary(), src = L.find(lib2, 'route', it.id);
+        if (!src) return;
+        L.apply('route', p, src.data);
+        setProjectName('route', p, src.name);
+        if (!writeJSON(PROJECT_KEY, p)) return;
+        try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
+        PYR.cloud.syncSoon();
+      }
+      location.href = PAGE.route;
+    };
+    const duplicate = (it) => {
+      const l = readLibrary(), taken = new Set(l.routes.map((r) => r.name.toLowerCase()));
+      let name = `${it.name} (copie)`;
+      for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${it.name} (copie ${k})`;
+      const src = it.id === 'current' ? { data: L.extract('route', readProject()) } : L.find(l, 'route', it.id);
+      if (!src) return;
+      const copy = JSON.parse(JSON.stringify(src.data));
+      if (copy.route) copy.route.name = name;
+      const added = L.add(l, 'route', name, copy);
+      if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${added.name} » ajouté à ta bibliothèque.`); renderProject(); }
     };
     const remove = (it) => {
-      if (!confirm(`Retirer « ${it.name} » de la bibliothèque ?`)) return;
-      const l = readLibrary();
-      L.remove(l, 'route', it.id);
-      if (writeJSON(LIBRARY_KEY, l)) renderProject();
+      const cur = isCurrent(it);
+      if (!confirm(it.id === 'current' ? `Retirer « ${it.name} » du projet en cours ? Il n'est pas dans ta bibliothèque : il sera perdu.` : `Supprimer « ${it.name} » de ta bibliothèque ?${cur ? ' Il est aussi le parcours choisi : il sera retiré du projet en cours.' : ''}`)) return;
+      if (it.id !== 'current') {
+        const l = readLibrary();
+        L.remove(l, 'route', it.id);
+        if (!writeJSON(LIBRARY_KEY, l)) return;
+      }
+      if (cur) {
+        const p = readProject();
+        L.startRoute(p);
+        if (writeJSON(PROJECT_KEY, p)) { try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ } PYR.cloud.syncSoon(); }
+      }
+      renderProject();
     };
     carousel = PYR.libPick.routePicker(host, {
       items, pick: data ? (same ? same.id : 'current') : '', projectLabel: 'Projet en cours', defaultView: '3d',
-      actions: (it) => (it.project ? [] : [{ label: '✎', title: `Renommer « ${it.name} »`, fn: () => rename(it) }, { label: '✕', title: `Retirer « ${it.name} » de la bibliothèque`, fn: () => remove(it) }]),
-      onAdd: () => PYR.libPick.chooseGpx((r) => {
-        const l = readLibrary(), it = L.add(l, 'route', r.name, r.data);
-        if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${it.name} » ajouté à ta bibliothèque` + (r.hasEle === false ? " (le fichier n'a pas d'altitude : pas de dénivelé)." : '.')); chooseRoute(it.id); }
-      }),
-      extra: [{ label: '✎ Tracer un parcours', title: 'Un parcours vide, à tracer sur la carte', fn: createRoute }],
+      actions: (it) => [
+        { label: '✎ Modifier', title: `Modifier « ${it.name} » dans l'éditeur de parcours`, fn: () => edit(it) },
+        { label: '⧉ Dupliquer', title: `Dupliquer « ${it.name} » dans ta bibliothèque`, fn: () => duplicate(it) },
+        { label: '✕ Supprimer', title: `Supprimer « ${it.name} »`, fn: () => remove(it) }],
+      extra: [{ label: '＋ Nouveau parcours', title: 'Un parcours vide, à tracer sur la carte (ou à remplir avec un fichier GPX) dans l\'éditeur de parcours', fn: createRoute }],
       onPick: (id) => { if (id !== 'current') chooseRoute(id); },
-      emptyText: 'Aucun parcours : ajoute un fichier GPX ou trace-en un.',
+      emptyText: 'Aucun parcours : crée-en un avec « Nouveau parcours ».',
     });
   }
 
