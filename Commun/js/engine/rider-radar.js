@@ -16,7 +16,7 @@
   /** Spécialités, dans l'ordre des branches du graphique (en partant du haut, dans le sens des aiguilles d'une montre). */
   const CATEGORIES = [
     { id: 'climb', label: 'Grimpeur', short: 'Grimpeur', info: 'Watts par kilo à 5 min, 20 min et 1 h, VO₂max.' },
-    { id: 'sprint', label: 'Sprinteur', short: 'Sprint', info: 'Pmax, puissance sur quelques secondes, W′, fibres rapides.' },
+    { id: 'sprint', label: 'Sprinteur', short: 'Sprint', info: 'Puissance sur 5, 15 et 30 s, sur 1 min (approche du sprint), W′, fibres rapides.' },
     { id: 'flat', label: 'Rouleur', short: 'Rouleur', info: 'Puissance absolue et watts par m² de CdA en position route, endurance.' },
     { id: 'tt', label: 'Contre-la-montre', short: 'CLM', info: 'Watts par m² de CdA en position chrono, puissance à 20–60 min.' },
     { id: 'stage', label: 'Courses par étapes', short: 'Étapes', info: 'Montée, chrono et récupération : fibres lentes, lipides, VO₂max.' },
@@ -26,7 +26,7 @@
 
   const STRETCH_LO = 30, STRETCH_HI = 98;
   /** Score moyen du peloton World Tour (pros.js) dans chaque spécialité : la spécialité d'un athlète est celle où il s'en détache le plus. */
-  const REF = { climb: 61, sprint: 59, flat: 70, tt: 71, stage: 62, classic: 64, punch: 65 };
+  const REF = { climb: 61, sprint: 60, flat: 70, tt: 71, stage: 62, classic: 64, punch: 65 };
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 
   /**
@@ -75,7 +75,7 @@
       kg,
       ftp: a.ftp, ftpKg: a.ftp / kg,
       p20: a.mmp(1200), p20Kg: a.mmp(1200) / kg,
-      p5Kg: a.mmp(300) / kg, p1Kg: a.mmp(60) / kg, p15s: a.mmp(15), p5s: a.mmp(5),
+      p5Kg: a.mmp(300) / kg, p1Kg: a.mmp(60) / kg, p1: a.mmp(60), p30s: a.mmp(30), p15s: a.mmp(15), p5s: a.mmp(5),
       pmax: a.pmax, pmaxKg: a.pmax / kg,
       wPrime: a.w0 / 1000, wPrimeKg: a.w0 / 1000 / kg,
       cp: a.cp,
@@ -122,7 +122,8 @@
     // endurance : fibres lentes (la fatigue d'une longue étape, la récupération d'un jour à l'autre) et VO₂max
     const endurance = mix([0.7, sc(m.slow, 34, 70)], [0.3, V(m.vo2, 65, 87)]);
     const climb = mix([0.5, S(m.ftpKg, 3.8, 6.6)], [0.25, S(m.p5Kg, 5.1, 7.8)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, V(m.vo2, 57, 87)]);
-    const sprint = mix([0.4, Q(m.pmax, 300, 1900)], [0.2, Q(m.pmaxKg, 8, 24.4)], [0.2, Q(m.p15s, 250, 1300)], [0.1, Q(m.wPrime, 0, 30)], [0.1, sc(100 - m.slow, 5, 54)]);
+    // sprint : de la pointe (5 s) au sprint long (15, 30 s) et à la séquence d'approche (1 min : rouler vite pour se placer) ; la Pmax d'une seconde n'y compte plus
+    const sprint = mix([0.22, Q(m.p5s, 258, 1615)], [0.28, Q(m.p15s, 300, 1302)], [0.20, Q(m.p30s, 321, 1052)], [0.15, Q(m.p1, 333, 824)], [0.05, Q(m.wPrime, 0, 30)], [0.10, sc(100 - m.slow, 5, 54)]);
     const flat = mix([0.4, S(m.wCdaRoad, 830, 1500)], [0.3, S(m.ftp, 140, 465)], [0.15, S(m.p20, 120, 505)], [0.15, endurance]);
     const tt = mix([0.55, S(m.wCdaTT, 1000, 2150)], [0.2, S(m.ftp, 140, 465)], [0.15, S(m.p20Kg, 4.4, 7.1)], [0.1, endurance]);
     const stage = mix([0.4, climb], [0.2, tt], [0.25, endurance], [0.15, S(m.ftpKg, 3.8, 6.6)]);

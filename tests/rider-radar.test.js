@@ -41,12 +41,12 @@ test('radar : la catégorie vient des watts par kilo (FTP et 5 min), du sexe ; u
 
 test('radar : l\'échelle suit la catégorie, donc un profil se lit parmi ses pairs et non par son niveau absolu', () => {
   // un grimpeur de 2ᵉ catégorie (léger, peu de sprint) montre ses forces et faiblesses aussi nettement qu\'un pro
-  const cat2 = R.scores(rider({ ftp: 290, weight: 60, height: 172, pmax: 800, wPrime: 15 }));
+  const cat2 = R.scores(rider({ ftp: 290, weight: 60, height: 172, pmax: 800, wPrime: 15, records: { 1: 800, 5: 700, 15: 560, 30: 450, 60: 400, 300: 340, 1200: 305, 3600: 290 } }));
   assert.equal(cat2.division.id, 'cat1');
   assert.ok(cat2.scores.climb - cat2.scores.sprint >= 20, JSON.stringify(cat2.scores));
   // le même profil à une puissance plus basse reste lisible (pas de zéros partout) ; sans échelle de catégorie il tomberait à 0 en grimpeur
-  const low = R.scores(rider({ ftp: 190, weight: 52, height: 165, pmax: 600, wPrime: 12 }));
-  assert.equal(low.division.id, 'cat3');
+  const low = R.scores(rider({ ftp: 190, weight: 52, height: 165, pmax: 600, wPrime: 12, records: { 1: 600, 5: 540, 15: 420, 30: 320, 60: 270, 300: 220, 1200: 200, 3600: 190 } }));
+  assert.equal(low.division.id, 'cat4');
   assert.ok(low.scores.climb > 0 && Math.max(...ids.map((id) => low.scores[id])) - Math.min(...ids.map((id) => low.scores[id])) >= 20);
   // sprint : un pro isolé garde un score en rapport avec son niveau de sprint
   assert.ok(R.scores(P.all().find((x) => x.name === 'Jonathan Milan').data.rider, { worldTour: true }).scores.sprint >= 95);
@@ -77,9 +77,17 @@ test('radar : le poids, la puissance, l\'aérodynamisme et la carte physiologiqu
   for (const id of ['climb', 'flat', 'tt', 'stage', 'classic']) assert.ok(strong.scores[id] > base.scores[id], id);
   // plus petit et léger = moins de CdA : meilleur W/CdA, donc meilleur rouleur à puissance égale
   assert.ok(R.metrics(rider({ height: 170 })).wCdaTT > R.metrics(rider({ height: 190 })).wCdaTT);
-  // Pmax énorme : sprinteur
-  const sprinter = R.scores(rider({ ftp: 380, weight: 72, pmax: 1900, wPrime: 28 }), { worldTour: true });
-  assert.ok(sprinter.scores.sprint > base.scores.sprint + 20 && sprinter.best[0] === 'sprint');
+  // sprint : la puissance sur 5, 15, 30 s et 1 min compte, pas la seule Pmax d'une seconde
+  const rouleur = R.scores(rider({ ftp: 380, weight: 72, records: { 1: 1100, 5: 1000, 15: 780, 30: 610, 60: 500, 300: 440, 1200: 400, 3600: 380 } }), { worldTour: true });
+  const sprinter = R.scores(rider({ ftp: 380, weight: 72, pmax: 1100, wPrime: 20, records: { 1: 1900, 5: 1750, 15: 1350, 30: 980, 60: 760, 300: 470, 1200: 410, 3600: 380 } }), { worldTour: true });
+  assert.ok(sprinter.scores.sprint > rouleur.scores.sprint + 25 && sprinter.best[0] === 'sprint');
+  // une Pmax isolée (1 s) sans puissance soutenue sur 5–60 s ne fait pas un sprinteur
+  const peak = R.scores(rider({ ftp: 380, weight: 72, records: { 1: 2200, 5: 900, 15: 700, 30: 560, 60: 470, 300: 440, 1200: 400, 3600: 380 } }), { worldTour: true });
+  const flatSprint = R.scores(rider({ ftp: 380, weight: 72, records: { 1: 1500, 5: 1400, 15: 1150, 30: 900, 60: 700, 300: 440, 1200: 400, 3600: 380 } }), { worldTour: true });
+  assert.ok(peak.scores.sprint < flatSprint.scores.sprint - 15, `${peak.scores.sprint} < ${flatSprint.scores.sprint}`);
+  // le sprint long et la séquence d'approche comptent : à pointe égale, plus de puissance sur 30 s et 1 min = meilleur sprinteur
+  const short = R.scores(rider({ ftp: 380, weight: 72, records: { 1: 1500, 5: 1400, 15: 1000, 30: 700, 60: 520, 300: 440, 1200: 400, 3600: 380 } }), { worldTour: true });
+  assert.ok(flatSprint.scores.sprint > short.scores.sprint + 10, `${flatSprint.scores.sprint} > ${short.scores.sprint}`);
   // fibres lentes et VO2max (carte athlète) : endurance, donc courses par étapes
   const slow = R.scores(rider({ ftp: 380, weight: 72, pmax: 1100, physio: { fI: 70, vo2max: 85 } }), { worldTour: true }), fast = R.scores(rider({ ftp: 380, weight: 72, pmax: 1100, physio: { fI: 38, vo2max: 62 } }), { worldTour: true });
   assert.ok(slow.scores.stage > fast.scores.stage && fast.scores.sprint > slow.scores.sprint);
