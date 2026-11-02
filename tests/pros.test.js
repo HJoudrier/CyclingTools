@@ -46,3 +46,28 @@ test('coureurs World Tour : un profil est exploitable par le moteur et retrouvé
   assert.ok(a.mmp(1200) > a.mmp(3600) && a.mmp(300) > a.mmp(1200));
   assert.deepEqual(P.build(P.RIDERS[0]), P.build(P.RIDERS[0]), 'profil déterministe');
 });
+
+test('coureurs virtuels du World Tour : vrais noms et profils, tirage fixé par la graine, course jusqu\'à l\'arrivée', () => {
+  const { PYR, makeProfile, setupFor, DEFAULT_RIDER, DEFAULT_BIKE } = require('./helpers.js');
+  const Race = PYR.race;
+  const prof = makeProfile([{ len: 4000, grade: 0 }, { len: 3000, grade: 0.07 }, { len: 3000, grade: -0.06 }]);
+  const draw = (level, seed) => {
+    const { course } = setupFor(prof);
+    const race = Race.create({ course, rules: {}, seed, gustSeed: 1, cps: [] });
+    return Race.addBots(race, { n: 12, level, rider: Object.assign({}, DEFAULT_RIDER, { name: 'Moi' }), bike: DEFAULT_BIKE, v0: 0 });
+  };
+  const a = draw('worldtour', 5), b = draw('worldtour', 5), c = draw('worldtour', 6);
+  assert.deepEqual(a.map((r) => r.name), b.map((r) => r.name), 'même graine, même peloton');
+  assert.notDeepEqual(a.map((r) => r.name), c.map((r) => r.name), 'autre graine, autre tirage');
+  assert.equal(new Set(a.map((r) => r.name)).size, 12);
+  for (const r of a) assert.ok(P.has('pro:' + r.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')), r.name);
+  const top = draw('worldtour-top', 5);
+  assert.equal(top[0].name, 'Tadej Pogačar');
+  const w = (r) => r.athlete.cp / byName(r.name).data.rider.weight;
+  assert.ok(top.reduce((s, r) => s + w(r), 0) / 12 > a.reduce((s, r) => s + w(r), 0) / 12, 'les stars sont plus fortes que le tirage au hasard');
+  const { course } = setupFor(prof);
+  const race = Race.create({ course, rules: {}, seed: 5, gustSeed: 1, cps: [] });
+  Race.addBots(race, { n: 6, level: 'worldtour', rider: DEFAULT_RIDER, bike: DEFAULT_BIKE, v0: 0 });
+  let n = 0; while (race.riders.some((r) => !r.finished) && n++ < 20000) Race.step(race);
+  assert.ok(race.riders.every((r) => r.finished), 'tous arrivent');
+});

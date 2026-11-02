@@ -18,21 +18,21 @@
   'use strict';
 
   /** Types de coureur. Plages [niveau 0, niveau 100]. cp : PC en W/kg ; pm : Pmax en W/kg ; wp : W′ en kJ/kg ; vo2 : mL/min/kg ; fI : % fibres lentes ;
-   *  buf : pouvoir tampon ; cp1 : CP1 / PC ; hr : FC de repos ; ftp : FTP / PC. */
+   *  sprint, climb : goût des sprints et des côtes (0–1, pour les coureurs virtuels) ; buf : pouvoir tampon ; cp1 : CP1 / PC ; hr : FC de repos ; ftp : FTP / PC. */
   const TYPES = {
-    climber: { label: 'Grimpeur', info: 'Meilleur rapport W/kg : poids plume, grosse PC, W′ modeste.',
+    climber: { sprint: 0.25, climb: 0.95, label: 'Grimpeur', info: 'Meilleur rapport W/kg : poids plume, grosse PC, W′ modeste.',
       cp: [5.5, 6.7], pm: [14.5, 18.0], wp: [0.235, 0.290], vo2: [76, 87], fI: [62, 70], buf: [0.90, 1.00], cp1: 0.80, hr: [36, 44], ftp: 0.965 },
-    stage: { label: 'Courses par étapes', info: 'Leader de grand tour : PC très haute, bon W′ et récupération, grimpe et chrono.',
+    stage: { sprint: 0.4, climb: 0.85, label: 'Courses par étapes', info: 'Leader de grand tour : PC très haute, bon W′ et récupération, grimpe et chrono.',
       cp: [5.7, 6.9], pm: [16.0, 21.0], wp: [0.260, 0.320], vo2: [76, 88], fI: [58, 66], buf: [1.00, 1.10], cp1: 0.78, hr: [34, 44], ftp: 0.965 },
-    tt: { label: 'Rouleur / chrono', info: 'Grand et lourd, très puissant en valeur absolue : le meilleur rapport W/CdA du peloton.',
+    tt: { sprint: 0.4, climb: 0.45, label: 'Rouleur / chrono', info: 'Grand et lourd, très puissant en valeur absolue : le meilleur rapport W/CdA du peloton.',
       cp: [5.0, 6.2], pm: [15.0, 19.5], wp: [0.250, 0.300], vo2: [72, 80], fI: [55, 62], buf: [0.90, 1.00], cp1: 0.80, hr: [38, 48], ftp: 0.965 },
-    classic: { label: 'Classiques', info: 'Puissance explosive et endurance : grosse Pmax, grand W′, relances à répétition.',
+    classic: { sprint: 0.7, climb: 0.5, label: 'Classiques', info: 'Puissance explosive et endurance : grosse Pmax, grand W′, relances à répétition.',
       cp: [5.3, 6.4], pm: [18.0, 24.0], wp: [0.300, 0.380], vo2: [72, 84], fI: [48, 56], buf: [1.10, 1.25], cp1: 0.74, hr: [38, 48], ftp: 0.955 },
-    puncher: { label: 'Puncheur', info: 'Efforts de 30 s à 5 min dans les bosses : fort W′, bonne Pmax, PC correcte.',
+    puncher: { sprint: 0.6, climb: 0.7, label: 'Puncheur', info: 'Efforts de 30 s à 5 min dans les bosses : fort W′, bonne Pmax, PC correcte.',
       cp: [5.4, 6.5], pm: [17.0, 21.0], wp: [0.300, 0.360], vo2: [74, 84], fI: [50, 58], buf: [1.10, 1.20], cp1: 0.75, hr: [36, 46], ftp: 0.955 },
-    sprinter: { label: 'Sprinteur', info: 'Pmax et W′ énormes, PC plus basse : se joue sur les 10 dernières secondes.',
+    sprinter: { sprint: 0.95, climb: 0.2, label: 'Sprinteur', info: 'Pmax et W′ énormes, PC plus basse : se joue sur les 10 dernières secondes.',
       cp: [4.9, 5.7], pm: [20.0, 25.0], wp: [0.320, 0.400], vo2: [68, 76], fI: [42, 50], buf: [1.15, 1.30], cp1: 0.70, hr: [42, 52], ftp: 0.95 },
-    domestique: { label: 'Équipier / rouleur', info: 'Passeur et rouleur au service du leader : bonne endurance, PC solide, Pmax moyenne.',
+    domestique: { sprint: 0.4, climb: 0.45, label: 'Équipier / rouleur', info: 'Passeur et rouleur au service du leader : bonne endurance, PC solide, Pmax moyenne.',
       cp: [5.0, 6.0], pm: [15.0, 18.0], wp: [0.240, 0.300], vo2: [72, 80], fI: [55, 62], buf: [0.95, 1.05], cp1: 0.78, hr: [40, 50], ftp: 0.96 },
   };
 
