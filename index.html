@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="PaceYourRide/css/home.css">
   <link rel="stylesheet" href="Commun/css/select.css">
   <style>
-    .po-main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+    .po-main { max-width: none; margin: 0; padding: 24px clamp(16px, 3vw, 48px) 48px; }
     .po-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-top: 20px; }
     .po-app { display: flex; flex-direction: column; gap: 6px; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; }
     .po-app:hover, .po-app:focus-visible { border-color: var(--accent); outline: none; }
@@ -26,6 +26,7 @@
     .po-pick { margin-top: 20px; }
     .po-pick .hm-col { display: flex; flex-direction: column; gap: 16px; }
     .hm-carousel { min-width: 0; }
+    .po-pick .hm-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px; }
     .po-pick .hm-grid { grid-template-columns: minmax(0, 1fr); }
     .po-h2 { margin: 28px 0 0; font-size: 1.15rem; }
   </style>
@@ -80,8 +81,6 @@
 
     <h2 class="po-h2">Les applications</h2>
     <div class="po-grid">
-      <a class="po-app" href="PaceYourRide/parcours.html"><span class="po-tag">Préparer</span><b>Parcours</b><small>Tracer ou importer un parcours, y placer sprints, côtes, ravitaillements, revêtements et vent, et le voir en 2D ou en 3D.</small></a>
-      <a class="po-app" href="PaceYourRide/athlete.html"><span class="po-tag">Préparer</span><b>Athlète</b><small>Le profil de l'athlète : courbe de puissance record, seuils, zones, niveau et modèle physiologique.</small></a>
       <a class="po-app" href="PaceYourRide/index.html"><span class="po-tag">Préparer</span><b>PaceYourRide</b><small>Tracer un parcours, régler l'athlète et son équipement, calculer le pacing optimal.</small></a>
       <a class="po-app" href="VirtualRide2D/index.html"><span class="po-tag">Jouer</span><b>Virtual Ride 2D</b><small>Choisir un parcours et un athlète, la météo, puis courir sur la carte.</small></a>
       <a class="po-app" href="VirtualRide3D/index.html"><span class="po-tag">Jouer</span><b>Virtual Ride 3D</b><small>La même course dans le paysage cartoon de Bike3D.</small></a>
