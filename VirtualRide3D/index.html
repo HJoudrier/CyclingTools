@@ -61,19 +61,52 @@
       <div class="gs-gear3d" id="gs-gear3d"></div>
     </section>
 
-    <!-- ============ 3. MÉTÉO : une date, ou un temps aléatoire qui évolue ============ -->
+    <!-- ============ 3. CIEL ET MÉTÉO : date et heure de départ, source de la météo, vitesse du temps (Commun/js/jeu/game-setup.js) ============ -->
     <section class="gs-sec" aria-labelledby="gs-h-wx">
-      <h2 id="gs-h-wx"><span class="gs-num">3</span> Météo</h2>
+      <h2 id="gs-h-wx"><span class="gs-num">3</span> Ciel et Météo</h2>
+      <div class="grid2">
+        <div class="field"><label for="gs-start">Date et heure de départ</label><input type="datetime-local" id="gs-start">
+          <small class="hint">Heure locale du parcours : elle place le soleil dans le ciel et règle le jour et la nuit, et sert aux prévisions réelles.</small></div>
+        <div class="field"><label id="gs-flow-lbl">Vitesse du temps du ciel</label>
+          <div class="seg-control gs-seg" id="gs-flow" role="radiogroup" aria-labelledby="gs-flow-lbl">
+            <button type="button" data-flow="0" aria-pressed="false" title="Le ciel ne bouge pas : l'heure et le temps restent ceux du départ">⏸ Figé</button>
+            <button type="button" data-flow="1" aria-pressed="true" title="Le ciel suit la course, seconde pour seconde">×1</button>
+            <button type="button" data-flow="10" aria-pressed="false" title="Une minute de course = 10 minutes de ciel">×10</button>
+            <button type="button" data-flow="60" aria-pressed="false" title="Une minute de course = 1 heure de ciel">×60</button>
+            <button type="button" data-flow="300" aria-pressed="false" title="Une minute de course = 5 heures de ciel">×300</button>
+          </div>
+          <small class="hint">Ne change que le cycle jour / nuit et l'évolution de la météo, pas la course.</small></div>
+      </div>
       <div class="seg-control gs-seg" role="radiogroup" aria-label="Source de la météo">
-        <button type="button" data-wx-mode="random" aria-pressed="true" title="Un temps tiré au hasard, qui change au fil de la course">🎲 Aléatoire évolutive</button>
-        <button type="button" data-wx-mode="date" aria-pressed="false" title="La météo réelle d'un jour et d'une heure, prévue ou observée">📅 Pour une date</button>
+        <button type="button" data-sky-mode="course" aria-pressed="false" title="La météo enregistrée avec le parcours (page Parcours de PaceYourRide)">🗺️ Météo du parcours</button>
+        <button type="button" data-sky-mode="real" aria-pressed="false" title="Les prévisions Open-Meteo (ou observations) du jour et de l'heure de départ">🌐 Prévisions météo réelles</button>
+        <button type="button" data-sky-mode="game" aria-pressed="true" title="Un temps et un vent choisis, ou tirés au hasard, dans le ciel du jeu">🎮 Météo du jeu</button>
       </div>
-      <div class="gs-wx" id="gs-wx-random">
-        <p class="hint" id="gs-wx-random-note"></p>
-        <div class="toolbar"><button class="btn" type="button" id="gs-wx-reroll">🎲 Tirer un autre temps</button></div>
-        <div class="status-line" id="gs-wx-random-sum"></div>
+      <div class="gs-wx" id="gs-wx-course" hidden>
+        <p class="hint" id="gs-wx-course-note"></p>
+        <div class="status-line" id="gs-wx-course-sum"></div>
       </div>
-      <div class="gs-wx" id="gs-wx-date" hidden><div data-wx-api></div></div>
+      <div class="gs-wx" id="gs-wx-real" hidden><div data-wx-api></div></div>
+      <div class="gs-wx" id="gs-wx-game">
+        <p class="hint">Le ciel du jeu, sans effet sur la route ni sur la puissance : seulement ce que tu vois (soleil, nuages, pluie, orage, neige) et le vent dans le paysage.</p>
+        <div class="field"><label id="gs-skyw-lbl">Temps</label>
+          <div class="seg-control gs-seg" id="gs-sky-weather" role="radiogroup" aria-labelledby="gs-skyw-lbl">
+            <button type="button" data-v="sun" aria-pressed="false">☀️ Soleil</button>
+            <button type="button" data-v="cloud" aria-pressed="false">⛅ Nuageux</button>
+            <button type="button" data-v="rain" aria-pressed="false">🌧️ Pluie</button>
+            <button type="button" data-v="storm" aria-pressed="false">⛈️ Orage</button>
+            <button type="button" data-v="snow" aria-pressed="false">❄️ Neige</button>
+            <button type="button" data-v="random" aria-pressed="true" title="Un temps tiré au hasard, qui change au fil de la course">🎲 Aléatoire</button>
+          </div></div>
+        <div class="field"><label id="gs-skyv-lbl">Vent</label>
+          <div class="seg-control gs-seg" id="gs-sky-wind" role="radiogroup" aria-labelledby="gs-skyv-lbl">
+            <button type="button" data-v="calm" aria-pressed="false">🍃 Calme</button>
+            <button type="button" data-v="breeze" aria-pressed="false">🌬️ Brise</button>
+            <button type="button" data-v="strong" aria-pressed="false">💨 Fort</button>
+            <button type="button" data-v="storm" aria-pressed="false">🌪️ Tempête</button>
+            <button type="button" data-v="random" aria-pressed="true">🎲 Aléatoire</button>
+          </div></div>
+      </div>
     </section>
 
     <!-- ============ 4. PARTIE : réglages (page de configuration d'avant, Commun/js/jeu/game-setup.js) ============ -->

@@ -951,7 +951,7 @@
     publish3d(s, y, others, t) {
       const me = G.me;
       PYR.view3d.publish({
-        course: G.ctx.course, cps: G.cps, feed: G.feed, t,
+        course: G.ctx.course, cps: G.cps, feed: G.feed, t, sky: PYR.view3d.skySettings(store.state),
         k: T.effScale(timeScale()),
         run: G.running && !G.finished && performance.now() >= G.holdUntil,
         me: {

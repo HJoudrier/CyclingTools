@@ -311,18 +311,41 @@
       });
     }
 
+    // Course du soleil à une date et en un lieu : durée du jour, hauteur à midi et azimut du lever d'après le jour de l'année (doy), la latitude (°)
+    // et la longitude (°), l'heure locale du midi solaire venant du décalage horaire du lieu (h). Remplace la saison de l'ambiance du paysage.
+    setSite(doy, lat, lng, off) {
+      const key = [doy, Math.round(lat * 10), Math.round(lng * 10), off].join('|');
+      if (key === this._siteKey) return;
+      this._siteKey = key;
+      const decl = 23.44 * Math.sin(2 * Math.PI * (doy - 81) / 365) * DEG, phi = lat * DEG;
+      const cosH = Math.max(-1, Math.min(1, -Math.tan(phi) * Math.tan(decl)));
+      const dayLen = Math.max(1.5, Math.min(22.5, 2 * Math.acos(cosH) / DEG / 15));
+      const noon = 12 + (Number.isFinite(off) ? off : Math.round(lng / 15)) - lng / 15;
+      const cosAz = Math.max(-1, Math.min(1, Math.sin(decl) / Math.max(0.05, Math.cos(phi))));
+      this.season = {
+        rise: noon - dayLen / 2, set: noon + dayLen / 2,
+        max: Math.max(6, Math.min(80, 90 - Math.abs(lat - decl / DEG))),
+        az: Math.max(20, Math.min(160, Math.acos(cosAz) / DEG)),
+      };
+    }
+
+    // Vitesse d'évolution de la météo variable : 1 = celle du jeu seul, 0 = figée ; plus la vitesse du temps est grande, plus le temps change vite.
+    setWeatherRate(r) { this.weatherRate = Math.max(0, r); }
+
     // ------------------------------------------------------------ soleil
     _sun(h) {
       const S = this.season;
       const dayLen = S.set - S.rise;
       let elev, az;
-      if (h >= S.rise && h <= S.set) {
-        const u = (h - S.rise) / dayLen;
+      // (le lever peut être négatif et le coucher passer minuit pour les lieux et les dates extrêmes : on compte les heures à partir du lever)
+      const hh = h < S.rise ? h + 24 : h;
+      if (hh <= S.set) {
+        const u = (hh - S.rise) / dayLen;
         elev = S.max * Math.sin(Math.PI * u);
         az = lerp(S.az, 360 - S.az, u);
       } else {
         const nightLen = 24 - dayLen;
-        const u = (((h - S.set) % 24) + 24) % 24 / nightLen;
+        const u = Math.min(1, (hh - S.set) / nightLen);
         elev = -32 * Math.sin(Math.PI * u);
         az = lerp(360 - S.az, 360 + S.az, u);
       }
@@ -367,7 +390,7 @@
       const elev = this.elev = this._sun(this.hour);
       // météo variable : on change de temps de temps en temps
       if (this.mode === 'variable') {
-        this.nextChange -= dt;
+        this.nextChange -= dt * (this.weatherRate === undefined ? 1 : this.weatherRate);
         if (this.nextChange <= 0) {
           const from = this.state;
           this.state = this._pick((this.cold ? NEXT_COLD : NEXT)[this.state]);

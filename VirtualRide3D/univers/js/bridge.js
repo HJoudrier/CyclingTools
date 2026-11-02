@@ -191,6 +191,7 @@
       this.pyrLen = num(m.length, 0) > 0 ? m.length : route.length;
       this.kS = route.length / this.pyrLen; // les deux tracés sont lissés différemment : on se repère en proportion
       this.ready = false;
+      this.skyApplied = null;       // le ciel du nouveau paysage reprend les réglages du joueur
       this.me = m.me || {};
       this.gearLate = false;
       this.setGear(this.me.gear, true);
@@ -293,6 +294,7 @@
       this.fr = m;
       this.frAt = performance.now();
       this.timeK = m.run ? clamp(num(m.k, 1), 0, 100) : 0;
+      if (m.sky && typeof m.sky === 'object') { this.sky = m.sky; this.skyApplied = null; }       // réglages « Ciel et Météo » de la page Jeu (nouveaux ou changés)
     },
 
     // appelée par la boucle de Bike3D (état « pyr »)
@@ -452,8 +454,29 @@
     applyEnv(dt) {
       const g = this.game, A = g.atmo, F = this.fr;
       if (!A || !F) return;
-      const env = F.env || {};
-      A.setHour(Number.isFinite(env.hour) ? env.hour : this.baseHour + num(F.t, 0) / 3600);
+      const env = F.env || {}, sky = this.sky;
+      const flow = sky ? num(sky.flow, 1) : 1;
+      A.setHour(Number.isFinite(env.hour) ? env.hour : this.baseHour + num(F.t, 0) * flow / 3600);
+      // date et lieu : la course du soleil et la durée du jour suivent le jour de l'année et la latitude (sinon la saison de l'ambiance du paysage)
+      if (Number.isFinite(env.doy) && this.course && this.course.lat && this.course.lat.length) {
+        const lat = this.course.lat, lng = this.course.lng, i = lat.length >> 1;
+        A.setSite(env.doy, num(lat[i], 45), num(lng[i], 5), sky && Number.isFinite(sky.off) ? sky.off : this.guessOffset(num(lng[i], 5), num(lat[i], 45), env.doy));
+      }
+      // météo du jeu : le ciel de Bike3D choisit (ou garde) le temps et le vent réglés par le joueur, à son rythme (vitesse du temps du ciel)
+      if (sky && sky.mode === 'game') {
+        A.setWeatherRate(flow <= 0 ? 0 : Math.max(1, Math.min(12, flow / 10)));
+        A.setExternalWind(null);
+        const key = sky.weather + '|' + sky.wind;
+        if (this.skyApplied !== key) {
+          this.skyApplied = key;
+          const W = { sun: 'soleil', cloud: 'nuageux', rain: 'pluie', storm: 'orage', snow: 'neige', random: 'variable' }[sky.weather] || 'variable';
+          const V = { calm: 'calme', breeze: 'brise', strong: 'fort', storm: 'tempete', random: 'auto' }[sky.wind] || 'auto';
+          A.setWeather(W);
+          if (V === 'auto') A.setWind(A._pick([['calme', 2], ['brise', 4], ['fort', 2.5], ['tempete', 0.6]])); else A.setWind(V);
+          if (W !== 'variable') Object.assign(A.cur, A.tgt);      // un temps imposé est là tout de suite, sans transition
+        }
+        return;
+      }
       this._envT = (this._envT || 0) - dt;
       if (this._envT > 0) return;
       this._envT = 0.5;
@@ -474,6 +497,13 @@
         Object.assign(A.cur, A.tgt);
         A.wet = A.cur.rain > 0.2 || num(env.wet, 0) > 0.3 ? 1 : 0;
       }
+    },
+
+    // décalage horaire probable du lieu (h) quand la météo n'en donne pas : heure de l'Europe centrale (à l'est de 5° O) ou orientale (à l'est de 24° E),
+    // avec l'heure d'été de fin mars à fin octobre ; ailleurs un fuseau par 15° de longitude
+    guessOffset(lng, lat, doy) {
+      if (lat > 35 && lat < 72 && lng >= -5 && lng < 45) return (lng < 24 ? 1 : 2) + (doy >= 86 && doy <= 300 ? 1 : 0);
+      return Math.round(lng / 15);
     },
 
     // ------------------------------------------------------------ clavier

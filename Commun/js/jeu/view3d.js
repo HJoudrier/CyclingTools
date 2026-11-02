@@ -38,7 +38,8 @@
   let stage = false;       // la page de jeu est affichée
   let courseRef = null, courseMsg = null; // dernier parcours envoyé (et l'objet de simulation dont il vient)
   let last = null;         // dernière image, renvoyée à une vue qui vient de s'ouvrir
-  let gearKey = null;      // équipement du joueur déjà envoyé
+  let gearKey = null;
+  let skyKey = null;       // réglages du ciel déjà envoyés      // équipement du joueur déjà envoyé
   let sound = false;
   const btn = {};
   const status = new Map(); // fenêtre → dernier état annoncé ('building', 'ready', 'error')
@@ -162,6 +163,52 @@
     return env;
   }
 
+  /* ---------- ciel et météo de Virtual Ride 3D ---------- */
+
+  /**
+   * Réglages « Ciel et Météo » de la page Jeu de Virtual Ride 3D (état de l'application), pour la vue : { mode ('course' : la météo enregistrée avec le
+   * parcours, 'real' : les prévisions Open-Meteo, 'game' : le ciel du jeu), weather (soleil, nuageux, pluie, orage, neige ou aléatoire), wind (calme, brise,
+   * fort, tempête ou aléatoire), flow (vitesse du temps du ciel : secondes de ciel par seconde de course, 0 : figé), startAt (date et heure locales de
+   * départ), off (décalage horaire du lieu, en heures) }. null pour les autres applications (leur vue garde son propre ciel).
+   */
+  function skySettings(state) {
+    if (!state || (PYR.appId && PYR.appId !== 'jeu3d')) return null;
+    const g = state.game || {}, w = state.weather || {};
+    const flow = Number(g.skyFlow);
+    return {
+      // sans météo utilisable (rien d'enregistré avec le parcours, prévisions pas récupérées), le ciel du jeu
+      mode: ['course', 'real'].includes(g.skyMode) && w.enabled && w.snapshot ? g.skyMode : 'game',
+      weather: g.skyWeather || 'random', wind: g.skyWind || 'random',
+      flow: Number.isFinite(flow) && flow >= 0 ? flow : 1,
+      startAt: typeof w.startAt === 'string' ? w.startAt : '',
+      off: Number.isFinite(w.utcOffset) && w.snapshot ? w.utcOffset / 3600 : null,
+    };
+  }
+
+  /** Heure locale (0–24) et jour de l'année (1–366) à t secondes de ciel après le départ « AAAA-MM-JJThh:mm » ; null si le départ est illisible. */
+  function clockAt(startAt, t) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(startAt || ''));
+    if (!m) return null;
+    const ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + t * 1000, d = new Date(ms);
+    return {
+      hour: d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600,
+      doy: Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000) + 1,
+    };
+  }
+
+  /**
+   * Conditions du ciel envoyées avec chaque image : la météo du jeu ne donne que l'heure et le jour (la vue tire le temps et le vent elle-même) ;
+   * la météo du parcours et les prévisions réelles y ajoutent pluie, vent et température lus à la position du joueur, à l'heure du ciel
+   * (t × vitesse du temps). Sans réglage (autres applications), la météo de la simulation à l'heure de course.
+   */
+  function skyEnv(course, s, t, sky) {
+    if (!sky) return course ? envAt(course, s, t) : {};
+    const tv = t * sky.flow, clock = clockAt(sky.startAt, tv);
+    const env = sky.mode !== 'game' && course ? envAt(course, s, tv) : {};
+    if (clock) { env.hour = clock.hour; env.doy = clock.doy; }
+    return env;
+  }
+
   /* ---------- images ---------- */
 
   /**
@@ -182,7 +229,7 @@
       return e;
     };
     const riders = [rider(o.me)].concat((o.others || []).map(rider));
-    return { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
+    return { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.sky ? skyEnv(o.course, o.me.s || 0, o.t || 0, o.sky) : o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
   }
 
   /**
@@ -199,7 +246,11 @@
     const gk = JSON.stringify(o.me.gear || null);
     if (gk !== gearKey) { gearKey = gk; if (o.me.gear) broadcast({ type: 'gear', gear: o.me.gear }); }
     last = o;
-    broadcast(frameMessage(o));
+    const fm = frameMessage(o);
+    // réglages du ciel : envoyés avec la première image et à chaque changement (pas à chaque image)
+    const sk = JSON.stringify(o.sky || null);
+    if (o.sky && sk !== skyKey) { skyKey = sk; fm.sky = o.sky; }
+    broadcast(fm);
   }
 
   /* ---------- messages de la vue ---------- */
@@ -216,7 +267,7 @@
         courseMsg = courseMessage(last.course, last.cps, last.feed, last.me);
         gearKey = JSON.stringify(last.me.gear || null);
         post(src, courseMsg);
-        post(src, frameMessage(last));
+        post(src, Object.assign(frameMessage(last), last.sky ? { sky: last.sky } : {}));
       }
       post(src, { type: 'cmd', cmd: 'sound', on: src === win ? true : sound });
     } else if (m.type === 'status') {
@@ -300,5 +351,5 @@
 
   if (typeof window !== 'undefined') window.addEventListener('message', onMessage);
 
-  PYR.view3d = { V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
+  PYR.view3d = { V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
 })(globalThis.PYR = globalThis.PYR || {});

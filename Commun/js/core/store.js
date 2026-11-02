@@ -64,6 +64,9 @@
       gearEdit: {},            // VirtualRide3D : matériel modifié sur la vue 3D (catégorie du catalogue, ou 'position' → article), repris après chaque choix (gear-edit.js)
       weatherMode: 'random',   // jeux : météo 'random' (aléatoire évolutive) ou 'date' (celle d'un jour et d'une heure)
       weatherSeed: 0,          // jeux : graine du temps aléatoire
+      // Virtual Ride 3D, « Ciel et Météo » : source de la météo ('course' : celle du parcours, 'real' : prévisions réelles, 'game' : celle du jeu), temps et vent
+      // du jeu (soleil, nuageux, pluie, orage, neige, random ; calm, breeze, strong, storm, random), vitesse du temps du ciel (secondes de ciel par seconde de course ; 0 : figé)
+      skyMode: 'game', skyWeather: 'random', skyWind: 'random', skyFlow: 1,
       view3dQuality: 'medium', // VirtualRide3D : qualité du parcours (paysage) dans la vue 3D : 'low' rapide, 'medium' normale, 'high' belle
       view3dDetail: 'auto',    // VirtualRide3D : niveau de détail des cyclistes : 'auto' (suit la qualité), 'simple', 'detailed', 'realistic'
       display: '2d',           // écran de course : '2d' la carte (VirtualRide2D), '3d' l'univers de Bike3D (VirtualRide3D)

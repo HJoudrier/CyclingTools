@@ -110,9 +110,12 @@
       PYR.routeModel.computeMissing();
       PYR.routeModel.rebuildProfile();
     }
-    // la météo suit le parcours : changer de parcours abandonne celle qui avait été récupérée
-    st.weather = keyBefore && store.profile && We.routeKey(store.profile) === keyBefore && wxBefore ? wxBefore : freshWeather(wxBefore && wxBefore.startAt);
-    if (!st.weather.startAt) st.weather.startAt = tomorrow();
+    if (ownSky()) composeSky(route, wxBefore, keyBefore);
+    else {
+      // la météo suit le parcours : changer de parcours abandonne celle qui avait été récupérée
+      st.weather = keyBefore && store.profile && We.routeKey(store.profile) === keyBefore && wxBefore ? wxBefore : freshWeather(wxBefore && wxBefore.startAt);
+      if (!st.weather.startAt) st.weather.startAt = tomorrow();
+    }
     if (PYR.gearEdit) PYR.gearEdit.reapply();         // matériel modifié sur la vue 3D (VirtualRide3D)
     applyWeather();
     store.save();
@@ -136,7 +139,7 @@
   /** Météo aléatoire : en 2D, un instantané tiré au hasard qui évolue (seed) et que la simulation lit ; en 3D, le ciel variable de Bike3D (sans effet sur la simulation). */
   function applyWeather() {
     const st = store.state, G = st.game;
-    if (S.mode !== 'random') return;
+    if (S.mode !== 'random' || ownSky()) return;
     const p = store.profile;
     if (ownSky() || !p) { st.weather.enabled = false; st.weather.snapshot = null; st.weather.fetchedFor = ''; return; }
     if (!G.weatherSeed) G.weatherSeed = 1 + Math.floor(Math.random() * 999999);
@@ -149,7 +152,7 @@
 
   function randomSummary() {
     const w = store.state.weather, el = $('#gs-wx-random-sum');
-    if (ownSky()) { el.textContent = ''; return; }
+    if (ownSky() || !el) return;
     if (!w.snapshot || !w.enabled) { el.textContent = ''; return; }
     const T = [].concat(...w.snapshot.T), rain = w.snapshot.rain[0];
     const wetH = rain.filter((x) => x >= 0.2).length;
@@ -184,19 +187,115 @@
     $$('[data-wx-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.wxMode)));
   }
 
+  /* ---------- 3 bis. Ciel et Météo (Virtual Ride 3D) ---------- */
+
+  const SKY_MODES = ['course', 'real', 'game'];
+  const skyMode = () => (SKY_MODES.includes(store.state.game.skyMode) ? store.state.game.skyMode : 'game');
+  const FLOWS = [0, 1, 10, 60, 300];
+
+  /**
+   * Météo de la simulation selon la source choisie : « du parcours » = celle enregistrée avec le parcours (prévisions ou portions décrites à la main),
+   * recalée sur la date et l'heure de départ choisies ; « réelle » = les prévisions récupérées pour ce parcours et ce départ (à récupérer) ;
+   * « du jeu » = aucune, le ciel est seulement dessiné par la vue 3D.
+   */
+  function composeSky(route, wxBefore, keyBefore) {
+    const st = store.state, mode = skyMode();
+    const sameRoute = !!(keyBefore && store.profile && We.routeKey(store.profile) === keyBefore);
+    const prev = S.wxOrigin || mode;                          // d'où vient la météo qui était dans l'état : du parcours, des prévisions réelles ou de rien
+    let startAt = wxBefore && wxBefore.startAt;
+    // prévisions réelles déjà récupérées : gardées pour le cas où l'on quitte cette source puis qu'on y revient
+    if (prev === 'real' && sameRoute && wxBefore && wxBefore.source === 'api' && wxBefore.snapshot && !wxBefore.snapshot.custom) S.realWx = wxBefore;
+    const rw = route && route.data && route.data.weather;
+    if (!startAt) startAt = (rw && rw.startAt) || tomorrow();
+    let w;
+    if (mode === 'course' && rw && (rw.snapshot || rw.source === 'custom')) {
+      w = JSON.parse(JSON.stringify(rw));
+      w.startAt = startAt;
+      w.enabled = true;
+      const sn = w.snapshot;
+      if (sn && !sn.custom && w.source !== 'custom') {          // prévisions enregistrées : on les rejoue à partir du nouveau départ
+        const e = We.localToEpoch(startAt, sn.off);
+        if (Number.isFinite(e)) { const d = e - sn.start; sn.start += d; sn.t0 += d; }
+        w.fetchedFor = We.freshKey(store.profile, startAt);
+      } else { w.snapshot = null; w.fetchedFor = ''; }        // portions décrites à la main : l'instantané est refait pour le départ (tab-weather.js syncCustom)
+    } else if (mode === 'real' && prev === 'real' && sameRoute && wxBefore && wxBefore.source === 'api' && wxBefore.snapshot && !wxBefore.snapshot.custom) {
+      w = wxBefore;                                              // les prévisions récupérées (elles ne valent que pour ce départ : isFresh le vérifie)
+    } else if (mode === 'real' && S.realWx && sameRoute && S.realWx.fetchedFor === We.freshKey(store.profile, startAt)) {
+      w = S.realWx;
+    } else {
+      w = freshWeather(startAt);
+      w.source = 'api';
+    }
+    if (mode === 'game') { w.enabled = false; w.snapshot = null; w.fetchedFor = ''; }
+    w.startAt = startAt;
+    S.wxOrigin = mode;
+    st.weather = w;
+  }
+
+  function skySummary() {
+    const g = store.state.game, w = store.state.weather, mode = skyMode(), at = String(w.startAt || '').replace('T', ' à ');
+    const TW = { sun: 'soleil', cloud: 'nuageux', rain: 'pluie', storm: 'orage', snow: 'neige', random: 'temps aléatoire' }, TV = { calm: 'vent calme', breeze: 'brise', strong: 'vent fort', storm: 'tempête', random: 'vent aléatoire' };
+    if (mode === 'game') return `départ ${at} · ${TW[g.skyWeather] || 'temps aléatoire'}, ${TV[g.skyWind] || 'vent aléatoire'}`;
+    if (mode === 'real') return w.snapshot && w.enabled ? `météo réelle du ${at}` : `météo réelle du ${at} (à récupérer)`;
+    return w.snapshot && w.enabled ? `météo du parcours, départ ${at}` : 'pas de météo enregistrée avec ce parcours';
+  }
+
+  function renderSky() {
+    const g = store.state.game, w = store.state.weather, mode = skyMode();
+    $$('[data-sky-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.skyMode === mode)));
+    for (const m of SKY_MODES) $('#gs-wx-' + m).hidden = m !== mode;
+    $$('#gs-flow [data-flow]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.flow) === Number(g.skyFlow))));
+    $$('#gs-sky-weather [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === g.skyWeather)));
+    $$('#gs-sky-wind [data-v]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === g.skyWind)));
+    const inp = $('#gs-start');
+    if (document.activeElement !== inp) inp.value = w.startAt || '';
+    // météo du parcours : ce que le parcours apporte
+    const rw = (find('route', pickId('route')) || { data: {} }).data.weather;
+    const has = !!(rw && (rw.snapshot || rw.source === 'custom'));
+    $('#gs-wx-course-note').textContent = has
+      ? (rw.source === 'custom' ? 'Température, pluie et vent décrits sur la page Parcours de PaceYourRide, appliqués à partir de la date et de l\'heure de départ.' : 'Les prévisions enregistrées avec le parcours, rejouées à partir de la date et de l\'heure de départ.')
+      : "Ce parcours n'a pas de météo enregistrée : décris-en une, ou récupère des prévisions, sur la page Parcours de PaceYourRide. En attendant, le ciel du jeu est utilisé.";
+    $('#gs-wx-course-sum').textContent = has && w.snapshot ? `${fmt(Math.min(...[].concat(...w.snapshot.T)))} à ${fmt(Math.max(...[].concat(...w.snapshot.T)))} °C` : '';
+  }
+
+  function setSkyMode(mode) {
+    const g = store.state.game;
+    g.skyMode = SKY_MODES.includes(mode) ? mode : 'game';
+    compose();
+    renderSky();
+    renderSummary();
+  }
+
+  function initSky() {
+    const g = store.state.game;
+    if (!SKY_MODES.includes(g.skyMode)) g.skyMode = 'game';
+    if (!FLOWS.includes(Number(g.skyFlow))) g.skyFlow = 1;
+    $$('[data-sky-mode]').forEach((b) => b.addEventListener('click', () => setSkyMode(b.dataset.skyMode)));
+    $$('#gs-flow [data-flow]').forEach((b) => b.addEventListener('click', () => { g.skyFlow = Number(b.dataset.flow); store.save(); renderSky(); }));
+    $$('#gs-sky-weather [data-v]').forEach((b) => b.addEventListener('click', () => { g.skyWeather = b.dataset.v; store.save(); renderSky(); renderSummary(); }));
+    $$('#gs-sky-wind [data-v]').forEach((b) => b.addEventListener('click', () => { g.skyWind = b.dataset.v; store.save(); renderSky(); renderSummary(); }));
+    $('#gs-start').addEventListener('change', (e) => {
+      if (!e.target.value) { e.target.value = store.state.weather.startAt; return; }
+      store.set('weather.startAt', e.target.value);
+      compose();
+      renderSky();
+      renderSummary();
+    });
+  }
+
   /* ---------- départ ---------- */
 
   function renderSummary() {
     const route = find('route', pickId('route')), ath = find('athlete', pickId('athlete')), p = store.profile;
     const w = store.state.weather;
-    const wx = S.mode === 'random' ? (ownSky() ? 'ciel variable' : 'météo aléatoire') : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
+    const wx = ownSky() ? skySummary() : S.mode === 'random' ? 'météo aléatoire' : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
     $('#gs-go-sum').textContent = route ? [route.name, ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut', wx].join(' · ') : 'Choisis un parcours pour commencer.';
     $('#g-go').disabled = !route || !p;
   }
 
   async function start(params) {
     if (!store.profile) { D.toast('Choisis d\'abord un parcours.', 'error'); return; }
-    if (S.mode === 'date' && !PYR.tabWeather.isFresh()) {
+    if ((ownSky() ? skyMode() === 'real' : S.mode === 'date') && !PYR.tabWeather.isFresh()) {
       await PYR.tabWeather.fetch();
       if (!PYR.tabWeather.isFresh() && !confirm("La météo de cette date n'a pas pu être récupérée. Partir sans météo ?")) return;
     }
@@ -218,19 +317,19 @@
       if (!st.game.pick || typeof st.game.pick !== 'object') st.game.pick = { route: '', athlete: '', bike: '', outfit: '' };
       S.mode = st.game.weatherMode === 'date' ? 'date' : 'random';
       C.load();
-      renderWeatherPanel();
+      if (ownSky()) initSky(); else renderWeatherPanel();
       $('#g-go').addEventListener('click', () => start());
       $('#g-live-create').addEventListener('click', () => start({ do: 'live-create' }));
       $('#g-live-join').addEventListener('click', () => start({ do: 'live-join' }));
       renderAll();
       // VirtualRide3D : matériel modifié sur la vue 3D (gear-edit.js) ; les changements sont enregistrés tout de suite
       if ($('#gs-gear3d')) PYR.gearEdit.init($('#gs-gear3d'), () => { PYR.app.refreshBindings(); });
-      setMode(S.mode, true);
+      if (ownSky()) renderSky(); else setMode(S.mode, true);
       // le choix se fait sur la page d'accueil : on le relit au retour sur cette page et quand une autre page le change
       const reread = () => { C.load(); renderAll(); };
       window.addEventListener('pageshow', (e) => { if (e.persisted) reread(); });
       window.addEventListener('storage', (e) => { if (e.key === 'paceyourride.v1' || e.key === 'paceyourride.library.v1') reread(); });
-      store.on('weather', () => { randomSummary(); renderSummary(); });      // météo récupérée, ou tirée à nouveau
+      store.on('weather', () => { randomSummary(); if (ownSky()) renderSky(); renderSummary(); });      // météo récupérée, ou tirée à nouveau
       // lecture de Dropbox à l'ouverture, quand l'appareil est connecté
       if (PYR.cloud.status().connected) refresh();
       PYR.cloud.onChange(() => { if (!C.state.busy) renderCloud(); });
