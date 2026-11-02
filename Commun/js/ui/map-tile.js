@@ -15,9 +15,12 @@
   const W = 768, H = 512;               // pixels de l'image
   const FRAME_W = 2.1, FRAME_H = 1.4;   // largeur et hauteur du cadre, en étendues du tracé
   const MAX_TILES = 64;
-  const SPEC = { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxZoom: 17,
+  // Fonds essayés dans l'ordre : OpenStreetMap (le fond par défaut de l'application), puis CARTO. Un serveur peut répondre « 200 » avec une image d'erreur
+  // (« API key required »…) : une tuile qui se répète partout est refusée (voir renderWith) et le fond suivant est essayé.
+  const SPEC = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc', maxZoom: 17, attribution: '© OpenStreetMap' };
+  const FALLBACK = { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxZoom: 17,
     attribution: '© OpenStreetMap · © CARTO' };
-  const FALLBACK = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc', maxZoom: 17, attribution: '© OpenStreetMap' };
+  const ESRI = { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', subdomains: 'a', maxZoom: 17, attribution: 'Plan © Esri' };
   const ALT = { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', subdomains: 'abcd', maxZoom: 17, attribution: '© OpenStreetMap · © CARTO' };
 
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -47,7 +50,7 @@
       if (count <= MAX_TILES || z <= 4) break;
       z--;
     }
-    const key = 't' + hash([f.latc.toFixed(4), f.lngc.toFixed(4), Math.round(f.extent)].join('|'));
+    const key = 'u' + hash([f.latc.toFixed(4), f.lngc.toFixed(4), Math.round(f.extent)].join('|'));
     return { key, latc: f.latc, lngc: f.lngc, dLat, dLng, z, x0, y0, x1, y1, tx0, ty0, tx1, ty1, count };
   }
 
@@ -81,10 +84,22 @@
 
   const urlOf = (spec, z, x, y) => spec.url.replace('{s}', spec.subdomains[(x + y) % spec.subdomains.length]).replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{r}', '');
 
+  /** Empreinte grossière d'une tuile : ses pixels réduits à 8 × 8 (la même image d'erreur donne la même empreinte). */
+  function fingerprint(img) {
+    const c = document.createElement('canvas');
+    c.width = 8; c.height = 8;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, 0, 0, 8, 8);
+    const d = x.getImageData(0, 0, 8, 8).data;
+    let out = '';
+    for (let i = 0; i < d.length; i += 4) out += (d[i] >> 3).toString(36) + (d[i + 1] >> 3).toString(36) + (d[i + 2] >> 3).toString(36);
+    return out;
+  }
+
   /** Assemble l'image du cadre (réseau) ; essaie le fond principal, puis OpenStreetMap. Lève une erreur si trop de tuiles manquent. */
   async function render(pl) {
     let lastErr = null;
-    for (const spec of [SPEC, FALLBACK, ALT]) {
+    for (const spec of [SPEC, FALLBACK, ALT, ESRI]) {
       try { return await renderWith(pl, spec); } catch (e) { lastErr = e; }
     }
     throw lastErr || new Error('fond de carte indisponible');
@@ -97,18 +112,21 @@
     const sc = stitch.getContext('2d');
     sc.fillStyle = '#e9e7e1'; sc.fillRect(0, 0, stitch.width, stitch.height);
     let ok = 0;
+    const seen = new Map();          // empreinte d'une tuile (8 × 8 pixels) → combien de tuiles lui ressemblent
     const jobs = [];
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
       const x = ((pl.tx0 + i) % n + n) % n, y = pl.ty0 + j;
       if (y < 0 || y >= n) { ok++; continue; }
-      jobs.push(loadImage(urlOf(spec, pl.z, x, y)).then((img) => { sc.drawImage(img, i * 256, j * 256, 256, 256); ok++; }, () => {}));
+      jobs.push(loadImage(urlOf(spec, pl.z, x, y)).then((img) => { sc.drawImage(img, i * 256, j * 256, 256, 256); ok++; const f = fingerprint(img); seen.set(f, (seen.get(f) || 0) + 1); }, () => {}));
     }
     await Promise.all(jobs);
     if (ok < nx * ny * 0.75) throw new Error('fond de carte incomplet');
+    // la même image partout (message « API key required », « accès bloqué »…) : ce n'est pas un fond de carte
+    if (ok >= 3 && Math.max(...seen.values()) >= 0.8 * ok) throw new Error('le serveur de cartes renvoie une image d\'erreur (clé d\'API ou accès refusé)');
     const out = document.createElement('canvas');
     out.width = W; out.height = H;
     out.getContext('2d').drawImage(stitch, pl.x0 - pl.tx0 * 256, pl.y0 - pl.ty0 * 256, pl.x1 - pl.x0, pl.y1 - pl.y0, 0, 0, W, H);
-    return { v: 1, key: pl.key, img: out.toDataURL('image/jpeg', 0.72), w: W, h: H, latc: pl.latc, lngc: pl.lngc, dLat: pl.dLat, dLng: pl.dLng, att: spec.attribution };
+    return { v: 2, key: pl.key, img: out.toDataURL('image/jpeg', 0.72), w: W, h: H, latc: pl.latc, lngc: pl.lngc, dLat: pl.dLat, dLng: pl.dLng, att: spec.attribution };
   }
 
   /* ---------- stockage local (IndexedDB) ---------- */
@@ -121,7 +139,11 @@
         try {
           const rq = indexedDB.open('paceyourride-tiles', 1);
           rq.onupgradeneeded = () => rq.result.createObjectStore('tiles', { keyPath: 'key' });
-          rq.onsuccess = () => resolve(rq.result);
+          rq.onsuccess = () => {
+            resolve(rq.result);
+            // tuiles de la première version (clés « t… », fond d'erreur possible) : retirées
+            try { const st = rq.result.transaction('tiles', 'readwrite').objectStore('tiles'); st.openKeyCursor().onsuccess = (e) => { const c = e.target.result; if (c) { if (!String(c.key).startsWith('u')) st.delete(c.key); c.continue(); } }; } catch (e) { /* ignoré */ }
+          };
           rq.onerror = () => resolve(null);
         } catch (e) { resolve(null); }
       });
@@ -189,5 +211,5 @@
   /** Pixels (dans l'image de la tuile) d'un point de coordonnées (lat, lng). */
   const toPx = (tile, lat, lng) => [((lng - (tile.lngc - tile.dLng)) / (2 * tile.dLng)) * tile.w, (((tile.latc + tile.dLat) - lat) / (2 * tile.dLat)) * tile.h];
 
-  PYR.mapTile = { W, H, FRAME_W, FRAME_H, plan, get, image, toPx, attribution: SPEC.attribution, get lastError() { return lastError; } };
+  PYR.mapTile = { W, H, FRAME_W, FRAME_H, plan, get, image, toPx, attribution: '© OpenStreetMap · © CARTO · © Esri (selon le fond obtenu)', get lastError() { return lastError; } };
 })(globalThis.PYR = globalThis.PYR || {});

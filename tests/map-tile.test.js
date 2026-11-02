@@ -14,7 +14,7 @@ const prof = (len, grade, o) => { const p = makeProfile([{ len, grade }], o); re
 test('tuile : le cadre est centré sur le tracé, 2,1 × 1,4 étendues, et contient tout le parcours', () => {
   for (const len of [3000, 25000, 120000]) {
     const p = prof(len, 0.02), pl = T.plan(p), g = RT.geometry(p);
-    assert.ok(pl && pl.key && /^t[0-9a-z]+$/.test(pl.key));
+    assert.ok(pl && pl.key && /^u[0-9a-z]+$/.test(pl.key));
     const lat = Array.from(p.lat), lng = Array.from(p.lng);
     assert.ok(pl.latc - pl.dLat < Math.min(...lat) && pl.latc + pl.dLat > Math.max(...lat), 'latitudes dans le cadre');
     assert.ok(pl.lngc - pl.dLng < Math.min(...lng) && pl.lngc + pl.dLng > Math.max(...lng), 'longitudes dans le cadre');
