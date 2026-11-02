@@ -480,6 +480,26 @@
     return best;
   }
 
+  /**
+   * Le joueur qui suit une roue : un coureur plus lent juste devant dans la voie visée (qui n'est pas la roue suivie) l'obligerait à freiner
+   * (garde-fou) ; il s'écarte de quelques centimètres pour passer à côté (MIN_DY de plus un peu de marge), du côté le plus proche de sa
+   * voie, si la route le permet. Renvoie la voie visée, éventuellement décalée.
+   */
+  function dodge(ctx, i, ty, wheelId, hw) {
+    const { ents, ys } = ctx, e = ents[i], s = e.s, v = e.v || 0;
+    let out = ty;
+    for (let j = i - 1; j >= 0; j--) {
+      const o = ents[j], dx = o.s - s;
+      if (dx - BIKE > 6) break;
+      if (o.stopped || o.id === wheelId || dx < BIKE - 0.5 || (o.v || 0) > v + 0.3) continue;
+      if (Math.abs(ys[j] - out) >= MIN_DY + 0.02) continue;
+      const a = ys[j] + MIN_DY + 0.05, b = ys[j] - MIN_DY - 0.05;
+      const okA = a <= hw, okB = b >= -hw;
+      if (okA && (!okB || Math.abs(a - out) <= Math.abs(b - out))) out = a; else if (okB) out = b;
+    }
+    return out;
+  }
+
   /** Place idéale dans le sillage de l'entrée w, pour un coureur en s avec le lacet tb. */
   function wakeY(ctx, w, s, tb) {
     return yOf(ctx, w) - (Math.max(0, w.s - s - BIKE) + 0.1) * tb;
@@ -546,7 +566,14 @@
         if (gap > 1 && gap > freeAt(ctx, i, L.y) + 1) free = true; // quelqu'un entre la roue et nous : on la rejoint par une voie libre
         // par vent de côté, loin derrière sa roue et sans abri : on mène la chasse côté vent, l'éventail se forme derrière nous
         else if (gap > 5 && Math.abs(tb) > 0.2 && info && info.R < 0.05) ty = L.y + om * (sgn * hwA - L.y);
-        else if (!taken(w, r.id, gap)) { ty = wakeY(ctx, w, s, tb); plain = true; }
+        else if (!taken(w, r.id, gap)) {
+          ty = wakeY(ctx, w, s, tb); plain = true;
+          // le joueur trop près de la roue s'écarte un peu (côté où il y a de la place) pour ne pas la toucher
+          if (!r.bot && gap < 0.3 && LAYER_MODES.includes(tac.mode)) {
+            const side = L.y >= (Number.isFinite(w.y) ? w.y : 0) ? 1 : -1;
+            ty = clamp(ty + side * clamp((0.3 - gap) * 1.2, 0, 0.35), -hwA, hwA);
+          }
+        }
         else idle = true;
       } else {
         const front = info && info.groupSize > 1 && info.rank === 0 && info.role !== 'follow';
@@ -569,6 +596,7 @@
     // qu'on remonte (sauf qui y remonte, qui s'y laisse glisser après son relais, ou le joueur en allure libre)
     const band = hwA - LANE;
     if (!free && calm && auto && band >= LANE && !(L.nudge && t < L.nudge.until) && tac.phase !== 'swing') ty = clamp(ty, -band, band);
+    if (!free && !r.bot && LAYER_MODES.includes(tac.mode) && !(L.nudge && t < L.nudge.until) && tac.mode !== 'relay') ty = dodge(ctx, i, ty, tac.wheel, hwA);
     if (free) ty = freeLane(ctx, i, L, L.y, hwA, rm); else L.freeTy = null;
     // virage : on descend à la corde, côté intérieur, dès qu'il approche (le joueur en allure libre garde sa voie, ← → pour la prendre)
     L.line = 0;
@@ -757,7 +785,9 @@
       const c = cost(o);
       if (c < bestC) { bestC = c; best = o; }
     }
-    let w = curE && !(bestC < curC - SWITCH) ? curE : best;
+    // joueur : on ne change pas de roue à chaque seconde (3 s au moins) ni pour une roue à peine meilleure
+    const settled = !r.bot && curE && r.st.t - (r.tac.wheelT || -99) < 3;
+    let w = curE && (settled || !(bestC < curC - (r.bot ? SWITCH : 2 * SWITCH))) ? curE : best;
     if (L.need > 0.5) {
       // personne devant, mais quelqu'un à notre hauteur (et devant nous, à égalité selon l'identifiant) : on se range derrière lui
       if (!w) {
