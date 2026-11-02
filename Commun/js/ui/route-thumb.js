@@ -112,6 +112,27 @@
 
   const E = { three: null, renderer: null, ok: null, views: new Set(), raf: 0, last: 0, tried: false };
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+  /**
+   * Fond de carte introuvable (réseau, serveur de cartes) : une pastille sur la vignette le dit et permet de réessayer (un clic sur la pastille,
+   * pas sur la vignette). onTile(tile) est appelé quand la tuile arrive.
+   */
+  function loadTile(host, profile, onTile) {
+    const attempt = (retry) => PYR.mapTile.get(profile, retry).then((tile) => PYR.mapTile.image(tile).then((img) => {
+      if (badge) { badge.remove(); badge = null; }
+      if (img) { onTile(tile, img); return; }
+      if (!host.isConnected) return;
+      badge = document.createElement('button');
+      badge.type = 'button'; badge.className = 'gs-tile-fail';
+      badge.textContent = 'Fond de carte indisponible · réessayer';
+      badge.title = (PYR.mapTile.lastError ? PYR.mapTile.lastError + '. ' : '') + 'Le fond de carte (CARTO, OpenStreetMap) n\'a pas pu être chargé : clique pour réessayer.';
+      badge.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); badge.textContent = 'Chargement du fond de carte…'; attempt(true); });
+      badge.addEventListener('pointerdown', (e) => e.stopPropagation());
+      (host.closest('.gs-route') || host.parentNode || host).appendChild(badge);
+    }));
+    let badge = null;
+    return attempt(false);
+  }
+
   const reduced = () => !!(globalThis.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   async function ensureEngine() {
@@ -258,7 +279,7 @@
     view.destroy = () => { view.destroyed = true; E.views.delete(view); if (io) io.disconnect(); };
     ensureEngine().then(() => { if (view.destroyed) return; E.views.add(view); view.draw(0); kick(); });
     // fond de carte : la vue n'attend pas la tuile (la grille d'abord, le sol dès qu'elle est là) ; sans WebGL, rien à poser
-    if (g && PYR.mapTile) PYR.mapTile.get(profile).then((tile) => PYR.mapTile.image(tile).then((img) => { if (!view.destroyed && img) { view.tile = tile; view.img = img; kick(); } }));
+    if (g && PYR.mapTile) loadTile(canvas, profile, (tile, img) => { if (!view.destroyed) { view.tile = tile; view.img = img; kick(); } });
     return view;
   }
 
@@ -321,7 +342,7 @@
       if (view.destroyed || !profile || !(profile.n >= 2)) return;
       draw();
       if (!PYR.mapTile) return;
-      PYR.mapTile.get(profile).then((t) => PYR.mapTile.image(t).then((im) => { if (!view.destroyed && im) { tile = t; img = im; draw(); } }));
+      loadTile(box, profile, (t, im) => { if (!view.destroyed) { tile = t; img = im; draw(); } });
     };
     if (globalThis.ResizeObserver) { ro = new ResizeObserver(() => draw()); ro.observe(box); }
     if (globalThis.IntersectionObserver) {

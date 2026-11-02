@@ -18,6 +18,7 @@
   const SPEC = { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxZoom: 17,
     attribution: '© OpenStreetMap · © CARTO' };
   const FALLBACK = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc', maxZoom: 17, attribution: '© OpenStreetMap' };
+  const ALT = { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', subdomains: 'abcd', maxZoom: 17, attribution: '© OpenStreetMap · © CARTO' };
 
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const rad = (d) => d * Math.PI / 180;
@@ -52,22 +53,38 @@
 
   /* ---------- assemblage ---------- */
 
-  function loadImage(url) {
+  /** Au plus n tâches à la fois ; les autres attendent leur tour (le délai d'une tuile ne court qu'une fois sa place prise). */
+  function limiter(n) {
+    let active = 0;
+    const queue = [];
+    const next = () => {
+      if (active >= n || !queue.length) return;
+      active++;
+      const job = queue.shift();
+      job.fn().then(job.resolve, job.reject).then(() => { active--; next(); });
+    };
+    return (fn) => new Promise((resolve, reject) => { queue.push({ fn, resolve, reject }); next(); });
+  }
+  const imageSlot = limiter(6), renderSlot = limiter(1);        // 6 tuiles de carte à la fois, un parcours à la fois (les serveurs de cartes refusent les rafales)
+
+  function loadNow(url) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';           // sans quoi le canvas serait « souillé » et ne s'exporterait pas
-      const t = setTimeout(() => { img.src = ''; reject(new Error('délai dépassé')); }, 9000);
+      const t = setTimeout(() => { img.src = ''; reject(new Error('délai dépassé')); }, 12000);
       img.onload = () => { clearTimeout(t); resolve(img); };
       img.onerror = () => { clearTimeout(t); reject(new Error('tuile illisible')); };
       img.src = url;
     });
   }
+  const loadImage = (url) => (/^data:/.test(url) ? loadNow(url) : imageSlot(() => loadNow(url)));
+
   const urlOf = (spec, z, x, y) => spec.url.replace('{s}', spec.subdomains[(x + y) % spec.subdomains.length]).replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{r}', '');
 
   /** Assemble l'image du cadre (réseau) ; essaie le fond principal, puis OpenStreetMap. Lève une erreur si trop de tuiles manquent. */
   async function render(pl) {
     let lastErr = null;
-    for (const spec of [SPEC, FALLBACK]) {
+    for (const spec of [SPEC, FALLBACK, ALT]) {
       try { return await renderWith(pl, spec); } catch (e) { lastErr = e; }
     }
     throw lastErr || new Error('fond de carte indisponible');
@@ -131,10 +148,16 @@
 
   const mem = new Map();      // clé → promesse de tuile (une seule récupération par clé et par page)
 
-  /** La tuile d'un parcours : mémoire, appareil, Dropbox, sinon assemblée sur le réseau (puis gardée et envoyée dans Dropbox). null si introuvable. */
-  function get(profile) {
+  let lastError = '';
+
+  /**
+   * La tuile d'un parcours : mémoire, appareil, Dropbox, sinon assemblée sur le réseau (puis gardée et envoyée dans Dropbox). null si introuvable
+   * (la raison est dans PYR.mapTile.lastError). retry : on réessaie un échec précédent de cette page.
+   */
+  function get(profile, retry) {
     const pl = plan(profile);
     if (!pl) return Promise.resolve(null);
+    if (retry) mem.delete(pl.key);
     if (!mem.has(pl.key)) {
       const p = (async () => {
         const rec = await idbGet(pl.key);
@@ -146,11 +169,11 @@
             if (t && t.key === pl.key && typeof t.img === 'string' && t.img.startsWith('data:image/')) { idbPut(t, true); return t; }
           } catch (e) { /* Dropbox injoignable : on assemble la tuile */ }
         }
-        const tile = await render(pl);
+        const tile = await renderSlot(() => render(pl));
         idbPut(tile, false);
         upload(tile);
         return tile;
-      })().catch(() => { mem.delete(pl.key); return null; });
+      })().catch((e) => { lastError = (e && e.message) || 'fond de carte indisponible'; mem.delete(pl.key); return null; });
       mem.set(pl.key, p);
     }
     return mem.get(pl.key);
@@ -166,5 +189,5 @@
   /** Pixels (dans l'image de la tuile) d'un point de coordonnées (lat, lng). */
   const toPx = (tile, lat, lng) => [((lng - (tile.lngc - tile.dLng)) / (2 * tile.dLng)) * tile.w, (((tile.latc + tile.dLat) - lat) / (2 * tile.dLat)) * tile.h];
 
-  PYR.mapTile = { W, H, FRAME_W, FRAME_H, plan, get, image, toPx, attribution: SPEC.attribution };
+  PYR.mapTile = { W, H, FRAME_W, FRAME_H, plan, get, image, toPx, attribution: SPEC.attribution, get lastError() { return lastError; } };
 })(globalThis.PYR = globalThis.PYR || {});
