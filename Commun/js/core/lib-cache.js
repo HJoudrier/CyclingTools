@@ -48,9 +48,9 @@
     C.memo[kind] = pj && !out.some((x) => JSON.stringify(x.data) === json) ? [pj].concat(out) : out;
     return C.memo[kind];
   }
-  const find = (kind, id) => items(kind).find((x) => x.id === id) || null;
+  const find = (kind, id) => items(kind).find((x) => x.id === id) || (kind === 'athlete' && PYR.pros ? PYR.pros.find(id) : null);   // coureurs World Tour : pros.js
   /** Identifiant choisi s'il existe encore, sinon le premier proposé ('' s'il n'y en a pas). */
-  const pickId = (kind, id) => (items(kind).some((x) => x.id === id) ? id : (items(kind)[0] ? items(kind)[0].id : ''));
+  const pickId = (kind, id) => (items(kind).some((x) => x.id === id) || (kind === 'athlete' && PYR.pros && PYR.pros.has(id)) ? id : (items(kind)[0] ? items(kind)[0].id : ''));
 
   /** Profil du parcours d'un élément (calculé une fois par version). */
   function profileOf(it) {

@@ -94,7 +94,7 @@
   /* ---------- 2. athlète, vélo, tenue ---------- */
 
   function renderAthletes() {
-    PYR.libPick.athletePicker($('#gs-athletes'), { items: items('athlete'), pick: pickId('athlete'), onAdd: addAthlete, onPick: (id) => setPick('athlete', id), actions: removeAction('athlete'),
+    PYR.libPick.athletePicker($('#gs-athletes'), { items: items('athlete'), pick: pickId('athlete'), onAdd: addAthlete, onPick: (id) => setPick('athlete', id), actions: removeAction('athlete'), pros: true,
       emptyText: "Aucun athlète enregistré : l'athlète par défaut sera utilisé. Ajoute le tien avec « Ajouter un athlète »." });
     for (const kind of ['bike', 'outfit']) {
       const sel = $(kind === 'bike' ? '#gs-bike' : '#gs-outfit'), all = items(kind), id = store.state.game.pick[kind];

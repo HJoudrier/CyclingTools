@@ -94,7 +94,55 @@
     }
     host.appendChild(box);
     if (!o.items.length) host.appendChild(h('p', { class: 'hint gs-empty' }, o.emptyText || "Aucun athlète enregistré : l'athlète par défaut sera utilisé."));
-    return { setPick(id) { $$('.gs-ath', box).forEach((c) => c.setAttribute('aria-selected', String(c.dataset.id === id))); } };
+    if (o.pros && PYR.pros) host.appendChild(prosBlock(o));
+    return { setPick(id) { $$('.gs-ath', host).forEach((c) => c.setAttribute('aria-selected', String(c.dataset.id === id))); } };
+  }
+
+  /**
+   * Catégorie « Coureurs World Tour » (pros.js) : un bloc repliable à part, avec un filtre par équipe, par type de coureur et par nom. Chaque carte
+   * donne l'équipe, le type, le poids, la PC (W et W/kg), la Pmax et le rapport FTP / CdA estimé. o : { pick, onPick(id) }.
+   */
+  function prosBlock(o) {
+    const Pr = PYR.pros, all = Pr.all();
+    const selected = String(o.pick || '').startsWith('pro:');
+    const teamSel = h('select', { 'aria-label': 'Équipe' }, h('option', { value: '' }, 'Toutes les équipes'), Object.keys(Pr.TEAMS).map((k) => h('option', { value: k }, Pr.TEAMS[k])));
+    const typeSel = h('select', { 'aria-label': 'Type de coureur' }, h('option', { value: '' }, 'Tous les types'), Object.keys(Pr.TYPES).map((k) => h('option', { value: k }, Pr.TYPES[k].label)));
+    const sortSel = h('select', { 'aria-label': 'Tri' }, h('option', { value: 'team' }, 'Par équipe'), h('option', { value: 'wkg' }, 'Par W/kg'), h('option', { value: 'watts' }, 'Par puissance (W)'),
+      h('option', { value: 'cda' }, 'Par W/CdA'), h('option', { value: 'pmax' }, 'Par Pmax'), h('option', { value: 'name' }, 'Par nom'));
+    const search = h('input', { type: 'search', placeholder: 'Rechercher un coureur…', 'aria-label': 'Rechercher un coureur', autocomplete: 'off' });
+    const count = h('span', { class: 'gs-pros-n' });
+    const list = h('div', { class: 'gs-cards gs-pros-list', role: 'listbox', 'aria-label': 'Coureurs World Tour' });
+    const norm = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const KEY = { wkg: (it) => it.pro.wkg, watts: (it) => it.data.rider.cp, cda: (it) => Pr.wattsPerCdA(it), pmax: (it) => it.data.rider.pmax };
+
+    function render() {
+      const q = norm(search.value.trim());
+      let rows = all.filter((it) => (!teamSel.value || it.pro.team === teamSel.value) && (!typeSel.value || it.pro.type === typeSel.value) && (!q || norm(it.name).includes(q)));
+      if (sortSel.value === 'name') rows = rows.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+      else if (KEY[sortSel.value]) rows = rows.slice().sort((a, b) => KEY[sortSel.value](b) - KEY[sortSel.value](a));
+      D.clear(list);
+      count.textContent = rows.length + ' coureur' + (rows.length > 1 ? 's' : '');
+      for (const it of rows) {
+        const r = it.data.rider, p = it.pro;
+        list.appendChild(h('div', { class: 'gs-ath gs-pro', role: 'option', tabindex: '0', 'aria-selected': String(it.id === o.pick), dataset: { id: it.id },
+          onclick: () => o.onPick(it.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); o.onPick(it.id); } } },
+        h('b', null, it.name), h('small', { class: 'gs-pro-team' }, Pr.TEAMS[p.team] + ' · ' + p.typeLabel),
+        h('small', null, fmt(r.weight, 0) + ' kg · ' + fmt(r.height) + ' cm · ' + r.age + ' ans'),
+        h('small', null, 'PC ' + fmt(r.cp) + ' W (' + fmt(p.wkg, 2) + ' W/kg) · W′ ' + fmt(r.wPrime, 1) + ' kJ'),
+        h('small', null, 'Pmax ' + fmt(r.pmax) + ' W · ' + fmt(Pr.wattsPerCdA(it)) + ' W/CdA')));
+      }
+      if (!rows.length) list.appendChild(h('p', { class: 'hint gs-empty' }, 'Aucun coureur ne correspond.'));
+    }
+    for (const el of [teamSel, typeSel, sortSel]) el.addEventListener('change', render);
+    search.addEventListener('input', render);
+    render();
+
+    const typeNote = h('p', { class: 'hint gs-pros-note' }, 'Profils estimés d\'après la taille, le poids, le type de coureur et le palmarès (ce ne sont pas des mesures). ',
+      Object.keys(Pr.TYPES).map((k) => h('span', { class: 'gs-pros-ty' }, h('b', null, Pr.TYPES[k].label), ' : ' + Pr.TYPES[k].info + ' ')));
+    const box = h('details', { class: 'gs-pros' }, h('summary', null, '🚴 Coureurs World Tour (' + all.length + ') ', count),
+      typeNote, h('div', { class: 'gs-pros-bar' }, teamSel, typeSel, sortSel, search), list);
+    if (selected) box.open = true;
+    return box;
   }
 
   /** Ouvre le sélecteur de fichier GPX ; rappelle fn({name, data, hasEle}) avec le parcours lu (lib-cache.js routeFromGpx), ou affiche l'erreur. */
