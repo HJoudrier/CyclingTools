@@ -216,10 +216,17 @@
     V.planProg = h('div', { class: 'progress', hidden: true }, V.planFill);
     V.segTable = h('table', { class: 'rd-table' });
     V.margin = marginEl();
+    // choix du parcours et de l'athlète dans la bibliothèque de PaceYourRide (Dropbox), comme dans les jeux ; on peut en ajouter
     V.cloudLine = h('p', { class: 'rd-line' });
-    V.cloudBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => cloudAction() }, 'Récupérer depuis Dropbox');
-    V.cloudCard = card('Parcours et plan (Dropbox)', V.cloudLine, h('div', { class: 'rd-btns' }, V.cloudBtn),
-      h('p', { class: 'rd-note' }, 'Le parcours, l\'athlète, le vélo et le plan optimal viennent de PaceYourRide, par Dropbox : calcule le plan là-bas, il arrive ici.'));
+    V.cloudBtn = h('button', { class: 'btn', type: 'button', onclick: () => cloudAction() }, '↻ Actualiser');
+    V.pickRoutes = h('div', { class: 'gs-pick-routes' });
+    V.pickAth = h('div', { class: 'gs-pick-ath' });
+    V.pickBike = h('select', { 'aria-label': 'Vélo', onchange: () => pickItem('bike', V.pickBike.value) });
+    V.pickOutfit = h('select', { 'aria-label': 'Tenue et position', onchange: () => pickItem('outfit', V.pickOutfit.value) });
+    V.cloudCard = card('Parcours et athlète', V.cloudLine, h('div', { class: 'rd-btns' }, V.cloudBtn),
+    V.pickRoutes, V.pickAth,
+    h('div', { class: 'grid2' }, rowEl('Vélo', V.pickBike), rowEl('Tenue et position', V.pickOutfit)),
+    h('p', { class: 'rd-note' }, 'Les parcours, athlètes, vélos et tenues sont ceux de PaceYourRide, lus dans ton Dropbox ; le plan optimal vient avec le projet en cours de PaceYourRide (ou calcule-le ici).'));
     V.routeCard = card('Parcours', V.routeLine, V.mapCard, V.pprofCard);
     V.formRef = selectEl([['athlete', 'Profil de l\'athlète à 100 %'], ['form', 'Profil ajusté à la forme']], store.state.perf.formRef, (v) => store.set('perf.formRef', v));
     V.formRefRow = rowEl('W′bal et temps tenable sur', V.formRef);
@@ -291,7 +298,9 @@
 
     V.startBtn = h('button', { class: 'btn primary big', type: 'button', onclick: () => startLive() }, 'Démarrer la sortie');
     V.startHint = h('p', { class: 'rd-note center' });
-    V.prep.append(V.resume, V.cloudCard, V.routeCard, V.planCard, V.mixCard, V.sensCard, V.nutCard, V.setCard, V.startBtn, V.startHint);
+    V.liveBox = h('div', { id: 'live-box' });
+    V.liveCard = card('Partie Virtual Ride', V.liveBox);
+    V.prep.append(V.resume, V.liveCard, V.cloudCard, V.routeCard, V.planCard, V.mixCard, V.sensCard, V.nutCard, V.setCard, V.startBtn, V.startHint);
     buildKit();
   }
 
@@ -344,6 +353,7 @@
       D.clear(V.segTable);
     }
     renderCloud();
+    V.cloudCard.hidden = inGame();
     renderPrepMap();
     renderPrepProfile();
     // défi contre des coureurs virtuels
@@ -360,18 +370,62 @@
     renderResume();
   }
 
-  /* ---------- parcours et plan : lus dans Dropbox (cloud.js pull), propres à cette application ---------- */
-  const CLOUD_AT_KEY = 'paceyourride.compteur.cloudat';
-  const cloudAt = () => { try { return Number(localStorage.getItem(CLOUD_AT_KEY)) || 0; } catch (e) { return 0; } };
+  /* ---------- parcours et athlète : la bibliothèque de PaceYourRide, lue dans Dropbox (lib-cache.js), propre à cette application ---------- */
+  const LC = PYR.libCache;
+  const pickOf = () => { const G = store.state.game; if (!G.pick || typeof G.pick !== 'object') G.pick = { route: '', athlete: '', bike: '', outfit: '' }; return G.pick; };
+  let pickViews = [];
 
   function renderCloud() {
-    const st = PYR.cloud.status(), p = store.profile;
-    const at = cloudAt();
-    const what = p ? `${store.state.route.name || 'Parcours'} · ${km(p.length)} km${run.plan ? ' · plan prêt' : ' · pas de plan'}` : 'rien pour le moment';
-    setTxt(V.cloudLine, run.cloudBusy ? 'Lecture de Dropbox…' : run.cloudMsg ? run.cloudMsg
-      : !st.connected ? 'Dropbox non connecté : connecte-le pour récupérer ton plan.' : `Dropbox connecté${at ? ' · projet du ' + new Date(at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : ''} · ${what}`);
+    const st = PYR.cloud.status(), c = LC.state, n = (k) => c.lib[PYR.library.KINDS[k].list].length;
+    const when = c.pulledAt ? new Date(c.pulledAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    setTxt(V.cloudLine, run.cloudBusy ? 'Échange avec Dropbox…' : run.cloudMsg ? run.cloudMsg
+      : !st.connected ? 'Dropbox non connecté : connecte-le pour retrouver les parcours et athlètes de PaceYourRide.'
+        : `Dropbox connecté · ${n('route')} parcours, ${n('athlete')} athlète${n('athlete') > 1 ? 's' : ''}${when ? ' · lu le ' + when : ''}`);
     V.cloudBtn.disabled = !!run.cloudBusy;
-    setTxt(V.cloudBtn, st.connected ? '↻ Récupérer depuis Dropbox' : 'Se connecter à Dropbox');
+    setTxt(V.cloudBtn, st.connected ? '↻ Actualiser' : 'Se connecter à Dropbox');
+  }
+
+  /** Le parcours et l'athlète se choisissent (et se créent, ou se modifient) sur la page d'accueil du site, pour toutes les applications. */
+  const goHome = () => { store.saveNow(); location.href = (PYR.root || '') + 'index.html'; };
+  const chosen = (kind) => LC.find(kind, LC.pickId(kind, LC.PROJECT_ID));
+
+  function renderPickers() {
+    const pick = pickOf();
+    for (const v of pickViews) v.destroy();
+    const route = chosen('route'), ath = chosen('athlete');
+    pickViews = [PYR.libPick.routePicker(V.pickRoutes, { items: route ? [route] : [], pick: route ? route.id : '', onPick: () => {}, projectLabel: "Choisi sur l'accueil",
+      extra: [{ label: "↩ Changer de parcours (page d'accueil)", title: "Le parcours se choisit, se crée ou se modifie sur la page d'accueil du site", fn: goHome }],
+      emptyText: "Aucun parcours choisi : choisis ou crée un parcours sur la page d'accueil du site." })];
+    PYR.libPick.athletePicker(V.pickAth, { items: ath ? [ath] : [], pick: ath ? ath.id : '', onPick: () => {}, actions: () => [], emptyText: "Aucun athlète choisi : l'athlète par défaut est utilisé. Choisis-en un sur la page d'accueil du site." });
+    V.pickAth.querySelector('.gs-add').appendChild(h('button', { class: 'btn', type: 'button', onclick: goHome }, "↩ Changer d'athlète (page d'accueil)"));
+    for (const [kind, sel] of [['bike', V.pickBike], ['outfit', V.pickOutfit]]) {
+      D.clear(sel);
+      sel.appendChild(h('option', { value: 'none' }, 'Réglages par défaut'));
+      for (const it of LC.items(kind)) sel.appendChild(h('option', { value: it.id }, it.name));
+      sel.value = pick[kind] === 'none' ? 'none' : (LC.pickId(kind, pick[kind]) || 'none');
+    }
+  }
+
+  /** Recopie le choix dans l'état du compteur (les réglages propres au téléphone, alertes et mode démo, sont gardés), puis recharge le plan enregistré. */
+  function composeSelection() {
+    if (run.mode !== 'prep' || inGame()) return;      // dans une partie, le parcours est celui de la partie
+    const keep = { cfg: store.state.ride.cfg, demo: store.state.ride.demo, plan: store.state.ride.plan, info: store.state.ride.planInfo };
+    const pick = Object.assign({}, pickOf(), { route: LC.PROJECT_ID, athlete: LC.PROJECT_ID });
+    if (!LC.compose(store.state, pick)) return;
+    store.state.ride.cfg = keep.cfg; store.state.ride.demo = keep.demo;
+    PYR.routeModel.computeMissing();
+    PYR.routeModel.rebuildProfile();
+    // un plan calculé ici pour ce même choix vaut mieux que celui du projet de PaceYourRide
+    if (keep.plan && keep.info && keep.info.fp === PYR.planLink.fingerprint()) { store.state.ride.plan = keep.plan; store.state.ride.planInfo = keep.info; }
+    run.plan = null; run.base = null; run.segPlan = null;
+    loadStoredPlan();
+    store.save();
+  }
+
+  function pickItem(kind, id) {
+    pickOf()[kind] = id;
+    composeSelection();
+    renderPickers(); renderCloud(); renderPrep();
   }
 
   function cloudAction() {
@@ -379,30 +433,86 @@
     pullFromCloud(true);
   }
 
-  /** Reprend le projet de PaceYourRide (parcours, athlète, vélo, météo, plan) ; les réglages de ce téléphone (alertes, mode démo) sont gardés. */
+  /** Lit la bibliothèque dans Dropbox. À l'ouverture (force faux), le choix est recomposé si la bibliothèque a changé. */
   async function pullFromCloud(force) {
     if (run.cloudBusy || run.mode !== 'prep' || !PYR.cloud.status().connected) return;
     run.cloudBusy = true; run.cloudMsg = ''; renderCloud();
     try {
-      const snap = await PYR.cloud.pull();
-      if (!snap || !snap.project) run.cloudMsg = 'Ton Dropbox ne contient pas encore de projet : ouvre PaceYourRide, trace un parcours et calcule un plan.';
-      else if (run.mode !== 'prep') return;
-      else if (force || snap.savedAt > cloudAt() || !store.profile) {
-        const keep = { cfg: store.state.ride.cfg, demo: store.state.ride.demo };
-        store.importProject(snap.project);
-        store.state.ride.cfg = Object.assign({}, store.state.ride.cfg, keep.cfg);
-        store.state.ride.demo = keep.demo;
-        PYR.routeModel.computeMissing();
-        PYR.routeModel.rebuildProfile();
-        run.plan = null; run.base = null; run.segPlan = null;
-        loadStoredPlan();
-        try { localStorage.setItem(CLOUD_AT_KEY, String(snap.savedAt)); } catch (e) { /* stockage indisponible */ }
-        store.save();
-        if (force) D.toast('Parcours et plan récupérés depuis Dropbox.');
-      }
+      const r = await LC.refresh();
+      if (r === 'vide') run.cloudMsg = 'Ton Dropbox ne contient encore rien : ajoute un parcours et un athlète ici, ou ouvre PaceYourRide.';
+      else if (force) D.toast('Bibliothèque lue dans Dropbox.');
     } catch (e) { run.cloudMsg = e.message; if (force) D.toast(e.message, 'error'); }
     run.cloudBusy = false;
-    renderCloud(); renderPrep();
+    composeSelection();
+    renderPickers(); renderCloud(); renderPrep();
+  }
+
+  /* ---------- partie Virtual Ride rejointe avec le GPS (live.js) ---------- */
+
+  const inGame = () => !!(PYR.live && PYR.live.session && PYR.live.session.race);
+
+  /**
+   * Le Compteur rejoint une partie d'un jeu Virtual Ride (il ne l'organise pas) : le parcours de la partie remplace celui du compteur, on fait la sortie
+   * pour de vrai, et la position donnée par le GPS (le cycliste « sur la vraie route »), la puissance du capteur et la vitesse sont envoyées aux autres joueurs.
+   * live.js appelle armLive à chaque heure de départ donnée, leaveLive quand on quitte la partie.
+   */
+  PYR.liveHost = {
+    joinOnly: true,
+    armLive(local) {
+      const first = !run.live;
+      run.live = Object.assign(run.live || { trace: { s: [], P: [] }, last: 0, done: false }, { startAt: local });
+      if (run.mode !== 'prep') return;
+      if (first) {
+        run.plan = null; run.base = null; run.segPlan = null;
+        loadStoredPlan();
+        D.toast('Partie rejointe : le parcours de la partie est chargé. Calcule ton plan puis démarre ta sortie à l\'heure du départ.', undefined, 7000);
+      }
+      renderPrep();
+      if ((!run.plan || PYR.planLink.isStale()) && !run.busy && store.profile) computePlan();
+    },
+    leaveLive() {
+      run.live = null;
+      if (V.liveBar) V.liveBar.hidden = true;
+      if (run.mode === 'prep') renderPrep();
+    },
+  };
+
+  /** Chaque demi-seconde de la sortie : la position, la vitesse et la puissance partent vers les autres joueurs ; chaque seconde de course est gardée pour l'arrivée. */
+  function liveTick(sess, g) {
+    const L = run.live;
+    if (!L || !g || !PYR.live.inRace()) return;
+    const now = Date.now(), raceT = (now - L.startAt) / 1000, tr = L.trace;
+    const k = Math.floor(raceT);
+    if (k >= 0) {
+      if (!tr.s.length) for (let i = 0; i < k; i++) { tr.s.push(0); tr.P.push(0); }     // avant le départ de la sortie : au départ, sans puissance
+      while (tr.s.length <= k) { tr.s.push(g.s); tr.P.push(Math.round(g.p3)); }
+    }
+    if (now - L.last >= 500) {
+      L.last = now;
+      PYR.live.sendState({ t: raceT, s: g.s, v: Math.max(0, g.v), P: Math.round(g.p3), w: U.clamp(g.wbalFrac, 0, 1), tac: 'manual', k: PYR.presence.CODE.road });
+    }
+    renderLiveBar(g);
+  }
+
+  /** Où je suis dans la partie : mon rang, et le joueur juste devant et juste derrière avec l'écart en mètres. */
+  function renderLiveBar(g) {
+    const opp = PYR.live.opponents().filter((o) => !o.finished || o.s > 0);
+    if (!opp.length) { V.liveBar.hidden = true; return; }
+    const ahead = opp.filter((o) => o.s > g.s).sort((a, b) => a.s - b.s)[0], behind = opp.filter((o) => o.s <= g.s).sort((a, b) => b.s - a.s)[0];
+    const rank = 1 + opp.filter((o) => o.s > g.s).length;
+    const txt = `Virtual Ride · ${PYR.classifView.ordinal(rank)} sur ${opp.length + 1}` + (ahead ? ` · devant : ${ahead.name} +${distTxt(ahead.s - g.s)}` : '') + (behind ? ` · derrière : ${behind.name} −${distTxt(g.s - behind.s)}` : '');
+    V.liveBar.hidden = false;
+    setTxt(V.liveBar, txt);
+  }
+
+  /** Arrivée de la sortie sur le parcours de la partie : le temps et la trace sont envoyés (classement final de tous les joueurs). */
+  function liveFinish(sess) {
+    const L = run.live;
+    if (!L || L.done || !PYR.live.inRace() || sess.s < sess.course.length - 25) return;
+    L.done = true;
+    const t = Math.max(1, Math.round((Date.now() - L.startAt) / 1000)), tr = L.trace;
+    while (tr.s.length <= t) { tr.s.push(sess.course.length); tr.P.push(0); }
+    PYR.live.finish({ time: t, s: tr.s.slice(0, t + 1), P: tr.P.slice(0, t + 1) });
   }
 
   /* ---------- parcours en intégralité et profil, avant le départ ---------- */
@@ -978,7 +1088,7 @@
     coachTick();
     mixTick(sess);
     const g = sess.guidance();
-    if (g) { alertsTick(g); render(g); }
+    if (g) { alertsTick(g); render(g); liveTick(sess, g); }
     if (sess.t - run.lastSave >= SAVE_EVERY) saveSession();
     if (sess.finished) finish();
   }
@@ -1136,7 +1246,8 @@
     V.hSpeed = tile('speed', 'Vitesse'); V.hGrade = tile('grade', 'Pente'); V.hPow = tile('pow', 'Puissance'); V.hHr = tile('hr', 'Cardio');
     V.hDist = tile('dist', 'Distance'); V.hTime = tile('time', 'Temps');
     V.hud = h('div', { class: 'rd-hud' }, V.hSpeed.el, V.hGrade.el, V.hPow.el, V.hHr.el, V.hDist.el, V.hTime.el);
-    V.head = h('div', { class: 'rd-head' }, V.status, V.hud);
+    V.liveBar = h('div', { class: 'rd-livebar', hidden: true });
+    V.head = h('div', { class: 'rd-head' }, V.status, V.liveBar, V.hud);
 
     // carte : l'élément #map de la page y est déplacé le temps de la sortie (attachMap)
     V.mTurnArrow = h('span', { class: 'a' }); V.mTurnTxt = h('span', { class: 't' });
@@ -2015,6 +2126,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     const sess = run.sess;
     if (!sess || run.mode !== 'live') return;
     clearInterval(run.timer); run.timer = null;
+    liveFinish(sess);
     detachMap();
     Sx.wake.release();
     if (run.gpsOn) { Sx.gps.stop(); run.gpsOn = false; run.lastFix = null; }
@@ -2145,7 +2257,12 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       if (!rs) return;
       build();
       PYR.cloud.onChange(() => { if (run.mode === 'prep') renderCloud(); });
-      pullFromCloud(false);                                       // un projet plus récent dans Dropbox est repris à l'ouverture
+      LC.load();
+      composeSelection();
+      renderPickers(); renderCloud();
+      pullFromCloud(false);                                       // la bibliothèque est relue dans Dropbox à l'ouverture
+      // le parcours et l'athlète se choisissent sur la page d'accueil : on les relit au retour sur cette page
+      window.addEventListener('pageshow', (e) => { if (e.persisted && run.mode === 'prep') { LC.load(); composeSelection(); renderPickers(); renderCloud(); renderPrep(); } });
       ['profile', 'rider', 'bike', 'env', 'perf', 'weather', 'surfaces', 'winds'].forEach((e) => store.on(e, () => { if (run.mode === 'prep' && document.body.dataset.tab === 'ride') renderPrep(); }));
       // la référence de W′bal est inscrite dans le plan : un plan repris de la page Pacing optimal est repris à nouveau, les autres sont signalés périmés (empreinte)
       store.on('formref', () => {

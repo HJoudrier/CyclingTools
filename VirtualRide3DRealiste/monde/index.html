@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Virtual Ride 3D Réaliste — monde</title>
+  <meta name="description" content="La course de PaceYourRide dans un monde 3D réaliste (three.js, WebGL 2), pour PC et consoles de salon.">
+  <link rel="stylesheet" href="css/monde.css">
+</head>
+<body>
+  <canvas id="view" tabindex="0" aria-label="Vue 3D réaliste de la course"></canvas>
+
+  <!-- écran de chargement -->
+  <div class="loading" id="loading">
+    <div class="ld-box">
+      <h1>Virtual Ride 3D <span>Réaliste</span></h1>
+      <p id="ld-text">Préparation…</p>
+      <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
+      <p class="ld-hint" id="ld-hint">Monde pour PC et consoles de salon : il demande une carte graphique (WebGL 2).</p>
+    </div>
+  </div>
+
+  <!-- annonces (secteur pavé, caméra, arrivée…) -->
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- compteur de la fenêtre à part (second écran) ; dans le cadre de l'écran de course, c'est le HUD de PaceYourRide qui s'affiche -->
+  <div class="hud hidden" id="hud">
+    <div class="hud-main"><b id="h-speed">0</b><small>km/h</small></div>
+    <div class="hud-row"><span id="h-power">0 W</span><span id="h-grade">0 %</span></div>
+    <div class="hud-row"><span id="h-time">0:00</span><span id="h-dist">0 km</span></div>
+    <div class="hud-row"><span id="h-rank"></span><span id="h-wbal"></span></div>
+    <div class="hud-row"><span id="h-surf"></span><span id="h-wx"></span></div>
+  </div>
+
+  <!-- boutons de la vue -->
+  <div class="tools" id="tools">
+    <button type="button" id="b-cam" title="Changer de caméra (touche C, bouton Y de la manette)">🎥</button>
+    <button type="button" id="b-sound" title="Son">🔇</button>
+    <button type="button" id="b-quality" title="Qualité graphique">⚙️</button>
+    <button type="button" id="b-full" title="Plein écran (F)">⛶</button>
+  </div>
+  <div class="menu hidden" id="menu" role="dialog" aria-label="Réglages de la vue">
+    <h2>Qualité graphique</h2>
+    <div class="seg" id="m-quality"></div>
+    <label><input type="checkbox" id="m-auto" checked> Résolution adaptative (vise 60 images par seconde)</label>
+    <label><input type="checkbox" id="m-stats"> Afficher les images par seconde</label>
+    <p class="m-note">Changer de qualité recharge le monde (quelques secondes).</p>
+    <button type="button" id="m-close">Fermer</button>
+  </div>
+  <div class="stats hidden" id="stats"></div>
+
+  <!-- logique du monde de Bike3D (tracé, relief, rivières, villages : le même monde que l'univers cartoon) -->
+  <script src="../../VirtualRide3D/univers/js/util.js"></script>
+  <script src="../../VirtualRide3D/univers/js/ambiances.js"></script>
+  <script src="../../VirtualRide3D/univers/js/route.js"></script>
+  <script src="../../VirtualRide3D/univers/js/landscape.js"></script>
+  <script src="../../VirtualRide3D/univers/js/gpx.js"></script>
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

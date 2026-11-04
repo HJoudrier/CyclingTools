@@ -1,0 +1,356 @@
+/* author : Hugo Joudrier-Faure */
+/* PaceYourRide — un parcours en vue 3D pour la page de choix des jeux : le tracé en ruban coloré selon la pente, posé à son altitude (relief
+ * exagéré pour qu'il se voie), avec un rideau jusqu'au sol qui dessine le profil, le départ (vert) et l'arrivée (rouge). Il tourne doucement ;
+ * on le fait tourner à la souris ou au doigt.
+ * Un seul moteur WebGL sert toutes les vignettes (les navigateurs limitent le nombre de contextes) : à chaque image, chaque vignette
+ * visible est rendue puis recopiée dans son propre canvas. three.js est celui de l'univers de Bike3D, chargé à la demande ; sans WebGL,
+ * la vignette montre le profil d'altitude à plat.
+ *   const view = PYR.routeThumb.mount(canvas, profile);   // profile : PYR.library.routeProfile → { n, length, lat, lng, ele, up, down, hasEle }
+ *   view.destroy();                                    // retire la vignette
+ * La géométrie (pure, testable sous Node) est dans PYR.routeThumb.geometry. */
+(function (PYR) {
+  'use strict';
+
+  const THREE_SRC = 'VirtualRide3D/univers/vendor/three.min.js';
+  const MAX_PTS = 500;          // points du ruban
+  const SPAN = 10;              // étendue horizontale du tracé dans la scène (unités)
+  const RIBBON_W = 0.1;         // demi-largeur du ruban
+
+  // pente (fraction) → couleur du ruban
+  const GRADE_COLORS = [
+    [-0.03, [0.29, 0.56, 0.85]], [0.03, [0.25, 0.64, 0.30]], [0.06, [0.95, 0.76, 0.19]],
+    [0.09, [0.94, 0.55, 0.0]], [0.12, [0.84, 0.16, 0.16]], [1, [0.48, 0.06, 0.06]],
+  ];
+  function gradeColor(g) {
+    for (let i = 0; i < GRADE_COLORS.length; i++) if (g < GRADE_COLORS[i][0]) return GRADE_COLORS[i][1];
+    return GRADE_COLORS[GRADE_COLORS.length - 1][1];
+  }
+
+  /**
+   * Géométrie d'un parcours : points échantillonnés (au plus MAX_PTS), centrés, mis à l'échelle de la scène, avec le relief exagéré.
+   * Renvoie { n, x[], y[], z[], grade[], height (hauteur max du relief dans la scène), exag (exagération verticale), span } ou null.
+   */
+  function geometry(profile) {
+    if (!profile || !(profile.n >= 2) || !profile.lat || !profile.lng) return null;
+    const N = Math.min(profile.n, MAX_PTS), idx = [];
+    for (let i = 0; i < N; i++) idx.push(Math.round((i * (profile.n - 1)) / (N - 1)));
+    const lat0 = profile.lat[idx[0]], lng0 = profile.lng[idx[0]], kx = Math.cos(lat0 * Math.PI / 180) * 111320, kz = 111320;
+    const mx = [], mz = [], me = [];
+    for (const i of idx) {
+      mx.push((profile.lng[i] - lng0) * kx);
+      mz.push(-(profile.lat[i] - lat0) * kz);
+      me.push(profile.ele ? profile.ele[i] : 0);
+    }
+    const minX = Math.min(...mx), maxX = Math.max(...mx), minZ = Math.min(...mz), maxZ = Math.max(...mz);
+    const extent = Math.max(maxX - minX, maxZ - minZ, 1);
+    const k = SPAN / extent;
+    const eMin = Math.min(...me), eMax = Math.max(...me), relief = eMax - eMin;
+    // le relief réel est écrasé à cette échelle : on l'exagère pour que la montée se voie (de ×1 à ×8), sans dépasser le tiers de l'étendue
+    const ratio = relief / extent;
+    const exag = ratio > 0 ? Math.min(8, Math.max(1, 0.2 / ratio)) : 1;
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const x = [], y = [], z = [], grade = [];
+    for (let i = 0; i < N; i++) {
+      x.push((mx[i] - cx) * k);
+      z.push((mz[i] - cz) * k);
+      y.push((me[i] - eMin) * k * exag + 0.05);
+    }
+    // pente réelle lissée sur ≈ 5 % du tracé (mètres réels, pas ceux de la scène)
+    const dist = [0];
+    for (let i = 1; i < N; i++) dist.push(dist[i - 1] + Math.hypot(mx[i] - mx[i - 1], mz[i] - mz[i - 1]));
+    const h = Math.max(1, Math.round(N * 0.025));
+    for (let i = 0; i < N; i++) {
+      const a = Math.max(0, i - h), b = Math.min(N - 1, i + h), d = dist[b] - dist[a];
+      grade.push(d > 1 && profile.ele ? (me[b] - me[a]) / d : 0);
+    }
+    // cadre du fond de carte (map-tile.js) : centre du tracé et étendue réelle (m), dans le repère de la scène
+    const frame = { latc: lat0 - cz / kz, lngc: lng0 + cx / kx, extent, kx, kz };
+    return { n: N, x, y, z, grade, height: relief * k * exag, exag, span: SPAN, frame };
+  }
+
+  /** Ruban plat suivant le tracé : sommets (haut gauche/droite par point), couleurs, indices ; et rideau jusqu'au sol (haut/bas par point). */
+  function meshData(g) {
+    const n = g.n, pos = new Float32Array(n * 2 * 3), col = new Float32Array(n * 2 * 3), idx = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+      let tx = g.x[b] - g.x[a], tz = g.z[b] - g.z[a];
+      const l = Math.hypot(tx, tz) || 1;
+      tx /= l; tz /= l;
+      const nx = -tz * RIBBON_W, nz = tx * RIBBON_W, c = gradeColor(g.grade[i]);
+      pos.set([g.x[i] + nx, g.y[i], g.z[i] + nz, g.x[i] - nx, g.y[i], g.z[i] - nz], i * 6);
+      col.set([c[0], c[1], c[2], c[0], c[1], c[2]], i * 6);
+      if (i < n - 1) { const v = i * 2; idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2); }
+    }
+    const cPos = new Float32Array(n * 2 * 3), cCol = new Float32Array(n * 2 * 3), cIdx = [];
+    for (let i = 0; i < n; i++) {
+      const c = gradeColor(g.grade[i]);
+      cPos.set([g.x[i], g.y[i], g.z[i], g.x[i], 0, g.z[i]], i * 6);
+      cCol.set([c[0], c[1], c[2], c[0] * 0.5 + 0.35, c[1] * 0.5 + 0.35, c[2] * 0.5 + 0.35], i * 6);
+      if (i < n - 1) { const v = i * 2; cIdx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2); }
+    }
+    return { pos, col, idx, cPos, cCol, cIdx };
+  }
+
+  /* ---------- three.js, chargé à la demande ---------- */
+
+  let threeP = null;
+  function loadThree() {
+    if (globalThis.THREE) return Promise.resolve(globalThis.THREE);
+    if (!threeP) {
+      threeP = new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = (PYR.root || '') + THREE_SRC;
+        s.onload = () => resolve(globalThis.THREE || null);
+        s.onerror = () => resolve(null);
+        document.head.appendChild(s);
+      });
+    }
+    return threeP;
+  }
+
+  /* ---------- moteur commun à toutes les vignettes ---------- */
+
+  const E = { three: null, renderer: null, ok: null, views: new Set(), raf: 0, last: 0, tried: false };
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+  /**
+   * Fond de carte introuvable (réseau, serveur de cartes) : une pastille sur la vignette le dit et permet de réessayer (un clic sur la pastille,
+   * pas sur la vignette). onTile(tile) est appelé quand la tuile arrive.
+   */
+  function loadTile(host, profile, onTile) {
+    const attempt = (retry) => PYR.mapTile.get(profile, retry).then((tile) => PYR.mapTile.image(tile).then((img) => {
+      if (badge) { badge.remove(); badge = null; }
+      if (img) { onTile(tile, img); return; }
+      if (!host.isConnected) return;
+      badge = document.createElement('button');
+      badge.type = 'button'; badge.className = 'gs-tile-fail';
+      badge.textContent = 'Fond de carte indisponible · réessayer';
+      badge.title = (PYR.mapTile.lastError ? PYR.mapTile.lastError + '. ' : '') + 'Le fond de carte (CARTO, OpenStreetMap) n\'a pas pu être chargé : clique pour réessayer.';
+      badge.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); badge.textContent = 'Chargement du fond de carte…'; attempt(true); });
+      badge.addEventListener('pointerdown', (e) => e.stopPropagation());
+      (host.closest('.gs-route') || host.parentNode || host).appendChild(badge);
+    }));
+    let badge = null;
+    return attempt(false);
+  }
+
+  const reduced = () => !!(globalThis.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  async function ensureEngine() {
+    if (E.tried) return E.ok;
+    E.tried = true;
+    const T = await loadThree();
+    if (!T) { E.ok = false; return false; }
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) { E.ok = false; return false; }
+      E.renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      E.renderer.setClearColor(0x000000, 0);
+      E.three = T; E.ok = true;
+    } catch (e) { E.ok = false; }
+    return E.ok;
+  }
+
+  function buildScene(T, g) {
+    const scene = new T.Scene();
+    const d = meshData(g);
+    const make = (pos, col, idx, opts) => {
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new T.BufferAttribute(col, 3));
+      geo.setIndex(idx);
+      return new T.Mesh(geo, new T.MeshBasicMaterial(Object.assign({ vertexColors: true, side: T.DoubleSide }, opts)));
+    };
+    scene.add(make(d.cPos, d.cCol, d.cIdx, { transparent: true, opacity: 0.32, depthWrite: false }));
+    scene.add(make(d.pos, d.col, d.idx, {}));
+    // sol : disque léger et grille
+    const grid = new T.GridHelper(SPAN * 1.35, 12, 0x8a8f98, 0x8a8f98);
+    grid.material.transparent = true; grid.material.opacity = 0.28; grid.position.y = -0.005;
+    scene.add(grid);
+    scene.userData.grid = grid;
+    const marker = (i, color) => {
+      const m = new T.Mesh(new T.SphereGeometry(0.2, 16, 12), new T.MeshBasicMaterial({ color }));
+      m.position.set(g.x[i], g.y[i] + 0.1, g.z[i]);
+      scene.add(m);
+    };
+    marker(0, 0x2e9e4f); marker(g.n - 1, 0xd62828);
+    return scene;
+  }
+
+  /**
+   * Sol plat de la vue 3D : le fond de carte du parcours (map-tile.js). La tuile est un rectangle 3 : 2 centré sur le tracé (2,1 × 1,4 étendues) ;
+   * le sol carré en prend le milieu (1,4 × 1,4 étendues, soit FRAME_H × SPAN dans la scène), le nord vers le fond de la scène. Remplace la grille.
+   */
+  function addGround(T, scene, tile, img) {
+    if (!tile || !img || scene.userData.ground) return;
+    const tex = new T.Texture(img);
+    if (T.SRGBColorSpace) tex.colorSpace = T.SRGBColorSpace; else if (T.sRGBEncoding) tex.encoding = T.sRGBEncoding;
+    const share = (PYR.mapTile.FRAME_H / PYR.mapTile.FRAME_W);     // part de la largeur de la tuile qui forme le carré
+    tex.repeat.set(share, 1); tex.offset.set((1 - share) / 2, 0);
+    tex.anisotropy = 4; tex.needsUpdate = true;
+    const side = PYR.mapTile.FRAME_H * SPAN;
+    const ground = new T.Mesh(new T.PlaneGeometry(side, side), new T.MeshBasicMaterial({ map: tex }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.renderOrder = -1;
+    scene.add(ground);
+    scene.userData.ground = ground;
+    if (scene.userData.grid) scene.userData.grid.visible = false;
+  }
+
+  function frame(now) {
+    E.raf = 0;
+    let any = false;
+    const dt = Math.min(0.1, (now - (E.last || now)) / 1000);
+    E.last = now;
+    for (const v of E.views) {
+      if (!v.visible) continue;
+      any = true;
+      v.draw(dt);
+    }
+    if (any) E.raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!E.raf && E.views.size) { E.last = 0; E.raf = requestAnimationFrame(frame); } }
+
+  /* ---------- repli sans WebGL : le profil d'altitude à plat ---------- */
+
+  function drawFlat(canvas, profile) {
+    const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!profile || !profile.ele) return;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < profile.n; i++) { lo = Math.min(lo, profile.ele[i]); hi = Math.max(hi, profile.ele[i]); }
+    const span = Math.max(30, hi - lo), pad = 14;
+    ctx.beginPath();
+    ctx.moveTo(pad, h - pad);
+    for (let i = 0; i < profile.n; i += Math.max(1, Math.floor(profile.n / 300))) {
+      ctx.lineTo(pad + (i / (profile.n - 1)) * (w - 2 * pad), h - pad - ((profile.ele[i] - lo) / span) * (h - 2 * pad));
+    }
+    ctx.lineTo(w - pad, h - pad); ctx.closePath();
+    ctx.fillStyle = 'rgba(42,120,214,.35)'; ctx.fill();
+    ctx.strokeStyle = '#2a78d6'; ctx.lineWidth = 2 * (globalThis.devicePixelRatio || 1); ctx.stroke();
+  }
+
+  /** Vignette 3D d'un parcours dans `canvas`. */
+  function mount(canvas, profile) {
+    const g = geometry(profile);
+    const view = { visible: true, az: 0.6 + Math.random() * 1.2, hold: 0, scene: null, camera: null, destroyed: false };
+    const sync = () => {
+      const r = canvas.getBoundingClientRect(), dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      return { w, h };
+    };
+    view.draw = (dt) => {
+      if (view.destroyed || !g) return;
+      const { w, h } = sync();
+      if (!E.ok) { drawFlat(canvas, profile); return; }
+      const T = E.three;
+      if (!view.scene) {
+        view.scene = buildScene(T, g);
+        view.camera = new T.PerspectiveCamera(36, 1, 0.1, 100);
+      }
+      if (view.img && !view.scene.userData.ground) addGround(T, view.scene, view.tile, view.img);       // le fond de carte est arrivé
+      if (view.hold > 0) view.hold -= dt; else if (!reduced()) view.az += dt * 0.28;
+      const dist = g.span * 1.5, el = 0.62, ty = g.height * 0.4;
+      const cam = view.camera;
+      cam.aspect = w / h; cam.updateProjectionMatrix();
+      cam.position.set(Math.sin(view.az) * Math.cos(el) * dist, ty + Math.sin(el) * dist, Math.cos(view.az) * Math.cos(el) * dist);
+      cam.lookAt(0, ty, 0);
+      E.renderer.setSize(w, h, false);
+      E.renderer.render(view.scene, cam);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(E.renderer.domElement, 0, 0, w, h);
+    };
+    // rotation à la main
+    let drag = null;
+    canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, az: view.az }; canvas.dataset.dragged = ''; view.hold = 4; try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignoré */ } });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      if (Math.abs(e.clientX - drag.x) > 4) canvas.dataset.dragged = '1';      // un glissé n'est pas un clic (la vignette ne se choisit pas)
+      view.az = drag.az - (e.clientX - drag.x) * 0.012; view.hold = 4; if (reduced()) view.draw(0);
+    });
+    const end = () => { drag = null; };
+    canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+    let io = null;
+    if (globalThis.IntersectionObserver) {
+      io = new IntersectionObserver((entries) => { for (const en of entries) view.visible = en.isIntersecting; kick(); }, { rootMargin: '80px' });
+      io.observe(canvas);
+    }
+    view.destroy = () => { view.destroyed = true; E.views.delete(view); if (io) io.disconnect(); };
+    ensureEngine().then(() => { if (view.destroyed) return; E.views.add(view); view.draw(0); kick(); });
+    // fond de carte : la vue n'attend pas la tuile (la grille d'abord, le sol dès qu'elle est là) ; sans WebGL, rien à poser
+    if (g && PYR.mapTile) loadTile(canvas, profile, (tile, img) => { if (!view.destroyed) { view.tile = tile; view.img = img; kick(); } });
+    return view;
+  }
+
+  /**
+   * Vignette 2D d'un parcours dans `box` : le tracé (liseré blanc, trait bleu, départ vert, arrivée rouge) sur la tuile de fond de carte du
+   * parcours (map-tile.js : gardée sur l'appareil et dans Dropbox, donc sans réseau de cartes une fois assemblée), cadré sur le parcours.
+   * Rien ne capte la molette ni le doigt (la page continue de défiler). La tuile n'est cherchée que lorsque la vignette devient visible ;
+   * en attendant (ou hors ligne, parcours jamais vu), le tracé est dessiné sur un fond neutre.
+   */
+  function mountMap(box, profile) {
+    const view = { destroyed: false, destroy() { view.destroyed = true; if (io) io.disconnect(); if (ro) ro.disconnect(); } };
+    let io = null, ro = null, tile = null, img = null;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'gs-map-canvas';
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
+    box.style.position = box.style.position || 'relative';
+    box.appendChild(canvas);
+    const stride = profile && profile.n >= 2 ? Math.max(1, Math.floor(profile.n / 400)) : 1, idx = [];
+    if (profile && profile.n >= 2) { for (let i = 0; i < profile.n; i += stride) idx.push(i); idx.push(profile.n - 1); }
+
+    const draw = () => {
+      if (view.destroyed || !idx.length) return;
+      const r = box.getBoundingClientRect(), dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      const cw = Math.max(2, Math.round(r.width * dpr)), ch = Math.max(2, Math.round(r.height * dpr));
+      if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+      const ctx = canvas.getContext('2d');
+      // points du tracé dans le repère de la source : pixels de la tuile, ou (sans tuile) plan local en mètres
+      let pts, src;
+      if (tile && img) {
+        pts = idx.map((i) => PYR.mapTile.toPx(tile, profile.lat[i], profile.lng[i]));
+        src = { w: tile.w, h: tile.h };
+      } else {
+        const k = Math.cos(profile.lat[idx[0]] * Math.PI / 180);
+        pts = idx.map((i) => [profile.lng[i] * k * 111320, -profile.lat[i] * 111320]);
+        src = null;
+      }
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const p of pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+      // fenêtre de la source : le tracé et sa marge, au rapport de la vignette
+      const asp = cw / ch, bw = Math.max(x1 - x0, 1e-6), bh = Math.max(y1 - y0, 1e-6);
+      let ww = Math.max(bw * 1.32, bh * 1.32 * asp), wh = ww / asp;
+      if (src) {
+        const s = Math.min(1, src.w / ww, src.h / wh);
+        ww *= s; wh *= s;
+      }
+      let wx = (x0 + x1) / 2 - ww / 2, wy = (y0 + y1) / 2 - wh / 2;
+      if (src) { wx = clamp(wx, 0, src.w - ww); wy = clamp(wy, 0, src.h - wh); }
+      if (src) ctx.drawImage(img, wx, wy, ww, wh, 0, 0, cw, ch);
+      else { ctx.fillStyle = '#e9e7e1'; ctx.fillRect(0, 0, cw, ch); }
+      const sx = cw / ww, sy = ch / wh;
+      const path = () => { ctx.beginPath(); pts.forEach((p, i) => { const X = (p[0] - wx) * sx, Y = (p[1] - wy) * sy; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); };
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      path(); ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = 7 * dpr; ctx.stroke();
+      path(); ctx.strokeStyle = '#2a78d6'; ctx.lineWidth = 4 * dpr; ctx.stroke();
+      const dot = (p, color) => { ctx.beginPath(); ctx.arc((p[0] - wx) * sx, (p[1] - wy) * sy, 6 * dpr, 0, 7); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#fff'; ctx.stroke(); };
+      dot(pts[0], '#2e9e4f'); dot(pts[pts.length - 1], '#d62828');
+    };
+
+    const start = () => {
+      if (view.destroyed || !profile || !(profile.n >= 2)) return;
+      draw();
+      if (!PYR.mapTile) return;
+      loadTile(box, profile, (t, im) => { if (!view.destroyed) { tile = t; img = im; draw(); } });
+    };
+    if (globalThis.ResizeObserver) { ro = new ResizeObserver(() => draw()); ro.observe(box); }
+    if (globalThis.IntersectionObserver) {
+      io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) { start(); if (io) io.disconnect(); } }, { rootMargin: '200px' });
+      io.observe(box);
+    } else start();
+    return view;
+  }
+
+  PYR.routeThumb = { geometry, meshData, gradeColor, mount, mountMap, loadThree, get webgl() { return E.ok; } };
+})(globalThis.PYR = globalThis.PYR || {});

@@ -46,6 +46,17 @@
   // Retour sur une roue : vitesse de rapprochement qui décroît avec l'écart e (m) pour arriver dans
   // la roue en relâchant simplement l'effort, sans freiner : Δv = min(0,35·e, √(2·0,08·e), 2 m/s)
   const CLOSE_GAIN = 0.35, CLOSE_DECEL = 0.08, CLOSE_DV = 2;
+  // « Dans les roues » du joueur : un effort lissé. On referme l'écart en une dizaine de secondes (pas en une), avec une accélération douce,
+  // et la consigne varie d'au plus quelques dizaines de watts par seconde ; trop près de la roue, on lève le pied sans freiner
+  const SOFT_CLOSE_T = 6;    // s : durée visée pour reprendre un écart (la vitesse de rapprochement vaut écart / 6 s)
+  const SOFT_BACK_T = 3;     // s : durée pour se laisser glisser quand on est trop près
+  const SOFT_ACC = 0.3, SOFT_ACC_GAIN = 0.1; // m/s² : accélération maximale à la roue, plus 0,1 m/s² par mètre d'écart (franche si l'écart grandit)
+  const SLEW_UP = 35, SLEW_UP_GAIN = 30;     // W/s : montée maximale de la consigne, plus 30 W/s par mètre d'écart (jusqu'à 5 m)
+  const SLEW_DOWN = 140;     // W/s : descente maximale (on peut arrêter de pédaler vite)
+  const TIGHT_E = -0.3;      // m : « trop près » : moins de 0,3 m entre les roues…
+  const TIGHT_P = 15;        // W : … et qu'on ne pédale plus (ou presque)
+  const TIGHT_PASS = 6;      // s : … pendant ce temps, on se décale pour doubler
+  const PASS_MAX = 8;        // s : durée maximale d'un dépassement pour se replacer dans le groupe
   const FOLLOW_EFFORT = 1.3; // × PMA : effort maximal du joueur pour tenir ou reprendre une roue
   const COMPANY = 10;        // m : quelqu'un roule juste derrière nous (on est dans un groupe)…
   const LET_GO = 5;          // m : … alors on ne court pas après une roue qui a pris plus de 5 m
@@ -145,6 +156,38 @@
     // que trop près (moins de 0,35 m entre les roues) ou pour perdre beaucoup de vitesse (descente)
     if (e > -0.25 && vT > r.st.v - 0.6) return clamp(powerForSpeedRaw(r.setup, r.st.v, vT, r.cond), 0, maxP);
     return aimSpeed(r, vT, maxP);
+  }
+
+  /**
+   * Suivre une roue en douceur (joueur). Même écart visé que followPower, mais : la vitesse de rapprochement vaut l'écart divisé par
+   * SOFT_CLOSE_T (au plus CLOSE_DV), l'accélération est douce tant que l'écart est petit, et trop près de la roue on se laisse glisser
+   * (moins de puissance, jusqu'à ne plus pédaler) sans freiner. L'écart e (m, > 0 : trop loin) est gardé dans tac.e.
+   */
+  function softFollow(r, lead, maxP) {
+    const ref = r.lat && lead.ref && lead.ref.st.t > r.st.t ? lead.ref.st : null;
+    const e = ref ? ref.s - Dr.BIKE - FOLLOW_GAP - (r.st.s + 0.5 * (r.st.v + ref.v)) : lead.s - r.st.s - Dr.BIKE - FOLLOW_GAP;
+    const vLead = ref ? ref.v : lead.v + clamp((lead.a || 0) + slopeChange(r.ctx.course, lead.s, lead.v), -2, 1.5);
+    r.tac.e = e;
+    // on arrive vite sur la roue : on règle l'effort sur l'écart qu'il y aura dans un instant (sans quoi on la touche avant de réagir)
+    const ee = ref ? e : Math.min(e, e + 1.5 * (vLead - r.st.v));
+    const dv = ee > 0 ? Math.min(ee / SOFT_CLOSE_T, Math.sqrt(2 * CLOSE_DECEL * ee), CLOSE_DV) : Math.max(ee / SOFT_BACK_T, -0.8);
+    const acc = Math.min(accelMax(r.st.v), SOFT_ACC + SOFT_ACC_GAIN * Math.max(0, e));
+    const vT = clamp(vLead + dv, Math.max(0, r.st.v - 0.8), r.st.v + acc);
+    // les roues se touchent presque : seul cas où l'on freine (la contrainte de peloton ramène sinon à la roue)
+    if (ee < -0.45) return aimSpeed(r, Math.min(vT, vLead - 0.2), maxP);
+    return clamp(powerForSpeedRaw(r.setup, r.st.v, vT, r.cond), 0, maxP);
+  }
+
+  /** Lisse la consigne du joueur : elle ne monte ni ne descend plus vite que SLEW_* (la montée est plus franche quand l'écart à la roue grandit). */
+  function slew(r, P) {
+    const tac = r.tac, t = r.st.t;
+    // on part de ce qui a vraiment été appliqué la seconde d'avant (le garde-fou du peloton a pu le réduire) : pas de montée cachée derrière lui ;
+    // à la première seconde (ou après un autre mode), de la puissance qui tient la vitesse du moment
+    const fresh = !(t - tac.slewT <= 2);
+    const prev = fresh ? Math.max(0, powerForSpeedRaw(r.setup, r.st.v, r.st.v, r.cond)) : r.lastPcmd;
+    tac.slewT = t;
+    const up = SLEW_UP + SLEW_UP_GAIN * clamp(tac.e || 0, 0, 5);
+    return clamp(P, Math.max(0, prev - SLEW_DOWN), prev + up);
   }
 
   /** Coureur le plus proche devant (hors côte à côte), jusqu'à maxGap m entre les roues. */
@@ -438,6 +481,12 @@
    *   - dans les 400 derniers mètres, on suit tout le monde, sprinteurs compris, sans retenue.
    */
   function sitIn(r, view, cover) {
+    const P = sitInRaw(r, view, cover);
+    // final (400 derniers mètres) : on suit tout le monde sans retenue, pas de lissage
+    return r.bot || r.ctx.course.length - r.st.s < FINALE ? P : slew(r, P);
+  }
+
+  function sitInRaw(r, view, cover) {
     const tac = r.tac, s = r.st.s, t = r.st.t, L = levels(r);
     const finale = r.ctx.course.length - s < FINALE;
     const other = (o) => o.id !== r.id && !o.stopped && !o.finished && o.phase !== 'swing';
@@ -464,9 +513,21 @@
     const w = wheelToFollow(view.field, r, group ? LET_GO : CHASE_RANGE, (o) => o.phase !== 'swing' && !escaping(o));
     if (w) {
       tac.phase = 'wheel';
+      if (tac.wheel !== w.id) tac.wheelT = t;
       tac.wheel = w.id;
       tac.front = undefined;
-      return followPower(r, w, finale ? L.pmax : followEffort(r, L));
+      if (r.bot) return followPower(r, w, finale ? L.pmax : followEffort(r, L));
+      // joueur : on ne pédale plus depuis plusieurs secondes tant on est près de la roue (on est plus fort que celui qu'on suit) : on se
+      // décale et on le double pour se replacer plus loin dans le groupe (hors final : on y suit tout le monde)
+      if (finale) return followPower(r, w, L.pmax);
+      const P = softFollow(r, w, followEffort(r, L));
+      tac.tight = tac.e < TIGHT_E && P < TIGHT_P ? (tac.tight || 0) + 1 : 0;
+      if (!finale && tac.tight >= TIGHT_PASS && wFrac(r) > MOVE_UP_MIN_W) { tac.passUntil = t + PASS_MAX; tac.tight = 0; }
+      if (!finale && tac.passUntil > t && wFrac(r) > MOVE_UP_MIN_W) {
+        const Pm = movePower(r, view, view.info.get(r.id));
+        if (Pm !== null) return Pm;
+      }
+      return P;
     }
     tac.wheel = null;
     // à hauteur d'un autre : un peu moins vite que lui (0,5 m/s), pour se glisser dans sa roue ;
@@ -478,6 +539,7 @@
     if (mate && t - tac.front < EASE_MAX) {
       tac.phase = side ? 'tuck' : 'ease';
       const P = powerForSpeedRaw(r.setup, r.st.v, Math.max(0, mate.v - (side ? 0.5 : 1)), r.cond);
+      tac.e = 0;
       return clamp(P, steadyPower(r, 'recover'), side ? followEffort(r, L) : steadyPower(r, 'tempo'));
     }
     // personne ne prend le relais (ou personne autour) : tempo
@@ -755,6 +817,6 @@
     setMode, setLayers, toggleLayer, layersOf, afterLine, lineFor, passRelay, command, think, describe,
     BOOST_STEP, BOOST_GRACE, BOOST_RELEASE, boostRange, boostPower, sprintTap, decayBoost,
     // aides pour strategy.js
-    FINALE, KOM_LEAD, aimSpeed, movePower, followEffort, wFrac, accelMax, wheelToFollow, isAttack,
+    FINALE, KOM_LEAD, slopeChange, powerForSpeedRaw, aimSpeed, movePower, followEffort, wFrac, accelMax, wheelToFollow, isAttack,
   };
 })(globalThis.PYR = globalThis.PYR || {});

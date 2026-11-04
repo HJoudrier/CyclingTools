@@ -14,15 +14,16 @@
   <link rel="stylesheet" href="../Commun/css/style.css">
   <link rel="stylesheet" href="../Commun/css/game-mobile.css">
   <link rel="stylesheet" href="../Commun/css/ride.css">
+  <link rel="stylesheet" href="../Commun/css/select.css">
 </head>
 <body data-page="rider" data-tab="rider">
   <header class="topbar">
-    <a class="brand" href="index.html" title="Retour à l'accueil">
+    <a class="brand" href="../index.html" title="Retour à l'accueil">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg>
-      <span>PaceYourRide</span>
+      <span>CyclingTools</span>
     </a>
         <div class="top-actions" id="top-actions">
-      <a class="btn ghost" href="documentation.html" target="_blank" rel="noopener" title="Documentation : guide d'utilisation, modèles mécanique et physiologique, simulation et algorithmes d'optimisation" aria-label="Documentation"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg></a>
+      <a class="btn ghost" href="../documentation.html" target="_blank" rel="noopener" title="Documentation : guide d'utilisation, modèles mécanique et physiologique, simulation et algorithmes d'optimisation" aria-label="Documentation"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg></a>
       <button class="btn ghost" id="btn-export-project" type="button" title="Exporter : enregistrer tout le projet dans un fichier" aria-label="Exporter le projet"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></button>
       <label class="btn ghost" title="Importer : ouvrir un projet enregistré" aria-label="Importer un projet"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg><input type="file" id="input-import-project" accept=".json,application/json" hidden></label>
       <button class="btn ghost" id="btn-reset" type="button" title="Réinitialiser : tout effacer et repartir des valeurs par défaut" aria-label="Réinitialiser"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
@@ -34,8 +35,9 @@
         <a href="athlete.html" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Athlète</span></a>
         <a href="equipement.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17 9.5 8h5l4 9M9.5 8 12.5 17H5.5M14.5 5h2.5"/></svg><span>Équipements</span></a>
         <a href="pacing.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4"/><path d="m12 14 3-3"/><circle cx="12" cy="14" r="8"/></svg><span>Pacing optimal</span></a>
-        <a href="../Jeu2D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Jeu 2D</span></a>
-        <a href="../Jeu3D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Jeu 3D</span></a>
+        <a href="../VirtualRide2D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Virtual Ride 2D</span></a>
+        <a href="../VirtualRide3D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Virtual Ride 3D</span></a>
+        <a href="../VirtualRide3DRealiste/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m2 20 7-11 4 6 3-4 6 9z"/><circle cx="17" cy="5" r="2"/></svg><span>Virtual Ride 3D Réaliste</span></a>
         <a href="../Compteur/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></svg><span>Compteur</span></a>
         <a href="../index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Applications</span></a>
       </nav>
@@ -156,6 +158,21 @@
           <div class="field"><label for="r-weight">Poids (kg)</label><input type="number" id="r-weight" min="25" max="200" step="0.1" data-bind="rider.weight"></div>
           <div class="field"><label for="r-height">Taille (cm)</label><input type="number" id="r-height" min="120" max="230" step="1" data-bind="rider.height"></div>
         </div>
+        <!-- CdA du corps seul : estimés d'après la taille et le poids (js/tab-rider.js), remplaçables ; ils servent aux scores rouleur, contre-la-montre et sprinteur -->
+        <div class="grid3">
+          <div class="field"><label for="r-cda-road">CdA route (m²)</label><input type="number" id="r-cda-road" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaRoad" placeholder="auto"><small class="hint phy-src" id="r-cda-road-src"></small></div>
+          <div class="field"><label for="r-cda-sprint">CdA sprint (m²)</label><input type="number" id="r-cda-sprint" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaSprint" placeholder="auto"><small class="hint phy-src" id="r-cda-sprint-src"></small></div>
+          <div class="field"><label for="r-cda-tt">CdA CLM (m²)</label><input type="number" id="r-cda-tt" min="0.1" max="0.8" step="0.001" data-bind="rider.cdaTT" placeholder="auto"><small class="hint phy-src" id="r-cda-tt-src"></small></div>
+        </div>
+        <p class="hint">Surface équivalente de <b>ton corps seul</b> (sans vélo, roues, casque ni tenue : ceux-là se règlent sur la page Équipements), dans trois positions : sur la route (mains en bas du cintre), au sprint (hors selle) et en contre-la-montre (prolongateurs). Une case vide prend l'estimation d'après ta taille et ton poids (Bassett et al.) ; une mesure en soufflerie la remplace. Ces valeurs servent aux scores de rouleur, de contre-la-montre et de sprinteur (watts par m² de CdA) sur l'accueil.</p>
+        <!-- catégorie et toile d'araignée des spécialités (js/tab-rider.js, js/engine/rider-radar.js) -->
+        <div class="field">
+          <label for="r-division">Catégorie</label>
+          <select id="r-division" data-bind="rider.division"></select>
+          <small class="hint" id="r-division-note"></small>
+        </div>
+        <div class="r-radar" id="r-radar" aria-live="polite"></div>
+        <p class="hint">La catégorie sert d'échelle à la toile d'araignée ci-dessus : chaque spécialité est notée par rapport aux athlètes de cette catégorie (100 = le meilleur de la catégorie). « Automatique » la déduit de tes watts par kilo (FTP et 5 min). Choisis-en une autre pour te comparer à tes pairs réels (ta licence, ton groupe) ; un coureur du World Tour est Pro.</p>
         <div class="field">
           <label for="r-gut">Intestin (absorption des glucides en course)</label>
           <select id="r-gut" data-bind="rider.gut"></select>

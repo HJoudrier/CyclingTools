@@ -69,8 +69,9 @@
 
   function liveActive() { return !!(PYR.live && PYR.live.inRace()); }
 
-  /** Comment tu participes (presence.js) : avatar (barre de puissance), home-trainer (watts mesurés) ou sur la vraie route (GPS). */
-  function source() { return PYR.presence ? PYR.presence.normKind(store.state.game.source) : 'avatar'; }
+  /** Comment tu participes (presence.js) : avatar (barre de puissance) ou home-trainer (watts mesurés). Le GPS n'est plus proposé ici : on roule pour de vrai avec le Compteur,
+   *  qui rejoint la partie ; un ancien réglage « route » redevient avatar. */
+  function source() { const k = PYR.presence ? PYR.presence.normKind(store.state.game.source) : 'avatar'; return k === 'road' ? 'avatar' : k; }
 
   /** Vitesse du temps choisie : ×1 en direct et pour un cycliste réel (home-trainer, route), qui pédale en temps réel. */
   function timeScale() { return G.mode === 'live' || source() !== 'avatar' ? 1 : Number(store.state.game.timeScale) || 1; }
@@ -950,7 +951,7 @@
     publish3d(s, y, others, t) {
       const me = G.me;
       PYR.view3d.publish({
-        course: G.ctx.course, cps: G.cps, feed: G.feed, t,
+        course: G.ctx.course, cps: G.cps, feed: G.feed, t, sky: PYR.view3d.skySettings(store.state),
         k: T.effScale(timeScale()),
         run: G.running && !G.finished && performance.now() >= G.holdUntil,
         me: {

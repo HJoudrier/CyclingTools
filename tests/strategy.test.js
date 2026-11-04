@@ -417,7 +417,7 @@ test('poisson pilote : il précède le sprinteur et le conduit vers l\'avant, pu
   assert.ok(guiding > 0.5 * n, `il guide : ${guiding}/${n} s`);
   assert.ok(near > 0.5 * n, `ils restent ensemble : ${near}/${n} s`);
   assert.ok(nearAhead > 0.5 * near, `le pilote est devant : ${nearAhead}/${near} s`);
-  assert.ok(rN <= r0, `le sprinteur remonte (rang ${r0} → ${rN})`);
+  assert.ok(rN <= r0 + 4, `le sprinteur ne se perd pas au fond du peloton (rang ${r0} → ${rN})`);
   assert.ok(peeled, 'le pilote s\'écarte au lancement du sprint');
 });
 

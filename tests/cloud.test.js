@@ -8,7 +8,7 @@ const path = require('path');
 // navigateur minimal : stockage local, adresse, requêtes
 const store = new Map();
 globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
-globalThis.location = { origin: 'https://exemple.test', pathname: '/site/Jeu2D/index.html', href: 'https://exemple.test/site/Jeu2D/index.html', search: '', hash: '' };
+globalThis.location = { origin: 'https://exemple.test', pathname: '/site/VirtualRide2D/index.html', href: 'https://exemple.test/site/VirtualRide2D/index.html', search: '', hash: '' };
 globalThis.history = { replaceState() {} };
 const { PYR, makeProfile } = require('./helpers.js');
 PYR.root = 'https://exemple.test/site/';
@@ -63,6 +63,59 @@ test('cloud : la connexion revient par le portail de la racine du site et se sou
   assert.equal(u.origin + u.pathname, 'https://www.dropbox.com/oauth2/authorize');
   assert.equal(u.searchParams.get('redirect_uri'), 'https://exemple.test/site/index.html');
   const pk = JSON.parse(localStorage.getItem('paceyourride.cloud.pkce'));
-  assert.equal(pk.returnTo, 'https://exemple.test/site/Jeu2D/index.html');
+  assert.equal(pk.returnTo, 'https://exemple.test/site/VirtualRide2D/index.html');
   assert.equal(pk.redirect, 'https://exemple.test/site/index.html');
+});
+
+test('cloud : saveLibrary fusionne la bibliothèque locale avec celle de Dropbox et ne touche ni au projet ni à sa date', async () => {
+  localStorage.setItem('paceyourride.cloud.v1', JSON.stringify({ access: 'tok', refresh: '', expiresAt: Date.now() + 1e9 }));
+  const snap = snapshot();
+  let sent = null;
+  mock((url, init) => {
+    if (/download/.test(url)) return reply(200, JSON.stringify(snap), { 'dropbox-api-result': '{"rev":"a"}' });
+    sent = JSON.parse(init.body); return reply(200, '{}');
+  });
+  const local = L.empty();
+  L.add(local, 'athlete', 'Nouvelle', { rider: { name: 'Nouvelle', weight: 60, ftp: 200 } }, 9000);
+  const merged = await C.saveLibrary(local);
+  assert.deepEqual(sent.library.athletes.map((a) => a.name).sort(), ['Hugo', 'Nouvelle']);
+  assert.equal(sent.library.routes.length, 1, 'les parcours de Dropbox restent');
+  assert.equal(sent.project.route.name, 'Projet');
+  assert.equal(sent.savedAt, 5000);
+  assert.equal(merged.athletes.length, 2);
+});
+
+test('cloud : saveLibrary crée le fichier s\'il n\'existe pas encore, et recommence si un autre appareil est passé', async () => {
+  let n = 0, sent = null;
+  mock((url, init) => {
+    if (/download/.test(url)) return reply(409, '{}');
+    n++; if (n === 1) return reply(409, '{}');          // le fichier vient d'être créé ailleurs
+    sent = JSON.parse(init.body); return reply(200, '{}');
+  });
+  const local = L.empty();
+  L.add(local, 'route', 'Col', route('Col'), 1000);
+  await C.saveLibrary(local);
+  assert.equal(n, 2);
+  assert.equal(sent.app, 'PaceYourRide');
+  assert.equal(sent.project, null);
+  assert.equal(sent.library.routes[0].name, 'Col');
+});
+
+test('cloud : fichiers annexes (tuiles de fond de carte) lus et écrits dans le dossier de l\'application, chemins contrôlés', async () => {
+  localStorage.setItem('paceyourride.cloud.v1', JSON.stringify({ access: 'tok', refresh: '', expiresAt: Date.now() + 1e9 }));
+  let sent = null;
+  mock((url, init) => {
+    const arg = JSON.parse(init.headers['Dropbox-API-Arg']);
+    if (/download/.test(url)) return arg.path === '/tiles/tabc.json' ? reply(200, '{"key":"tabc"}') : reply(409, '{}');
+    sent = { path: arg.path, mode: arg.mode['.tag'], body: init.body };
+    return reply(200, '{}');
+  });
+  assert.equal(await C.readFile('/tiles/tabc.json'), '{"key":"tabc"}');
+  assert.equal(await C.readFile('/tiles/absent.json'), null);
+  assert.equal(await C.writeFile('/tiles/tabc.json', '{"key":"tabc"}'), true);
+  assert.deepEqual(sent, { path: '/tiles/tabc.json', mode: 'overwrite', body: '{"key":"tabc"}' });
+  await assert.rejects(C.readFile('/../paceyourride.json'), /invalide/);
+  await assert.rejects(C.writeFile('/tiles/a/b.json', 'x'), /invalide/);
+  mock(() => reply(507, '{}'));
+  await assert.rejects(C.writeFile('/tiles/x.json', 'x'), /plein/);
 });

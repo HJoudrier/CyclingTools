@@ -7,12 +7,14 @@
   <meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
   <title>PaceYourRide — Applications</title>
-  <meta name="description" content="PaceYourRide (parcours, athlètes, pacing optimal), jeu 2D, jeu 3D et compteur : quatre applications reliées par Dropbox.">
+  <meta name="description" content="Choisis ton parcours et ton athlète (ou un coureur du World Tour) une fois, puis lance PaceYourRide (pacing optimal), Virtual Ride 2D, Virtual Ride 3D (cartoon ou réaliste) ou le compteur.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232a78d6'/%3E%3Cpath d='M10 44 L24 26 L32 36 L42 20 L54 44 Z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="Commun/css/style.css">
+  <link rel="stylesheet" href="Commun/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="PaceYourRide/css/home.css">
+  <link rel="stylesheet" href="Commun/css/select.css">
   <style>
-    .po-main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+    .po-main { max-width: none; margin: 0; padding: 24px clamp(16px, 3vw, 48px) 48px; }
     .po-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-top: 20px; }
     .po-app { display: flex; flex-direction: column; gap: 6px; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; }
     .po-app:hover, .po-app:focus-visible { border-color: var(--accent); outline: none; }
@@ -21,6 +23,12 @@
     .po-app .po-tag { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
     .po-cloud { margin-top: 28px; padding: 14px 16px; border: 1px dashed var(--border); border-radius: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .po-cloud p { margin: 0; flex: 1 1 260px; }
+    .po-pick { margin-top: 20px; }
+    .po-pick .hm-col { display: flex; flex-direction: column; gap: 16px; }
+    .hm-carousel { min-width: 0; }
+    .po-pick .hm-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px; }
+    .po-pick .hm-grid { grid-template-columns: minmax(0, 1fr); }
+    .po-h2 { margin: 28px 0 0; font-size: 1.15rem; }
   </style>
 </head>
 <body class="home">
@@ -29,15 +37,53 @@
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg>
       <span>PaceYourRide</span>
     </a>
+    <div class="top-actions" id="top-actions">
+      <a class="btn ghost" href="documentation.html" target="_blank" rel="noopener" title="Documentation : guide d'utilisation, modèles mécanique et physiologique, simulation et algorithmes d'optimisation" aria-label="Documentation"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg></a>
+    </div>
   </header>
 
   <main class="po-main">
     <h1>Quelle application&nbsp;?</h1>
-    <p>Quatre applications indépendantes. Elles ne partagent rien sur ton appareil&nbsp;: <b>PaceYourRide</b> range tes parcours, tes athlètes et tes plans dans ton Dropbox, et les jeux et le compteur les y lisent.</p>
+    <p>Choisis d'abord ton <b>parcours</b> et ton <b>athlète</b> (un des tiens, ou l'un des coureurs du World Tour)&nbsp;: toutes les applications les reprennent. Le vélo, la tenue, la position et la météo se règlent dans <b>PaceYourRide</b> et dans chaque jeu&nbsp;; la synchronisation entre appareils passe par ton Dropbox.</p>
+    <section class="po-pick" aria-label="Parcours et athlète">
+      <div class="hm-grid">
+        <div class="hm-col">
+      <article class="hm-hub" style="--hub: var(--series-1)" aria-labelledby="hub-route">
+        <header class="hm-hub-head">
+          <span class="hm-num" aria-hidden="true">1</span>
+          <svg class="hm-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg>
+          <div>
+            <h2 id="hub-route">Parcours</h2>
+            <p>Crée-le, modifie-le, choisis-le : toutes les applications le reprennent.</p>
+          </div>
+        </header>
+        <!-- carrousel des parcours de la bibliothèque, en vue 2D ou 3D (PaceYourRide/js/home.js) -->
+        <div class="hm-carousel" id="hm-carousel" aria-live="polite"></div>
+      </article>
+        </div>
+        <div class="hm-col">
+        <article class="hm-hub" style="--hub: var(--series-3)" aria-labelledby="hub-athlete">
+          <header class="hm-hub-head">
+            <span class="hm-num" aria-hidden="true">2</span>
+            <svg class="hm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg>
+            <div>
+              <h2 id="hub-athlete">Athlète</h2>
+              <p>Ajoute-le, modifie-le, choisis-le, ou prends un coureur du World Tour.</p>
+            </div>
+          </header>
+          <!-- carrousel des athlètes : les miens et les coureurs du World Tour (PaceYourRide/js/home.js) -->
+          <div class="hm-carousel" id="hm-athlete-car" aria-live="polite"></div>
+        </article>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="po-h2">Les applications</h2>
     <div class="po-grid">
       <a class="po-app" href="PaceYourRide/index.html"><span class="po-tag">Préparer</span><b>PaceYourRide</b><small>Tracer un parcours, régler l'athlète et son équipement, calculer le pacing optimal.</small></a>
-      <a class="po-app" href="Jeu2D/index.html"><span class="po-tag">Jouer</span><b>Jeu 2D</b><small>Choisir un parcours et un athlète, la météo, puis courir sur la carte.</small></a>
-      <a class="po-app" href="Jeu3D/index.html"><span class="po-tag">Jouer</span><b>Jeu 3D</b><small>La même course dans le paysage cartoon de Bike3D.</small></a>
+      <a class="po-app" href="VirtualRide2D/index.html"><span class="po-tag">Jouer</span><b>Virtual Ride 2D</b><small>Choisir un parcours et un athlète, la météo, puis courir sur la carte.</small></a>
+      <a class="po-app" href="VirtualRide3D/index.html"><span class="po-tag">Jouer</span><b>Virtual Ride 3D</b><small>La même course dans le paysage cartoon de Bike3D.</small></a>
+      <a class="po-app" href="VirtualRide3DRealiste/index.html"><span class="po-tag">Jouer · PC et consoles</span><b>Virtual Ride 3D Réaliste</b><small>La même course dans un monde 3D réaliste : lumière physique, ombres, herbe et forêts, eau, pluie. Pour PC et consoles de salon (carte graphique).</small></a>
       <a class="po-app" href="Compteur/index.html"><span class="po-tag">Rouler</span><b>Compteur</b><small>Au guidon, sur ton téléphone : la puissance à tenir pour suivre ton plan.</small></a>
     </div>
     <div class="po-cloud" id="po-cloud">
@@ -49,7 +95,48 @@
   <footer class="credit">Réalisée par <a href="mailto:hugo.joudrier@gmail.com">Hugo Joudrier-Faure</a></footer>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
-  <!-- Commun/js/portail.js : retour de Dropbox (adresse de connexion à déclarer : cette page), puis renvoi vers l'application d'origine -->
+  <!-- sélecteur d'un élément du projet, et assistant « plan optimal » (js/home.js) -->
+  <dialog class="modal wide hm-dialog" id="wiz" aria-labelledby="wiz-title">
+    <header class="wz-head">
+      <h3 id="wiz-title"></h3>
+      <button class="btn ghost icon" type="button" id="wiz-close" aria-label="Fermer">✕</button>
+    </header>
+    <ol class="wz-steps" id="wiz-steps" aria-label="Étapes"></ol>
+    <div class="wz-body" id="wiz-body"></div>
+    <div class="modal-actions wz-foot">
+      <button class="btn" type="button" id="wiz-back">Retour</button>
+      <button class="btn primary" type="button" id="wiz-next">Suivant</button>
+    </div>
+  </dialog>
+  <!-- ajout d'un athlète à la bibliothèque (js/home.js) -->
+  <dialog class="modal hm-dialog" id="ath-dlg" aria-labelledby="ath-title">
+    <form method="dialog" id="ath-form" novalidate>
+      <header class="wz-head">
+        <h3 id="ath-title">Ajouter un athlète</h3>
+        <button class="btn ghost icon" type="button" id="ath-close" aria-label="Fermer">✕</button>
+      </header>
+      <div class="wz-body ath-body">
+        <div class="field"><label for="ath-name">Nom</label><input type="text" id="ath-name" maxlength="30" autocomplete="off" placeholder="Athlète #aaaammjjhhmmss (par défaut)"></div>
+        <div class="grid2">
+          <div class="field"><label for="ath-sex">Sexe (références de niveau)</label><select id="ath-sex"><option value="m">Homme</option><option value="f">Femme</option></select></div>
+          <div class="field"><label for="ath-birth">Date de naissance</label><input type="date" id="ath-birth" min="1900-01-01"></div>
+        </div>
+        <div class="grid3">
+          <div class="field"><label for="ath-weight">Poids (kg)</label><input type="number" id="ath-weight" min="25" max="200" step="0.1" value="72"></div>
+          <div class="field"><label for="ath-height">Taille (cm)</label><input type="number" id="ath-height" min="120" max="230" step="1" value="178"></div>
+          <div class="field"><label for="ath-ftp">FTP (W)</label><input type="number" id="ath-ftp" min="50" max="600" step="1" value="250"></div>
+        </div>
+        <p class="wz-hint">La puissance critique, le W′ et la courbe de puissance record se règlent ensuite dans le profil physiologique.</p>
+        <p class="wz-warn" id="ath-err" role="alert" hidden></p>
+      </div>
+      <div class="modal-actions wz-foot">
+        <button class="btn" type="button" id="ath-cancel">Annuler</button>
+        <button class="btn primary" type="submit">Ajouter à ma bibliothèque</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Commun/js/boot.js (app « portail ») : sélecteur parcours / athlète (PaceYourRide/js/home.js) et Commun/js/portail.js : retour de Dropbox (adresse de connexion à déclarer : cette page), puis renvoi vers l'application d'origine -->
   <script src="Commun/js/boot.js" data-app="portail"></script>
 </body>
 </html>

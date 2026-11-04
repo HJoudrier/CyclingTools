@@ -13,7 +13,9 @@
   const MTIME_KEY = 'paceyourride.v1.mtime';       // date de la dernière modification du projet (js/core/store.js), pour la synchronisation
 
   /** Pages du site où se modifie chaque rubrique. */
-  const PAGE = { route: 'parcours.html', rider: 'athlete.html', bike: 'equipement.html', perf: 'pacing.html' };
+  // (la page d'accueil est à la racine du site : les pages de PaceYourRide sont dans son dossier ; UP : de la page vers la racine)
+  const IN_PYR = PYR.appDir === 'PaceYourRide', BASE = IN_PYR ? '' : 'PaceYourRide/', UP = IN_PYR ? '../' : '';
+  const PAGE = { route: BASE + 'parcours.html', rider: BASE + 'athlete.html', bike: BASE + 'equipement.html', perf: BASE + 'pacing.html' };
 
   /** Rubriques, dans l'ordre de l'assistant : libellé, page (PAGE) où les modifier. */
   const KINDS = [
@@ -33,7 +35,13 @@
     try { localStorage.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); return false; }
   }
   const readProject = () => { const p = readJSON(PROJECT_KEY); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; };
-  const readLibrary = () => L.normalize(readJSON(LIBRARY_KEY));
+  const readLibrary = () => {
+    const lib = L.normalize(readJSON(LIBRARY_KEY));
+    if (PYR.pros) PYR.pros.setOverrides(lib.athletes);       // coureurs du World Tour modifiés et enregistrés dans la bibliothèque
+    return lib;
+  };
+  /** Un élément de la bibliothèque, ou — pour un athlète — un coureur du World Tour (identifiant « pro:nom »). */
+  const findItem = (lib, kind, id) => L.find(lib, kind, id) || (kind === 'athlete' && PYR.pros ? PYR.pros.find(id) : null);
 
   /** Le projet contient-il quelque chose pour cette rubrique ? (sinon les pages utilisent les valeurs par défaut) */
   function hasData(kind, project) {
@@ -85,6 +93,8 @@
   function renderProject() {
     const project = readProject();
     if (preview) preview.update(project);
+    renderCarousel(project);
+    renderAthleteCarousel(project);
     renderAthlete(project);
     renderWeather(project);
     renderGear(project);
@@ -93,6 +103,7 @@
   /** Vélo et tenue du projet (carte Matériel) : nom d'abord, puis résumé. */
   function renderGear(project) {
     const box = $('#hm-gear');
+    if (!box) return;       // (la page d'accueil du site ne montre que le parcours et l'athlète)
     D.clear(box);
     const row = (label, kind) => {
       const d = describeCurrent(kind, project);
@@ -105,6 +116,7 @@
   /** Météo du projet (carte Météo) : source, nombre de portions ou jour de départ. */
   function renderWeather(project) {
     const box = $('#hm-weather');
+    if (!box) return;
     D.clear(box);
     const w = project.weather;
     if (!w || !w.enabled || !w.snapshot) {
@@ -129,6 +141,7 @@
   /** Profil de l'athlète du projet (carte Athlète) : identité, morphologie, FTP, W/kg, puissance critique, W′ et niveau. */
   function renderAthlete(project) {
     const box = $('#hm-athlete');
+    if (!box) return;
     D.clear(box);
     if (!hasData('athlete', project)) {
       box.appendChild(h('a', { class: 'hm-rempty hm-alink', href: PAGE.rider, title: "Renseigner l'athlète sur la page Athlète" }, h('b', null, 'Aucun athlète'), h('small', null, "Ajoute-en un, renseigne ton profil sur la page Athlète (touche ici) ou choisis-en un dans ta bibliothèque.")));
@@ -193,7 +206,7 @@
   // ---------- Fenêtre : sélecteur et assistant ----------
 
   /** mode : 'plan' (assistant en 5 étapes) ou 'single' (une seule rubrique) ; sel : choix par rubrique ('current' ou id de la bibliothèque). */
-  const W = { mode: 'single', steps: [], i: 0, sel: {} };
+  const W = { mode: 'single', steps: [], i: 0, sel: {}, views: [] };
   let dlg;
 
   function openWizard(mode, kind, pick) {
@@ -247,10 +260,11 @@
     const cur = describeCurrent(kind, project);
     const canCurrent = !(kind === 'route' && cur.empty);
 
-    if (W.sel[kind] !== 'current' && !L.find(lib, kind, W.sel[kind])) W.sel[kind] = canCurrent ? 'current' : (items[0] ? items[0].id : 'current');
+    if (W.sel[kind] !== 'current' && !findItem(lib, kind, W.sel[kind])) W.sel[kind] = canCurrent ? 'current' : (items[0] ? items[0].id : 'current');
     if (W.sel[kind] === 'current' && !canCurrent) W.sel[kind] = items[0] ? items[0].id : 'current';
 
     body.appendChild(h('p', { class: 'wz-ask' }, k.pick + ' :'));
+    if (kind === 'route' || kind === 'athlete') return renderPick(body, kind, project, lib, cur, canCurrent, items);     // comme dans les jeux et le compteur
     const list = h('div', { class: 'wz-list', role: 'radiogroup', 'aria-label': k.label });
     const option = (id, title, detail, tag, onRemove, onRename, thumb) => {
       const input = h('input', { type: 'radio', name: 'wz-' + kind, value: id, checked: W.sel[kind] === id, disabled: id === 'current' && !canCurrent });
@@ -312,11 +326,217 @@
     return canCurrent || items.length > 0;
   }
 
+  /**
+   * Parcours ou athlète : les mêmes cartes que dans les jeux et le compteur (lib-pick.js) : le carrousel des parcours (tracé sur la carte, distance, D+, D−)
+   * ou les cartes d'athlète, avec « Ajouter » (un fichier GPX, ou un athlète). Le projet en cours est la première carte.
+   */
+  function renderPick(body, kind, project, lib, cur, canCurrent, items) {
+    for (const v of W.views || []) if (v && v.destroy) v.destroy();
+    W.views = [];
+    const list = canCurrent ? [{ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data: L.extract(kind, project), project: true }] : [];
+    // un athlète enregistré sous le nom d'un coureur du World Tour est la version modifiée de ce coureur : il se retrouve dans la catégorie « Coureurs World Tour »
+    list.push(...(kind === 'athlete' && PYR.pros ? items.filter((it) => !PYR.pros.idOfName(it.name)) : items));
+    const acts = (it) => (it.project ? [] : [
+      { label: '✎', title: `Renommer « ${it.name} »`, fn: () => {
+        const name = prompt('Nouveau nom :', it.name);
+        if (name === null || !name.trim()) return;
+        L.rename(lib, kind, it.id, name);
+        if (writeJSON(LIBRARY_KEY, lib)) renderWizard();
+      } },
+      { label: '✕', title: `Retirer « ${it.name} » de la bibliothèque`, fn: () => {
+        if (!confirm(`Retirer « ${it.name} » de la bibliothèque ?`)) return;
+        L.remove(lib, kind, it.id);
+        writeJSON(LIBRARY_KEY, lib);
+        if (W.sel[kind] === it.id) W.sel[kind] = 'current';
+        renderWizard();
+      } }]);
+    const addGpx = () => PYR.libPick.chooseGpx((r) => {
+      const it = L.add(lib, 'route', r.name, r.data);
+      if (writeJSON(LIBRARY_KEY, lib)) { D.toast(`« ${it.name} » ajouté à ta bibliothèque` + (r.hasEle === false ? " (le fichier n'a pas d'altitude : pas de dénivelé)." : '.')); W.sel.route = it.id; renderWizard(); }
+    });
+    const host = h('div');
+    body.appendChild(host);
+    const common = { items: list, pick: W.sel[kind], projectLabel: 'Projet en cours', actions: acts,
+      onPick: (id) => { W.sel[kind] = id; view.setPick(id); },
+      emptyText: kind === 'route' ? 'Aucun parcours : ajoute un fichier GPX ou trace-en un.' : 'Aucun athlète : ajoute-en un.' };
+    const view = kind === 'route'
+      ? PYR.libPick.routePicker(host, Object.assign(common, { onAdd: addGpx, extra: [{ label: '✎ Tracer un parcours', title: 'Un parcours vide, à tracer sur la carte', fn: createRoute }] }))
+      : PYR.libPick.athletePicker(host, Object.assign(common, { onAdd: openAddAthlete, pros: true, onEdit: editPro, onReset: resetPro }));
+    W.views.push(view);
+    return canCurrent || items.length > 0;
+  }
+
+  /** ✎ sur un coureur du World Tour : il devient l'athlète du projet et la page Athlète s'ouvre pour le modifier (« Enregistrer » le range dans la bibliothèque). */
+  function editPro(it) {
+    W.sel.athlete = it.id;
+    if (applySelection()) { dlg.close(); location.href = PAGE.rider; }
+  }
+
+  /** ↺ : on retire de la bibliothèque la version modifiée d'un coureur du World Tour, il retrouve son profil d'origine. */
+  function resetPro(it) {
+    if (!confirm(`Rendre à « ${it.name} » son profil d'origine ? Tes modifications enregistrées dans la bibliothèque seront perdues.`)) return;
+    const lib = readLibrary();
+    L.remove(lib, 'athlete', it.libId);
+    if (writeJSON(LIBRARY_KEY, lib)) { readLibrary(); D.toast(`« ${it.name} » retrouve son profil d'origine.`); renderWizard(); }
+  }
+
   function defaultName(kind, project) {
     if (kind === 'athlete') return (project.rider && project.rider.name) || '';
     if (projectName(kind, project)) return projectName(kind, project);
     const s = L.summary(kind, L.extract(kind, project));
     return kind === 'route' ? (s ? s.title.split(' · ')[0] : '') : (s ? s.title : '');
+  }
+
+  // ---------- Carrousel des parcours (page d'accueil du site) ----------
+
+  let carousel = null;
+
+  /**
+   * Carrousel des parcours de la bibliothèque, en vue 2D (le tracé sur la carte) ou 3D, avec distance, D+ et D− : cliquer sur un parcours le met dans le
+   * projet en cours (toutes les applications le reprennent). Le projet en cours est la première carte, sauf s'il est déjà dans la bibliothèque.
+   */
+  function renderCarousel(project) {
+    const host = $('#hm-carousel');
+    if (!host) return;
+    if (carousel) carousel.destroy();
+    const lib = readLibrary(), cur = describeCurrent('route', project);
+    const data = hasData('route', project) ? L.extract('route', project) : null;
+    // le projet est déjà dans la bibliothèque quand un parcours porte son nom et sa longueur (les données du projet ont pu être recalculées depuis)
+    const len = data ? L.routeLength(data) : 0, pname = projectName('route', project);
+    const same = data ? lib.routes.find((it) => it.name === pname && Math.abs(L.routeLength(it.data) - len) < 2) : null;
+    const items = lib.routes.slice();
+    if (data && !same) items.unshift({ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data, project: true });
+    // chaque vignette : modifier (l'éditeur de parcours), dupliquer, supprimer ; « Nouveau parcours » est au-dessus du carrousel
+    const isCurrent = (it) => data && (it.id === 'current' || (same && it.id === same.id));
+    const edit = (it) => {
+      if (it.id !== 'current') {
+        const p = readProject(), lib2 = readLibrary(), src = L.find(lib2, 'route', it.id);
+        if (!src) return;
+        L.apply('route', p, src.data);
+        setProjectName('route', p, src.name);
+        if (!writeJSON(PROJECT_KEY, p)) return;
+        try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
+        PYR.cloud.syncSoon();
+      }
+      location.href = PAGE.route;
+    };
+    const duplicate = (it) => {
+      const l = readLibrary(), taken = new Set(l.routes.map((r) => r.name.toLowerCase()));
+      let name = `${it.name} (copie)`;
+      for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${it.name} (copie ${k})`;
+      const src = it.id === 'current' ? { data: L.extract('route', readProject()) } : L.find(l, 'route', it.id);
+      if (!src) return;
+      const copy = JSON.parse(JSON.stringify(src.data));
+      if (copy.route) copy.route.name = name;
+      const added = L.add(l, 'route', name, copy);
+      if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${added.name} » ajouté à ta bibliothèque.`); renderProject(); }
+    };
+    const remove = (it) => {
+      const cur = isCurrent(it);
+      if (!confirm(it.id === 'current' ? `Retirer « ${it.name} » du projet en cours ? Il n'est pas dans ta bibliothèque : il sera perdu.` : `Supprimer « ${it.name} » de ta bibliothèque ?${cur ? ' Il est aussi le parcours choisi : il sera retiré du projet en cours.' : ''}`)) return;
+      if (it.id !== 'current') {
+        const l = readLibrary();
+        L.remove(l, 'route', it.id);
+        if (!writeJSON(LIBRARY_KEY, l)) return;
+      }
+      if (cur) {
+        const p = readProject();
+        L.startRoute(p);
+        if (writeJSON(PROJECT_KEY, p)) { try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ } PYR.cloud.syncSoon(); }
+      }
+      renderProject();
+    };
+    carousel = PYR.libPick.routePicker(host, {
+      items, pick: data ? (same ? same.id : 'current') : '', projectLabel: 'Projet en cours', defaultView: '3d',
+      actions: (it) => [
+        { label: '✎ Modifier', title: `Modifier « ${it.name} » dans l'éditeur de parcours`, fn: () => edit(it) },
+        { label: '⧉ Dupliquer', title: `Dupliquer « ${it.name} » dans ta bibliothèque`, fn: () => duplicate(it) },
+        { label: '✕ Supprimer', title: `Supprimer « ${it.name} »`, fn: () => remove(it) }],
+      extra: [{ label: '＋ Nouveau parcours', title: 'Un parcours vide, à tracer sur la carte (ou à remplir avec un fichier GPX) dans l\'éditeur de parcours', fn: createRoute }],
+      onPick: (id) => { if (id !== 'current') chooseRoute(id); },
+      emptyText: 'Aucun parcours : crée-en un avec « Nouveau parcours ».',
+    });
+  }
+
+  // ---------- Carrousel des athlètes (page d'accueil du site) ----------
+
+  let athCarousel = null;
+
+  /** Athlète du projet en cours → identifiant de la carte à cocher : un coureur du World Tour du même nom, un athlète de la bibliothèque du même nom, sinon « current ». */
+  function selectedAthleteId(project, lib) {
+    if (!hasData('athlete', project)) return '';
+    const name = String(project.rider && project.rider.name || '').trim();
+    const proId = PYR.pros && PYR.pros.idOfName(name);
+    if (proId) return proId;
+    const mine = lib.athletes.find((it) => it.name === name || (it.data.rider && it.data.rider.name === name));
+    return mine ? mine.id : 'current';
+  }
+
+  /**
+   * Carrousel des athlètes : « Mes athlètes » (bibliothèque, et athlète du projet s'il n'y est pas) et « Coureurs World Tour » (photo, caractéristiques).
+   * Cliquer une carte la met dans le projet en cours ; Modifier ouvre la page Athlète ; Dupliquer range une copie dans la bibliothèque ; Supprimer retire un
+   * athlète de la bibliothèque (pour un coureur du World Tour modifié : ↺ Rétablir son profil d'origine).
+   */
+  function renderAthleteCarousel(project) {
+    const host = $('#hm-athlete-car');
+    if (!host) return;
+    if (athCarousel) athCarousel.destroy();
+    const lib = readLibrary(), sel = selectedAthleteId(project, lib);
+    const mine = lib.athletes.filter((it) => !(PYR.pros && PYR.pros.idOfName(it.name)));
+    if (sel === 'current') {
+      const cur = describeCurrent('athlete', project);
+      mine.unshift({ id: 'current', name: (project.rider && project.rider.name) || cur.title, savedAt: 0, data: L.extract('athlete', project), project: true });
+    }
+    const itemOf = (id) => (id === 'current' ? { id, name: (project.rider && project.rider.name) || 'Athlète', data: L.extract('athlete', readProject()) } : findItem(readLibrary(), 'athlete', id));
+    const apply = (id) => {
+      const p = readProject(), it = id === 'current' ? null : findItem(readLibrary(), 'athlete', id);
+      if (id !== 'current') { if (!it) return false; L.apply('athlete', p, it.data); }
+      const ok = writeJSON(PROJECT_KEY, p);
+      if (ok) { try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ } PYR.cloud.syncSoon(); }
+      return ok;
+    };
+    const choose = (id) => { if (id !== 'current' && apply(id)) renderProject(); };
+    const edit = (it) => { if (apply(it.id)) location.href = PAGE.rider; };
+    const duplicate = (it) => {
+      const l = readLibrary(), src = itemOf(it.id);
+      if (!src) return;
+      const taken = new Set(l.athletes.map((a) => a.name.toLowerCase()));
+      let name = `${it.name} (copie)`;
+      for (let k = 2; taken.has(name.toLowerCase()); k++) name = `${it.name} (copie ${k})`;
+      const data = JSON.parse(JSON.stringify(src.data));
+      if (data.rider) data.rider.name = name.slice(0, 30);
+      const added = L.add(l, 'athlete', name, data);
+      if (writeJSON(LIBRARY_KEY, l)) { D.toast(`« ${added.name} » ajouté à ta bibliothèque.`); renderProject(); }
+    };
+    const remove = (it) => {
+      if (it.id === 'current') return;
+      const lbl = it.edited ? `Rendre à « ${it.name} » son profil d'origine ? Tes modifications seront perdues.` : `Supprimer « ${it.name} » de ta bibliothèque ?`;
+      if (!confirm(lbl)) return;
+      const l = readLibrary();
+      L.remove(l, 'athlete', it.edited ? it.libId : it.id);
+      if (writeJSON(LIBRARY_KEY, l)) { readLibrary(); renderProject(); }
+    };
+    athCarousel = PYR.libPick.athleteCarousel(host, {
+      mine, pros: true, pick: sel, projectLabel: 'Projet en cours', emptyText: "Aucun athlète : ajoute-en un, ou prends un coureur du World Tour.",
+      onAdd: openAddAthlete,
+      onPick: choose,
+      actions: (it) => [{ label: '✎ Modifier', title: `Modifier « ${it.name} » sur la page Athlète`, fn: () => edit(it) },
+        { label: '⧉ Dupliquer', title: `Dupliquer « ${it.name} » dans ta bibliothèque`, fn: () => duplicate(it) }]
+        .concat(it.id === 'current' || (it.pro && !it.edited) ? [] : [{ label: it.edited ? '↺ Rétablir' : '✕ Supprimer', title: it.edited ? `Rendre à « ${it.name} » son profil d'origine` : `Supprimer « ${it.name} »`, fn: () => remove(it) }]),
+    });
+  }
+
+  /** Met le parcours de la bibliothèque dans le projet en cours. */
+  function chooseRoute(id) {
+    const project = readProject(), it = L.find(readLibrary(), 'route', id);
+    if (!it) return;
+    L.apply('route', project, it.data);
+    setProjectName('route', project, it.name);
+    if (writeJSON(PROJECT_KEY, project)) {
+      try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
+      PYR.cloud.syncSoon();
+      renderProject();
+    }
   }
 
   /** Vignette du tracé du projet en cours (SVG sans fond de carte, donc sans réseau) : le trait avec son départ (vert) et son arrivée (rouge). */
@@ -354,7 +574,7 @@
         title = c.title; detail = c.detail; tag = 'Projet en cours';
         if (k.id === 'route' && c.empty) ok = false;
       } else {
-        const it = L.find(lib, k.id, id);
+        const it = findItem(lib, k.id, id);
         if (!it) { ok = false; title = k.empty; detail = ''; } else {
           const s = L.summary(k.id, it.data) || { title: '', detail: '' };
           title = it.name; detail = [s.title, s.detail].filter(Boolean).join(' · '); tag = 'Bibliothèque'; replaced = true;
@@ -377,7 +597,7 @@
     for (const k of KINDS) {
       const id = W.sel[k.id];
       if (!id || id === 'current' || (W.mode === 'single' && !W.steps.includes(k.id))) continue;
-      const it = L.find(lib, k.id, id);
+      const it = findItem(lib, k.id, id);
       if (it) { L.apply(k.id, project, it.data); setProjectName(k.id, project, it.name); }
     }
     const ok = writeJSON(PROJECT_KEY, project);
@@ -401,6 +621,7 @@
   const when = (t) => (t ? new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais');
 
   function renderCloud() {
+    if (!cdlg) return;       // (la page d'accueil du site a son propre encadré Dropbox : Commun/js/portail.js)
     const st = PYR.cloud.status();
     const label = $('#hm-cloud-txt'), btn = $('#hm-cloud');
     btn.classList.toggle('is-on', st.connected && !st.error);
@@ -447,6 +668,13 @@
 
   function initCloud() {
     cdlg = $('#cloud-dlg');
+    if (!cdlg) {
+      // page d'accueil du site : portail.js affiche la connexion et en reçoit le retour ; ici on relit le projet et la bibliothèque venus du nuage
+      seenPulls = PYR.cloud.status().pulls;
+      PYR.cloud.onChange(onCloudChange);
+      if (PYR.cloud.status().connected) PYR.cloud.sync();
+      return;
+    }
     $('#hm-cloud').addEventListener('click', () => { cdlg.showModal(); renderCloud(); });
     $('#cloud-close').addEventListener('click', () => cdlg.close());
     cdlg.addEventListener('click', (e) => { if (e.target === cdlg) cdlg.close(); });
@@ -462,32 +690,36 @@
 
   function init() {
     // un ancien lien de partage pointait sur la page d'ouverture : un défi s'ouvre sur la page Jeu, une invitation sur l'écran de course
-    if (/^#defi=/.test(location.hash)) { location.replace('../Jeu2D/index.html' + location.hash); return; }
-    if (/^#live=/.test(location.hash)) { location.replace('../Jeu2D/course.html' + location.hash); return; }
+    if (/^#defi=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/index.html' + location.hash); return; }
+    if (/^#live=/.test(location.hash)) { location.replace(UP + 'VirtualRide2D/course.html' + location.hash); return; }
     dlg = $('#wiz');
-    preview = PYR.routePreview.create($('#hm-route'));
+    const on = (sel, evt, fn) => { const el = $(sel); if (el) el.addEventListener(evt, fn); };      // (chaque page n'a qu'une partie de ces éléments)
+    const pv = $('#hm-route');
+    if (pv) preview = PYR.routePreview.create(pv);
     renderProject();
-    $('#hm-new-route').addEventListener('click', createRoute);
-    $('#hm-pick-route').addEventListener('click', () => openWizard('single', 'route'));
-    $('#hm-pick-athlete').addEventListener('click', () => openWizard('single', 'athlete'));
-    $('#hm-pick-bike').addEventListener('click', () => openWizard('single', 'bike'));
-    $('#hm-pick-outfit').addEventListener('click', () => openWizard('single', 'outfit'));
+    on('#hm-new-route', 'click', createRoute);
+    on('#hm-pick-route', 'click', () => openWizard('single', 'route'));
+    on('#hm-pick-athlete', 'click', () => openWizard('single', 'athlete'));
+    on('#hm-pick-bike', 'click', () => openWizard('single', 'bike'));
+    on('#hm-pick-outfit', 'click', () => openWizard('single', 'outfit'));
     adlg = $('#ath-dlg');
-    $('#hm-add-athlete').addEventListener('click', openAddAthlete);
-    $('#ath-form').addEventListener('submit', addAthlete);
-    $('#ath-close').addEventListener('click', () => adlg.close());
-    $('#ath-cancel').addEventListener('click', () => adlg.close());
-    adlg.addEventListener('click', (e) => { if (e.target === adlg) adlg.close(); });
-    $('#hm-plan').addEventListener('click', () => openWizard('plan'));
-    $('#wiz-close').addEventListener('click', () => dlg.close());
-    $('#wiz-back').addEventListener('click', () => { if (W.i > 0) { W.i--; renderWizard(); } });
-    $('#wiz-next').addEventListener('click', onNext);
-    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });      // clic sur le fond
+    on('#hm-add-athlete', 'click', openAddAthlete);
+    on('#ath-form', 'submit', addAthlete);
+    on('#ath-close', 'click', () => adlg.close());
+    on('#ath-cancel', 'click', () => adlg.close());
+    if (adlg) adlg.addEventListener('click', (e) => { if (e.target === adlg) adlg.close(); });
+    on('#hm-plan', 'click', () => openWizard('plan'));
+    on('#wiz-close', 'click', () => dlg.close());
+    on('#wiz-back', 'click', () => { if (W.i > 0) { W.i--; renderWizard(); } });
+    on('#wiz-next', 'click', onNext);
+    if (dlg) dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });      // clic sur le fond
     // une autre page a pu changer le projet pendant que celle-ci était en arrière-plan
     initCloud();
     window.addEventListener('pageshow', () => { renderProject(); PYR.cloud.syncSoon(300); });
     window.addEventListener('storage', (e) => { if (e.key === PROJECT_KEY) renderProject(); });
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  // chargé par Commun/js/boot.js, après le document : le départ est déjà donné
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })(globalThis.PYR = globalThis.PYR || {});

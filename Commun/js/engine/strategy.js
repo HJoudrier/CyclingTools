@@ -567,7 +567,7 @@
       if (g.movers >= Math.max(2, Math.ceil(g.n / (prio ? 3 : 6)))) f = undefined; // pas de place pour monter maintenant
       else g.movers++;
     }
-    usePlan(r, 'sit', Object.assign({ front: f }, extra), goal, label);
+    usePlan(r, 'sit', Object.assign({ front: f, up: prio ? 1.3 : undefined }, extra), goal, label);
   }
 
   /** Mode d'après les règles d'avant (coureur sans mission) : relais en tête d'un groupe pour ceux qui collaborent, sinon dans les roues. */
@@ -671,7 +671,7 @@
       }
       case 'domestique': {
         const ldr = team && my.protectee && sit.by.get(my.protectee);
-        if (ldr && ldr.g === me.g && toGo > 600) { place(c, Math.max(0, ldr.rank - 2), 'protect', 'Équipier : protège son leader jusqu\'au bout', false, { shield: my.protectee, cap: 1.1 }); return true; }
+        if (ldr && ldr.g === me.g && toGo > 600) { place(c, Math.max(0, ldr.rank - 2), 'protect', 'Équipier : protège son leader jusqu\'au bout', false, { shield: my.protectee, cap: 1.1, up: 1.25 }); return true; }
         usePlan(r, 'sit', { cap: 0.85, chase: 40 }, 'save', 'Équipier : a terminé son travail');
         return true;
       }
@@ -845,7 +845,7 @@
     if (!(my.role === 'domestique' || my.role === 'leadout' || my.role === 'pilot')) return false;
     const pe = sit.by.get(my.protectee);
     if (!pe || pe.g !== me.g || wf < 0.2) return false;
-    if (my.protector) { place(c, Math.max(0, pe.rank - 2), 'protect', 'Protège son leader : devant lui, côté vent', false, { shield: my.protectee, cap: 1.0 }); return true; }
+    if (my.protector) { place(c, Math.max(0, pe.rank - 2), 'protect', 'Protège son leader : devant lui, côté vent', false, { shield: my.protectee, cap: 1.0, up: 1.25 }); return true; }
     // les autres : devant le leader, aux places qui l'abritent
     const front = Math.max(0, pe.rank - 3);
     if (me.rank > front) { place(c, front, 'work', 'Équipier : se place devant son leader', false, { cap: 1.05, chase: 40 }); return true; }
@@ -893,6 +893,23 @@
   /** Rang du coureur dans son paquet (tick), à défaut dans son groupe d'aspiration. */
   const rankOf = (r, info) => (r.strat && r.strat.rank !== undefined ? r.strat.rank : info ? info.rank : 0);
 
+  /**
+   * Remonter le groupe avec un effort plus franc que celui des tactiques (movePower : 1,1 × FTP au plus) : quitter l'abri d'un peloton compact
+   * coûte cher, et les rôles qui doivent être devant (train, poisson pilote, sprinteur, protecteur) ne peuvent pas se contenter d'y arriver
+   * dans dix minutes. +1,6 m/s sur la roue devant, jusqu'à p.up × FTP. null s'il n'y a personne devant.
+   */
+  function climbPower(r, view, info, up) {
+    const tac = r.tac, L = Tac.levels(r);
+    const ahead = (info && view.field.find((o) => o.id === info.wheel)) || (r.lat ? Tac.nearestAhead(view.field, r, Dr.GROUP_GAP) : null);
+    if (!ahead) return null;
+    const vLead = ahead.v + clamp((ahead.a || 0) + Tac.slopeChange(r.ctx.course, ahead.s, ahead.v), -2, 1.5);
+    const vT = Math.min(vLead + 1.6, r.st.v + Tac.accelMax(r.st.v));
+    const hold = Math.max(0, Tac.powerForSpeedRaw(r.setup, r.st.v, vLead, r.cond));
+    const cap = Math.min(Tac.followEffort(r, L), Math.max(up * L.ftp, hold));
+    tac.phase = 'move'; tac.wheel = ahead.id; tac.front = undefined;
+    return clamp(Tac.powerForSpeedRaw(r.setup, r.st.v, vT, r.cond), 0, cap);
+  }
+
   /** Dans les roues avec plafond d'effort ; remonter d'abord aux places demandées ; en tête sans roue : tempo. */
   function sitCmd(r, view, p, L) {
     const tac = r.tac, info = view.info.get(r.id);
@@ -900,8 +917,8 @@
     const capW = p.cap ? p.cap * L.ftp : 1.1 * L.pma;
     const rank = rankOf(r, info);
     if (p.front !== undefined && info && info.groupSize > 1 && rank > p.front && Tac.wFrac(r) > 0.25) {
-      const P = Tac.movePower(r, view, info);
-      if (P !== null) return Math.min(P, Math.max(capW, 1.1 * L.ftp));
+      const P = p.up ? climbPower(r, view, info, p.up) : Tac.movePower(r, view, info);
+      if (P !== null) return Math.min(P, Math.max(capW, (p.up || 1.1) * L.ftp));
     }
     // protection : côté vent, un rang à côté du coureur abrité (par vent de côté)
     if (p.shield && r.lat && Math.abs(r.lat.tb) > 0.15) {

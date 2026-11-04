@@ -139,9 +139,12 @@
 
   /**
    * Coureurs virtuels, construits à partir du profil du joueur.
-   * opts : {n, level ('weaker' | 'equal' | 'stronger' | 'mixed'), rider, bike, v0, colors}
+   * opts : {n, level ('weaker' | 'equal' | 'stronger' | 'mixed' | 'worldtour' | 'worldtour-top'), rider, bike, v0, colors}
+   * Niveau « worldtour » : de vrais coureurs du World Tour tirés au hasard (graine de la course), « worldtour-top » : les meilleurs de la liste ;
+   * chacun avec son profil physiologique (pros.js) et son goût des sprints et des côtes d'après son type de coureur.
    */
   function addBots(race, opts) {
+    if (/^worldtour/.test(opts.level) && PYR.pros) return addPros(race, opts);
     const rnd = race.rnd, out = [];
     // goûts pour les sprints et les sommets : tirage à part, pour ne pas décaler les autres tirages
     const taste = PYR.util.mulberry32((race.seed ^ 0x2545f491) >>> 0);
@@ -168,6 +171,39 @@
         },
         setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null,
         gut: [0, 0.5, 1][Math.floor(gutRnd() * 3)], rider, physio,
+      }));
+    }
+    return out;
+  }
+
+  /** Matériel du joueur qu'on garde pour un coureur du World Tour (position, casque, tenue : son corps vient de son profil). */
+  const KIT = ['position', 'helmet', 'clothing', 'glasses', 'socks', 'shave'];
+
+  /** Coureurs virtuels du World Tour (voir addBots) : leur morphologie et leur puissance sont celles de pros.js, le vélo celui du joueur. */
+  function addPros(race, opts) {
+    const rnd = race.rnd, out = [], Pr = PYR.pros;
+    const proRnd = PYR.util.mulberry32((race.seed ^ 0x3c6ef372) >>> 0);   // tirage à part, pour ne pas décaler les autres
+    const phyRnd = PYR.util.mulberry32((race.seed ^ 0x51ed270b) >>> 0);
+    const me = String(opts.rider && opts.rider.name || '').trim();
+    let pool = Pr.all().filter((x) => x.name !== me);                     // pas deux fois le même coureur quand le joueur en est un
+    if (opts.level === 'worldtour-top') pool = pool.slice().sort((a, b) => b.pro.level - a.pro.level || b.pro.wkg - a.pro.wkg);
+    else for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(proRnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const n = Math.max(0, Math.min(MAX_BOTS, pool.length, opts.n | 0));
+    for (let i = 0; i < n; i++) {
+      const it = pool[i], ty = Pr.TYPES[it.pro.type];
+      const kit = {};
+      for (const k of KIT) if (opts.rider && opts.rider[k] !== undefined) kit[k] = opts.rider[k];
+      const rider = Object.assign({}, it.data.rider, kit);
+      const athlete = Ph.buildAthlete(rider);
+      const setup = PYR.physics.buildSetup(rider, opts.bike);
+      const physio = physioOn(race) ? botCard(rider, athlete, phyRnd) : null;
+      out.push(addRider(race, {
+        id: 'bot' + (i + 1), name: it.name, color: opts.colors ? opts.colors[i % opts.colors.length] : '#6f6d66',
+        bot: {
+          aggr: 0.1 + 0.35 * rnd() + (it.pro.level > 85 ? 0.1 : 0), team: 0.2 + 0.8 * rnd(), level: 1, pro: it.id, proTeam: Pr.TEAMS[it.pro.team],
+          sprint: PYR.util.clamp(ty.sprint + 0.1 * (rnd() - 0.5), 0, 1), climb: PYR.util.clamp(ty.climb + 0.1 * (rnd() - 0.5), 0, 1),
+        },
+        setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null, gut: rider.gut, rider, physio,
       }));
     }
     return out;

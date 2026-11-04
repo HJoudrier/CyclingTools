@@ -1,6 +1,6 @@
 /* author : Hugo Joudrier-Faure */
-/* PaceYourRide — vue 3D du jeu : le paysage cartoon de Bike3D (Jeu3D/univers/) à la place du fond de carte, sur l'écran de course
- * Jeu3D/course.html (body[data-display="3d"]) ; l'écran Jeu2D/course.html garde la carte, et peut ouvrir la vue dans une autre fenêtre.
+/* PaceYourRide — vue 3D du jeu : le paysage cartoon de Bike3D (VirtualRide3D/univers/) à la place du fond de carte, sur l'écran de course
+ * VirtualRide3D/course.html (body[data-display="3d"]) ; l'écran VirtualRide2D/course.html garde la carte, et peut ouvrir la vue dans une autre fenêtre.
  *
  * La simulation reste ici (physiologie, météo, aspiration, coureurs virtuels, joueurs en direct) ; Bike3D ne fait que montrer la
  * course. Il est ouvert dans un cadre par-dessus la carte de l'écran de course en 3D, ou dans une fenêtre à part
@@ -12,8 +12,10 @@
  *     position, les mêmes que dans la vitrine 3D du magasin (gear-art.js, gear3d) ;
  *   - Bike3D renvoie les touches pressées quand il a le focus (key), elles pilotent le jeu comme d'habitude.
  * La graine du paysage vient de l'empreinte du parcours : tous les joueurs d'une course en direct ont le même monde.
- * Le détail du protocole est en tête de js/bridge.js côté Bike3D. Adresse de la vue : Jeu3D/univers/index.html, ou celle enregistrée par
- * localStorage.setItem('pyr.view3d', 'https://…/index.html'). */
+ * Le détail du protocole est en tête de js/bridge.js côté Bike3D. Deux vues parlent ce même protocole : l'univers cartoon de Bike3D
+ * (VirtualRide3D/univers/index.html, application jeu3d) et le monde réaliste (VirtualRide3DRealiste/monde/index.html, application jeu3dr,
+ * pour PC et consoles de salon). Une autre adresse peut être enregistrée par localStorage.setItem('pyr.view3d', 'https://…/index.html')
+ * (univers cartoon) ou localStorage.setItem('pyr.view3d.realiste', …) (monde réaliste). */
 (function (PYR) {
   'use strict';
 
@@ -22,7 +24,13 @@
   const h = (...a) => D.h(...a), $ = (q) => D.$(q);
   const st = () => PYR.store.state;
   const V = 1;
-  const UNIVERSE = 'Jeu3D/univers/index.html';   // depuis la racine du site (PYR.root, posé par js/boot.js)
+  // vue de chaque application, depuis la racine du site (PYR.root, posé par js/boot.js), et la clé du stockage local qui peut la remplacer
+  const UNIVERSES = {
+    jeu3d: { url: 'VirtualRide3D/univers/index.html', key: 'pyr.view3d', name: 'univers 3D' },
+    jeu3dr: { url: 'VirtualRide3DRealiste/monde/index.html', key: 'pyr.view3d.realiste', name: 'monde 3D réaliste' },
+  };
+  /** La vue 3D de l'application en cours (l'univers cartoon par défaut : VirtualRide2D ouvre aussi celui-là dans une autre fenêtre). */
+  const universe = () => UNIVERSES[PYR.appId] || UNIVERSES.jeu3d;
   const ME_COLOR = '#eb6834';
 
   let frameEl = null;      // cadre par-dessus la carte
@@ -30,18 +38,20 @@
   let stage = false;       // la page de jeu est affichée
   let courseRef = null, courseMsg = null; // dernier parcours envoyé (et l'objet de simulation dont il vient)
   let last = null;         // dernière image, renvoyée à une vue qui vient de s'ouvrir
-  let gearKey = null;      // équipement du joueur déjà envoyé
+  let gearKey = null;
+  let skyKey = null;       // réglages du ciel déjà envoyés      // équipement du joueur déjà envoyé
   let sound = false;
   const btn = {};
   const status = new Map(); // fenêtre → dernier état annoncé ('building', 'ready', 'error')
 
-  /** L'écran de course montre-t-il la 3D ? C'est la page qui le dit (Jeu3D : oui, Jeu2D : la carte). */
+  /** L'écran de course montre-t-il la 3D ? C'est la page qui le dit (VirtualRide3D : oui, VirtualRide2D : la carte). */
   const on = () => typeof document !== 'undefined' && !!document.body && document.body.dataset.display === '3d';
 
   function baseUrl() {
+    const U3 = universe();
     let u = null;
-    try { u = localStorage.getItem('pyr.view3d'); } catch (e) { /* stockage indisponible */ }
-    return u && /^(https?:|\.{0,2}\/|[\w.-]+\.html)/.test(u) ? u : (PYR.root || '') + UNIVERSE;
+    try { u = localStorage.getItem(U3.key); } catch (e) { /* stockage indisponible */ }
+    return u && /^(https?:|\.{0,2}\/|[\w.-]+\.html)/.test(u) ? u : (PYR.root || '') + U3.url;
   }
   function urlOf(hud) { const b = baseUrl(); return b + (b.includes('?') ? '&' : '?') + 'pyr' + (hud ? '&hud=1' : ''); }
 
@@ -90,6 +100,13 @@
    * Message « course » pour Bike3D : points du parcours (degrés arrondis au millionième, altitude au décimètre), points de passage,
    * zones de ravitaillement, joueur. La graine du paysage est tirée de l'empreinte : même parcours, même monde pour tous.
    */
+  const QUALITIES = ['low', 'medium', 'high'], DETAILS = ['auto', 'simple', 'detailed', 'realistic'];
+  /** Qualité du parcours et niveau de détail des cyclistes choisis sur la page Jeu (VirtualRide3D). */
+  function viewOptions() {
+    const g = (PYR.store && PYR.store.state && PYR.store.state.game) || {};
+    return { quality: QUALITIES.includes(g.view3dQuality) ? g.view3dQuality : 'medium', detail: DETAILS.includes(g.view3dDetail) ? g.view3dDetail : 'auto' };
+  }
+
   function courseMessage(course, cps, feed, me) {
     const n = Math.min(course.lat.length, course.lng.length, course.ele.length);
     const lat = new Array(n), lng = new Array(n), ele = new Array(n);
@@ -110,32 +127,85 @@
       surfaces: surfacesOf(course), roadW: course.roadWidth,
       me: { name: me.name, color: me.color || ME_COLOR }, cp: me.cp,
     };
+    const vo = viewOptions();
+    msg.quality = vo.quality; msg.detail = vo.detail; // réglages de la vue : changent l'empreinte (la vue se reconstruit)
     if (me.gear && typeof me.gear === 'object') msg.me.gear = me.gear; // vélo, roues, position, tenue (n'entre pas dans l'empreinte)
     // empreinte complète (la vue ne se reconstruit que si elle change) : tracé, revêtements, points de passage, ravitaillements
     let x = 2166136261;
     const extra = JSON.stringify([msg.surfaces, msg.roadW, msg.cps, msg.feed]);
     for (let i = 0; i < extra.length; i++) { x ^= extra.charCodeAt(i); x = Math.imul(x, 16777619) >>> 0; }
-    msg.key = geo + '.' + (x >>> 0).toString(36);
+    msg.key = geo + '.' + (x >>> 0).toString(36) + '.' + vo.quality + '.' + vo.detail;
     return msg;
   }
 
   /* ---------- météo à la position et à l'heure du joueur ---------- */
 
   /**
-   * Conditions envoyées à la vue : {hour (heure locale, avec une météo datée), T, rain (mm/h), ws (m/s à 10 m), wd (° d'où vient le
-   * vent), gust, rh, wet}. Sans météo, le vent saisi à la main (portions) et la température de la page Pacing optimal.
+   * Conditions envoyées à la vue : {hour (heure locale, avec une météo datée), doy (jour de l'année, idem), T, rain (mm/h), ws (m/s à 10 m),
+   * wd (° d'où vient le vent), gust, rh, wet}. Sans météo, le vent saisi à la main (portions) et la température de la page Pacing optimal.
    */
   function envAt(course, s, t) {
     const w = course.weather;
     if (w && PYR.weather) {
       const o = PYR.weather.at(w, s, (Number(w.start) || 0) + t);
       const env = { T: o.T, rain: o.rain, ws: o.ws, wd: o.wd, gust: o.gust, rh: o.rh, wet: o.wet };
-      if (Number.isFinite(w.start) && Number.isFinite(w.off)) env.hour = ((((w.start + w.off + t) / 3600) % 24) + 24) % 24;
+      if (Number.isFinite(w.start) && Number.isFinite(w.off)) {
+        env.hour = ((((w.start + w.off + t) / 3600) % 24) + 24) % 24;
+        // jour de l'année (1–366, heure locale du parcours) : la course du soleil et la saison de la vue réaliste
+        const d = new Date((w.start + w.off + t) * 1000);
+        env.doy = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000) + 1;
+      }
       return env;
     }
     const env = { T: course.temperature };
     const i = U.clamp(Math.floor(s / course.step), 0, course.n - 1);
     if (course.hasWind && course.wMean && course.wMean[i] > 0) { env.ws = course.wMean[i] / ((PYR.weather && PYR.weather.WIND_K) || 0.7); env.wd = course.windDir[i]; }
+    return env;
+  }
+
+  /* ---------- ciel et météo de Virtual Ride 3D ---------- */
+
+  /**
+   * Réglages « Ciel et Météo » de la page Jeu de Virtual Ride 3D (état de l'application), pour la vue : { mode ('course' : la météo enregistrée avec le
+   * parcours, 'real' : les prévisions Open-Meteo, 'game' : le ciel du jeu), weather (soleil, nuageux, pluie, orage, neige ou aléatoire), wind (calme, brise,
+   * fort, tempête ou aléatoire), flow (vitesse du temps du ciel : secondes de ciel par seconde de course, 0 : figé), startAt (date et heure locales de
+   * départ), off (décalage horaire du lieu, en heures) }. null pour les autres applications (leur vue garde son propre ciel).
+   */
+  function skySettings(state) {
+    if (!state || (PYR.appId && PYR.appId !== 'jeu3d')) return null;
+    const g = state.game || {}, w = state.weather || {};
+    const flow = Number(g.skyFlow);
+    return {
+      // sans météo utilisable (rien d'enregistré avec le parcours, prévisions pas récupérées), le ciel du jeu
+      mode: ['course', 'real'].includes(g.skyMode) && w.enabled && w.snapshot ? g.skyMode : 'game',
+      weather: g.skyWeather || 'random', wind: g.skyWind || 'random',
+      flow: Number.isFinite(flow) && flow >= 0 ? flow : 1,
+      startAt: typeof w.startAt === 'string' ? w.startAt : '',
+      off: Number.isFinite(w.utcOffset) && w.snapshot ? w.utcOffset / 3600 : null,
+    };
+  }
+
+  /** Heure locale (0–24) et jour de l'année (1–366) à t secondes de ciel après le départ « AAAA-MM-JJThh:mm » ; null si le départ est illisible. */
+  function clockAt(startAt, t) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(startAt || ''));
+    if (!m) return null;
+    const ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + t * 1000, d = new Date(ms);
+    return {
+      hour: d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600,
+      doy: Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000) + 1,
+    };
+  }
+
+  /**
+   * Conditions du ciel envoyées avec chaque image : la météo du jeu ne donne que l'heure et le jour (la vue tire le temps et le vent elle-même) ;
+   * la météo du parcours et les prévisions réelles y ajoutent pluie, vent et température lus à la position du joueur, à l'heure du ciel
+   * (t × vitesse du temps). Sans réglage (autres applications), la météo de la simulation à l'heure de course.
+   */
+  function skyEnv(course, s, t, sky) {
+    if (!sky) return course ? envAt(course, s, t) : {};
+    const tv = t * sky.flow, clock = clockAt(sky.startAt, tv);
+    const env = sky.mode !== 'game' && course ? envAt(course, s, tv) : {};
+    if (clock) { env.hour = clock.hour; env.doy = clock.doy; }
     return env;
   }
 
@@ -159,7 +229,7 @@
       return e;
     };
     const riders = [rider(o.me)].concat((o.others || []).map(rider));
-    return { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
+    return { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.sky ? skyEnv(o.course, o.me.s || 0, o.t || 0, o.sky) : o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
   }
 
   /**
@@ -176,7 +246,11 @@
     const gk = JSON.stringify(o.me.gear || null);
     if (gk !== gearKey) { gearKey = gk; if (o.me.gear) broadcast({ type: 'gear', gear: o.me.gear }); }
     last = o;
-    broadcast(frameMessage(o));
+    const fm = frameMessage(o);
+    // réglages du ciel : envoyés avec la première image et à chaque changement (pas à chaque image)
+    const sk = JSON.stringify(o.sky || null);
+    if (o.sky && sk !== skyKey) { skyKey = sk; fm.sky = o.sky; }
+    broadcast(fm);
   }
 
   /* ---------- messages de la vue ---------- */
@@ -193,7 +267,7 @@
         courseMsg = courseMessage(last.course, last.cps, last.feed, last.me);
         gearKey = JSON.stringify(last.me.gear || null);
         post(src, courseMsg);
-        post(src, frameMessage(last));
+        post(src, Object.assign(frameMessage(last), last.sky ? { sky: last.sky } : {}));
       }
       post(src, { type: 'cmd', cmd: 'sound', on: src === win ? true : sound });
     } else if (m.type === 'status') {
@@ -251,7 +325,7 @@
   function command(cmd, extra) { broadcast(Object.assign({ type: 'cmd', cmd }, extra || {})); }
 
   /** Boutons de la colonne de l'écran de course (game-mobile.js les place) : caméra, son, fenêtre à part. Carte ou 3D : c'est l'écran
-   * choisi sur la page Jeu (Jeu2D ou Jeu3D) qui le fixe. */
+   * choisi sur la page Jeu (VirtualRide2D ou VirtualRide3D) qui le fixe. */
   function buttons() {
     if (btn.cam) return [btn.cam, btn.sound, btn.win];
     // sur téléphone, toucher la vue change de caméra : le bouton n'est que sur grand écran
@@ -277,5 +351,5 @@
 
   if (typeof window !== 'undefined') window.addEventListener('message', onMessage);
 
-  PYR.view3d = { V, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
+  PYR.view3d = { V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
 })(globalThis.PYR = globalThis.PYR || {});

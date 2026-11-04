@@ -12,16 +12,17 @@
   <link rel="stylesheet" href="../Commun/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="../Commun/css/style.css">
   <link rel="stylesheet" href="css/home.css">
+  <link rel="stylesheet" href="../Commun/css/select.css">
 </head>
 <body class="home">
   <header class="hm-top">
-    <a class="brand" href="index.html" aria-label="PaceYourRide — accueil">
+    <a class="brand" href="../index.html" aria-label="PaceYourRide — accueil">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg>
       <span>PaceYourRide</span>
     </a>
     <div class="hm-top-acts">
       <button class="btn ghost" type="button" id="hm-cloud" title="Retrouver tes données sur tous tes appareils, avec ton compte Dropbox"><span class="hm-cloud-ico" aria-hidden="true">☁</span> <span id="hm-cloud-txt">Synchronisation</span></button>
-      <a class="btn ghost" href="documentation.html" target="_blank" rel="noopener" title="Guide d'utilisation, modèles mécanique et physiologique, simulation et algorithmes d'optimisation">Documentation</a>
+      <a class="btn ghost" href="../documentation.html" target="_blank" rel="noopener" title="Guide d'utilisation, modèles mécanique et physiologique, simulation et algorithmes d'optimisation">Documentation</a>
     </div>
     <div class="burger-wrap">
       <button class="btn ghost burger" id="btn-menu" type="button" title="Menu : les pages du site" aria-label="Menu" aria-haspopup="true" aria-expanded="false" aria-controls="site-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
@@ -30,8 +31,9 @@
         <a href="athlete.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>Athlète</span></a>
         <a href="equipement.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17 9.5 8h5l4 9M9.5 8 12.5 17H5.5M14.5 5h2.5"/></svg><span>Équipements</span></a>
         <a href="pacing.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4"/><path d="m12 14 3-3"/><circle cx="12" cy="14" r="8"/></svg><span>Pacing optimal</span></a>
-        <a href="../Jeu2D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Jeu 2D</span></a>
-        <a href="../Jeu3D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Jeu 3D</span></a>
+        <a href="../VirtualRide2D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Virtual Ride 2D</span></a>
+        <a href="../VirtualRide3D/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h4M8 10v4"/><path d="M15 11.5h.01M18 13.5h.01"/><path d="M7 6h10a5 5 0 0 1 5 5v2a4 4 0 0 1-7 2.6L14 14h-4l-1 1.6A4 4 0 0 1 2 13v-2a5 5 0 0 1 5-5z"/></svg><span>Virtual Ride 3D</span></a>
+        <a href="../VirtualRide3DRealiste/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m2 20 7-11 4 6 3-4 6 9z"/><circle cx="17" cy="5" r="2"/></svg><span>Virtual Ride 3D Réaliste</span></a>
         <a href="../Compteur/index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></svg><span>Compteur</span></a>
         <a href="../index.html"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Applications</span></a>
       </nav>
@@ -55,14 +57,14 @@
           <svg class="hm-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg>
           <div>
             <h2 id="hub-route">Parcours</h2>
-            <p>Crée-le, modifie-le, choisis-le.</p>
+            <p>Celui choisi sur la page d'accueil du site.</p>
           </div>
         </header>
         <!-- aperçu du parcours du projet : distance, D+/D-, carte et profil (js/ui/route-preview.js) -->
         <div class="hm-route" id="hm-route" aria-live="polite"></div>
         <div class="hm-acts">
-          <button class="hm-act primary" type="button" id="hm-new-route"><span><b>Créer un parcours</b><small>Un parcours vide, nommé d'après la date et l'heure. Clique sur la carte ; le tracé suit les routes. Tu peux aussi charger un GPX.</small></span><i aria-hidden="true">›</i></button>
-          <button class="hm-act" type="button" id="hm-pick-route"><span><b>Sélectionner un parcours</b><small>Un parcours de ta bibliothèque, ou celui du projet en cours.</small></span><i aria-hidden="true">›</i></button>
+          <a class="hm-act primary" href="parcours.html"><span><b>Modifier le parcours</b><small>Tracer, importer un GPX, placer sprints, côtes, ravitaillements, revêtements et vent.</small></span><i aria-hidden="true">›</i></a>
+          <a class="hm-act" href="../index.html"><span><b>Choisir ou créer un parcours</b><small>Sur la page d'accueil du site, pour toutes les applications.</small></span><i aria-hidden="true">›</i></a>
         </div>
       </article>
 
@@ -94,14 +96,14 @@
             <svg class="hm-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></svg>
             <div>
               <h2 id="hub-athlete">Athlète</h2>
-              <p>Ajoute-le, modifie-le, choisis-le.</p>
+              <p>Celui choisi sur la page d'accueil du site.</p>
             </div>
           </header>
           <!-- profil de l'athlète du projet (rempli par js/home.js) -->
           <div class="hm-athlete" id="hm-athlete" aria-live="polite"></div>
           <div class="hm-acts">
-            <button class="hm-act primary" type="button" id="hm-add-athlete"><span><b>Ajouter un athlète</b><small>Nom, âge, poids, taille et FTP : il rejoint ta bibliothèque.</small></span><i aria-hidden="true">›</i></button>
-            <button class="hm-act" type="button" id="hm-pick-athlete"><span><b>Sélectionner un athlète</b><small>Un athlète de ta bibliothèque, ou celui du projet en cours.</small></span><i aria-hidden="true">›</i></button>
+            <a class="hm-act primary" href="athlete.html"><span><b>Modifier l'athlète</b><small>Profil, courbe de puissance record, seuils, zones et modèle physiologique.</small></span><i aria-hidden="true">›</i></a>
+            <a class="hm-act" href="../index.html"><span><b>Choisir ou ajouter un athlète</b><small>Sur la page d'accueil du site : ta bibliothèque, ou un coureur du World Tour.</small></span><i aria-hidden="true">›</i></a>
           </div>
         </article>
 
@@ -159,8 +161,9 @@
           </div>
         </header>
         <div class="hm-acts">
-          <a class="hm-act primary" href="../Jeu2D/index.html"><span><b>Jeu 2D</b><small>La course sur la carte : choisis un parcours et un athlète de ta bibliothèque, la météo, puis roule.</small></span><i aria-hidden="true">›</i></a>
-          <a class="hm-act" href="../Jeu3D/index.html"><span><b>Jeu 3D</b><small>La même course dans le paysage cartoon de Bike3D.</small></span><i aria-hidden="true">›</i></a>
+          <a class="hm-act primary" href="../VirtualRide2D/index.html"><span><b>Virtual Ride 2D</b><small>La course sur la carte : choisis un parcours et un athlète de ta bibliothèque, la météo, puis roule.</small></span><i aria-hidden="true">›</i></a>
+          <a class="hm-act" href="../VirtualRide3D/index.html"><span><b>Virtual Ride 3D</b><small>La même course dans le paysage cartoon de Bike3D.</small></span><i aria-hidden="true">›</i></a>
+          <a class="hm-act" href="../VirtualRide3DRealiste/index.html"><span><b>Virtual Ride 3D Réaliste</b><small>La même course dans un monde 3D réaliste, pour PC et consoles de salon (carte graphique).</small></span><i aria-hidden="true">›</i></a>
         </div>
       </article>
 
@@ -181,33 +184,6 @@
       <button class="btn" type="button" id="wiz-back">Retour</button>
       <button class="btn primary" type="button" id="wiz-next">Suivant</button>
     </div>
-  </dialog>
-  <!-- ajout d'un athlète à la bibliothèque (js/home.js) -->
-  <dialog class="modal hm-dialog" id="ath-dlg" aria-labelledby="ath-title">
-    <form method="dialog" id="ath-form" novalidate>
-      <header class="wz-head">
-        <h3 id="ath-title">Ajouter un athlète</h3>
-        <button class="btn ghost icon" type="button" id="ath-close" aria-label="Fermer">✕</button>
-      </header>
-      <div class="wz-body ath-body">
-        <div class="field"><label for="ath-name">Nom</label><input type="text" id="ath-name" maxlength="30" autocomplete="off" placeholder="Athlète #aaaammjjhhmmss (par défaut)"></div>
-        <div class="grid2">
-          <div class="field"><label for="ath-sex">Sexe (références de niveau)</label><select id="ath-sex"><option value="m">Homme</option><option value="f">Femme</option></select></div>
-          <div class="field"><label for="ath-birth">Date de naissance</label><input type="date" id="ath-birth" min="1900-01-01"></div>
-        </div>
-        <div class="grid3">
-          <div class="field"><label for="ath-weight">Poids (kg)</label><input type="number" id="ath-weight" min="25" max="200" step="0.1" value="72"></div>
-          <div class="field"><label for="ath-height">Taille (cm)</label><input type="number" id="ath-height" min="120" max="230" step="1" value="178"></div>
-          <div class="field"><label for="ath-ftp">FTP (W)</label><input type="number" id="ath-ftp" min="50" max="600" step="1" value="250"></div>
-        </div>
-        <p class="wz-hint">La puissance critique, le W′ et la courbe de puissance record se règlent ensuite dans le profil physiologique.</p>
-        <p class="wz-warn" id="ath-err" role="alert" hidden></p>
-      </div>
-      <div class="modal-actions wz-foot">
-        <button class="btn" type="button" id="ath-cancel">Annuler</button>
-        <button class="btn primary" type="submit">Ajouter à ma bibliothèque</button>
-      </div>
-    </form>
   </dialog>
   <!-- synchronisation avec Dropbox (js/core/cloud.js) -->
   <dialog class="modal hm-dialog" id="cloud-dlg" aria-labelledby="cloud-title">
