@@ -19,6 +19,8 @@
   const MAX_R = 0.7;       // réduction maximale du CdA : cœur d'un grand groupe
   const PACK_REACH = 12;   // m : portée de l'abri collectif ; un coureur devant à cet écart compte pour 1/e
   const PACK_MAX = 40;     // m entre les roues : au-delà, un coureur devant n'ajoute plus rien
+  const LEAD_BACK = 14, LEAD_REACH = 6, LEAD_SCALE = 4; // surpression d'un peloton derrière celui qui mène : portée (m entre les roues), échelle (m), nombre pondéré de coureurs derrière
+  const LEAD_PACK = 0.14;  // réduction maximale de CdA de celui qui mène devant un grand peloton (Blocken et al. 2018 : 86 % de la traînée seul)
   const PACK_SCALE = 3.5;  // nombre de coureurs devant (pondéré) à partir duquel l'abri collectif est saturé aux 2/3
 
   /** Réduction de CdA d'un suiveur selon l'espace entre les roues (m). */
@@ -33,6 +35,11 @@
     if (!(gapBehind >= -0.5) || gapBehind > 3) return 0;
     const g = gapBehind < 0.3 ? 0.3 : gapBehind;
     return 0.03 * Math.exp(-(g - 0.3) / 0.8);
+  }
+
+  /** Réduction de CdA de celui qui mène devant un peloton : `back` = nombre de coureurs derrière, pondéré par leur éloignement (exp(−écart/LEAD_REACH)) ; ≈ 3 % avec un coureur collé, 14 % devant un grand peloton. */
+  function packLead(back) {
+    return LEAD_PACK * (1 - Math.exp(-Math.max(0, back) / LEAD_SCALE));
   }
 
   /**
@@ -100,7 +107,14 @@
       // cœur d'un grand groupe : abrité aussi sur les côtés (le modèle ne connaît qu'une file), jusqu'à +20 % d'abri
       const wide = gs > 8 && i - first[group[i]] >= 5 ? 1 + 0.2 * (1 - Math.exp(-(gs - 8) / 20)) : 1;
       const follow = wheel[i] >= 0 ? followReduction(gapAhead) * packBoost(extra) * wide : 0;
-      const lead = leadReduction(gapBehind) * (gs >= 3 ? 1.4 : 1);
+      let back = 0;
+      for (let j = i + 1; j < n; j++) {
+        const a = order[i].s - order[j].s - BIKE;
+        if (a > LEAD_BACK) break;
+        if (a >= -0.5) back += Math.exp(-Math.max(0, a) / LEAD_REACH);
+      }
+      const lead0 = leadReduction(gapBehind) * (gs >= 3 ? 1.4 : 1);
+      const lead = Math.max(lead0, packLead(back));
       let R = follow + (follow > 0 ? 0.5 * lead : lead);
       R *= crossFactor(x.wc, x.v);
       if (R > MAX_R) R = MAX_R;
@@ -121,5 +135,5 @@
     return 0.5 * cond.rho * setup.cda * Math.sqrt(va * va + cond.wc * cond.wc) * va * v / setup.eta;
   }
 
-  PYR.draft = { BIKE, RANGE, GROUP_GAP, MAX_R, followReduction, leadReduction, packBoost, crossFactor, field, aeroPower };
+  PYR.draft = { BIKE, RANGE, GROUP_GAP, MAX_R, LEAD_PACK, LEAD_BACK, LEAD_REACH, packLead, followReduction, leadReduction, packBoost, crossFactor, field, aeroPower };
 })(globalThis.PYR = globalThis.PYR || {});

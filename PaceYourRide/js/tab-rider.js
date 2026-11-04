@@ -80,6 +80,8 @@
         } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); }
       });
 
+      // catégorie : « Automatique » (d'après les watts par kilo) puis les sept catégories ; le texte de la première option dit celle qui en résulte (render)
+      D.fillSelect($('#r-division'), [{ id: '', label: 'Automatique' }].concat(PYR.riderRadar.DIVISIONS.map((d) => ({ id: d.id, label: d.full }))), store.state.rider.division || '');
       D.fillSelect($('#r-gut'), PYR.fuel.GUT_LEVELS.map((l) => ({ id: String(l.value), label: l.label })), String(store.state.rider.gut));
 
       // tableau des records
@@ -208,6 +210,24 @@
         inp.placeholder = U.fmt(est, dec);
         inp.classList.toggle('estimated', src !== 'saisie');
         $(`#r-${k}-src`).textContent = src === 'saisie' ? 'saisie' : `estimée : ${U.fmt(est, dec)}`;
+      });
+      // catégorie et toile d'araignée de l'athlète, à l'échelle de sa catégorie
+      const rs = PYR.riderRadar.scores(r);
+      const sel = $('#r-division');
+      sel.options[0].textContent = `Automatique : ${rs.auto.full}`;
+      if (document.activeElement !== sel) sel.value = r.division || '';
+      $('#r-division-note').textContent = rs.chosen ? `Catégorie choisie : ${rs.division.full} (d'après tes watts par kilo : ${rs.auto.full}).` : `D'après tes watts par kilo (FTP et 5 min) : ${rs.division.full}.`;
+      const box = $('#r-radar');
+      D.clear(box);
+      box.appendChild(PYR.libPick.radarSvg(rs));
+      box.appendChild(h('div', { class: 'gs-ath-spec' }, 'Profil : ', h('b', null, PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[0]).label), ' · ', PYR.riderRadar.CATEGORIES.find((c) => c.id === rs.best[1]).short, ' — échelle : ', h('b', null, rs.division.full)));
+      // CdA du corps seul : estimation d'après la taille et le poids en gris, source sous chaque champ
+      const bc = PYR.physics.bodyCda(r);
+      [['road', 'cda-road'], ['sprint', 'cda-sprint'], ['tt', 'cda-tt']].forEach(([k, id]) => {
+        const inp = $('#r-' + id);
+        inp.placeholder = U.fmt(bc.est[k], 3);
+        inp.classList.toggle('estimated', bc.src[k] !== 'saisie');
+        $(`#r-${id}-src`).textContent = bc.src[k] === 'saisie' ? 'saisi' : `estimé : ${U.fmt(bc.est[k], 3)}`;
       });
       // note du modèle
       const note = $('#rider-model-note');

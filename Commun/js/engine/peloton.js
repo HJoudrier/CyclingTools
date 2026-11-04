@@ -11,8 +11,9 @@
  *   abri de la paire = followReduction(a) · λ (draft.js) — sans vent et dans l'axe, c'est exactement le modèle en file.
  * La roue est la paire la plus abritante ; la rangée devant la complète (couverture), les coureurs plus loin devant
  * renforcent l'abri (packBoost, pondéré par leur décalage latéral) et les voisins des deux côtés (du côté du vent par vent
- * de côté) l'enferment : au cœur d'un grand peloton compact, on ne subit plus que ≈ 7 à 12 % de la traînée seul
- * (Blocken et al. 2018 : 5 à 10 %). Un coureur contre le bord sous le vent, dont la place idéale tombe hors de la route,
+ * de côté) l'enferment : au cœur d'un grand peloton compact, on ne subit plus que ≈ 5 % de la traînée seul au vent
+ * (le sillage collectif profond referme les flancs au fil des rangs, la surpression du peloton récompense le meneur : 86 à 90 % de la
+ * traînée, flancs des premiers rangs 55 à 65 % — Blocken et al. 2018, 121 coureurs, tests/peloton-blocken.test.js). Un coureur contre le bord sous le vent, dont la place idéale tombe hors de la route,
  * est « en bordure » (edge).
  *
  * Placement (steer, chaque seconde, d'avant en arrière) : besoin d'abri `need` (effort seul au vent rapporté à la FTP,
@@ -38,10 +39,13 @@
   const EDGE = 0.35;      // m : marge au bord de la route (centre du coureur)
   const SIGMA0 = 0.40, SIGMA_K = 0.04; // m, sans unité : largeur du cœur du sillage au contact, et son élargissement avec la distance
   const SHOULDER = 0.4, SIGMA_W0 = 1.0, SIGMA_WK = 0.05; // part et largeur de l'« épaule » du sillage : un peu d'abri en diagonale, derrière et sur le côté
-  const PACK_REACH = 12, PACK_MAX = 40, PACK_SIGMA = 1.2; // abri collectif : portée, limite (m), largeur latérale (m)
-  const ENC = 0.4;        // renforcement maximal de l'abri par l'enfermement (voisins des deux côtés)
+  const PACK_REACH = 12, PACK_MAX = 40, PACK_SIGMA = 0.5; // abri collectif : portée, limite (m), largeur latérale (m)
+  const ENC = 0.3;        // renforcement maximal de l'abri par l'enfermement (voisins des deux côtés)
   const CROSS_K = 0.5;    // le vent de côté brasse le sillage : abri divisé par 1 + 0,5·tb²
-  const MAX_R = 0.93;     // réduction maximale du CdA : 7 % de la traînée seul au vent
+  const MAX_R = 0.95;     // réduction maximale du CdA : 5 % de la traînée seul au vent (cœur d'un peloton de 121 coureurs, Blocken et al. 2018)
+  const WIDE_REACH = 40, WIDE_SIGMA = 2, WIDE_SCALE = 12, WIDE_GAIN = 0.7; // sillage collectif profond : les coureurs loin devant, même sur le côté, ferment le sillage des flancs
+  const WIDE_FROM = 14;   // m : en deçà, les coureurs sont déjà comptés par la rangée de devant et par packBoost
+  const LEAD_SIGMA = 1.2; // m : largeur latérale de la surpression derrière celui qui mène (portée et gain : draft.js, jusqu'à 14 %, Blocken et al. 2018)
   const VY_MAX = 0.6, VY_FORCE = 1.2; // m/s : vitesse latérale ; pour rentrer sur la route qui se rétrécit
   const FREE_MAX = 20;    // m : route dégagée devant prise en compte pour choisir une voie
   const SWITCH = 1;       // m : on ne change de roue que pour une nettement meilleure
@@ -214,7 +218,7 @@
         if (P.R > bestR) { bestR = P.R; best = k; }
         k++;
       }
-      let follow = 0, extra = 0, cov = 0, aStar = Infinity;
+      let follow = 0, extra = 0, cov = 0, wide = 0, aStar = Infinity;
       wheel[i] = -1;
       if (best >= 0) {
         aStar = gA[best];
@@ -222,6 +226,7 @@
         for (let q = 0; q < k; q++) {
           if (Math.abs(gA[q] - aStar) < 1 && gA[q] <= Dr.RANGE) cov += gL[q]; // la rangée devant
           else extra += Math.exp(-gA[q] / PACK_REACH) * Math.exp(-(gC[q] * gC[q]) / (PACK_SIGMA * PACK_SIGMA));
+          if (gA[q] > WIDE_FROM) wide += Math.exp(-gA[q] / WIDE_REACH) * Math.exp(-(gC[q] * gC[q]) / (WIDE_SIGMA * WIDE_SIGMA));
         }
         if (cov > 1) cov = 1;
         // enfermement : voisins à côté et un peu devant, de chaque côté
@@ -242,7 +247,7 @@
         const fL = 1 - Math.exp(-wl / 1.2), fR = 1 - Math.exp(-wr / 1.2);
         const om = Math.min(1, Math.abs(tb));
         const E = (1 - om) * fL * fR + om * (tb > 0 ? fR : fL);
-        follow = Dr.followReduction(aStar) * cov * Dr.packBoost(extra) * (1 + ENC * E);
+        follow = Dr.followReduction(aStar) * cov * Dr.packBoost(extra) * (1 + ENC * E) * (1 + WIDE_GAIN * (1 - Math.exp(-wide / WIDE_SCALE)) * Math.min(1, fL + fR) * (1 - om));
         chain[i] = chain[wheel[i]] + 1;
         // sillage de la roue : le plus proche des coureurs qui s'y abritent vraiment
         if (gL[best] >= 0.5 && aStar < tailA[wheel[i]]) { tailA[wheel[i]] = aStar; tailI[wheel[i]] = i; }
@@ -253,7 +258,17 @@
     for (let i = 0; i < n; i++) {
       const x = order[i], r = res[i], gs = size[group[i]];
       const gapBehind = tailI[i] >= 0 && tailA[i] <= 3 ? tailA[i] : Infinity; // comme draft.js : quelqu'un collé à notre roue
-      const lead = Dr.leadReduction(gapBehind) * (gs >= 3 ? 1.4 : 1);
+      // surpression d'un peloton derrière : les coureurs derrière (pondérés par l'écart et le décalage latéral) poussent l'air devant eux
+      let back = 0;
+      for (let j = i + 1; j < n && x.s - order[j].s - BIKE <= Dr.LEAD_BACK; j++) {
+        const a = x.s - order[j].s - BIKE;
+        if (a < -0.5) continue;
+        const d = ys[i] - ys[j];
+        back += Math.exp(-Math.max(0, a) / Dr.LEAD_REACH) * Math.exp(-(d * d) / (LEAD_SIGMA * LEAD_SIGMA));
+      }
+      const lead0 = Dr.leadReduction(gapBehind) * (gs >= 3 ? 1.4 : 1);
+      const om = 1 - Math.min(1, Math.abs(r.tb));
+      const lead = Math.max(lead0, Dr.packLead(back) * om * om); // le vent de côté disperse la surpression
       let R = r.follow + (r.follow > 0 ? 0.5 * lead : lead);
       R /= 1 + CROSS_K * r.tb * r.tb;
       if (R > MAX_R) R = MAX_R;
@@ -480,6 +495,26 @@
     return best;
   }
 
+  /**
+   * Le joueur qui suit une roue : un coureur plus lent juste devant dans la voie visée (qui n'est pas la roue suivie) l'obligerait à freiner
+   * (garde-fou) ; il s'écarte de quelques centimètres pour passer à côté (MIN_DY de plus un peu de marge), du côté le plus proche de sa
+   * voie, si la route le permet. Renvoie la voie visée, éventuellement décalée.
+   */
+  function dodge(ctx, i, ty, wheelId, hw) {
+    const { ents, ys } = ctx, e = ents[i], s = e.s, v = e.v || 0;
+    let out = ty;
+    for (let j = i - 1; j >= 0; j--) {
+      const o = ents[j], dx = o.s - s;
+      if (dx - BIKE > 6) break;
+      if (o.stopped || o.id === wheelId || dx < BIKE - 0.5 || (o.v || 0) > v + 0.3) continue;
+      if (Math.abs(ys[j] - out) >= MIN_DY + 0.02) continue;
+      const a = ys[j] + MIN_DY + 0.05, b = ys[j] - MIN_DY - 0.05;
+      const okA = a <= hw, okB = b >= -hw;
+      if (okA && (!okB || Math.abs(a - out) <= Math.abs(b - out))) out = a; else if (okB) out = b;
+    }
+    return out;
+  }
+
   /** Place idéale dans le sillage de l'entrée w, pour un coureur en s avec le lacet tb. */
   function wakeY(ctx, w, s, tb) {
     return yOf(ctx, w) - (Math.max(0, w.s - s - BIKE) + 0.1) * tb;
@@ -546,7 +581,14 @@
         if (gap > 1 && gap > freeAt(ctx, i, L.y) + 1) free = true; // quelqu'un entre la roue et nous : on la rejoint par une voie libre
         // par vent de côté, loin derrière sa roue et sans abri : on mène la chasse côté vent, l'éventail se forme derrière nous
         else if (gap > 5 && Math.abs(tb) > 0.2 && info && info.R < 0.05) ty = L.y + om * (sgn * hwA - L.y);
-        else if (!taken(w, r.id, gap)) { ty = wakeY(ctx, w, s, tb); plain = true; }
+        else if (!taken(w, r.id, gap)) {
+          ty = wakeY(ctx, w, s, tb); plain = true;
+          // le joueur trop près de la roue s'écarte un peu (côté où il y a de la place) pour ne pas la toucher
+          if (!r.bot && gap < 0.3 && LAYER_MODES.includes(tac.mode)) {
+            const side = L.y >= (Number.isFinite(w.y) ? w.y : 0) ? 1 : -1;
+            ty = clamp(ty + side * clamp((0.3 - gap) * 1.2, 0, 0.35), -hwA, hwA);
+          }
+        }
         else idle = true;
       } else {
         const front = info && info.groupSize > 1 && info.rank === 0 && info.role !== 'follow';
@@ -569,6 +611,7 @@
     // qu'on remonte (sauf qui y remonte, qui s'y laisse glisser après son relais, ou le joueur en allure libre)
     const band = hwA - LANE;
     if (!free && calm && auto && band >= LANE && !(L.nudge && t < L.nudge.until) && tac.phase !== 'swing') ty = clamp(ty, -band, band);
+    if (!free && !r.bot && LAYER_MODES.includes(tac.mode) && !(L.nudge && t < L.nudge.until) && tac.mode !== 'relay') ty = dodge(ctx, i, ty, tac.wheel, hwA);
     if (free) ty = freeLane(ctx, i, L, L.y, hwA, rm); else L.freeTy = null;
     // virage : on descend à la corde, côté intérieur, dès qu'il approche (le joueur en allure libre garde sa voie, ← → pour la prendre)
     L.line = 0;
@@ -757,7 +800,9 @@
       const c = cost(o);
       if (c < bestC) { bestC = c; best = o; }
     }
-    let w = curE && !(bestC < curC - SWITCH) ? curE : best;
+    // joueur : on ne change pas de roue à chaque seconde (3 s au moins) ni pour une roue à peine meilleure
+    const settled = !r.bot && curE && r.st.t - (r.tac.wheelT || -99) < 3;
+    let w = curE && (settled || !(bestC < curC - (r.bot ? SWITCH : 2 * SWITCH))) ? curE : best;
     if (L.need > 0.5) {
       // personne devant, mais quelqu'un à notre hauteur (et devant nous, à égalité selon l'identifiant) : on se range derrière lui
       if (!w) {
