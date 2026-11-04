@@ -47,6 +47,7 @@
   const SWITCH = 1;       // m : on ne change de roue que pour une nettement meilleure
   const RELAY_FRONT = 12; // places : les coureurs virtuels ne prennent les relais qu'en tête du groupe
   const NUDGE_S = 3;      // s : décalage demandé par le joueur (← →), avant que le placement automatique reprenne
+  const SWING_DY = 0.9;   // m : écart latéral de celui qui s'écarte après son relais (un rang et demi)
   const ROW = 2.2;        // m : écart entre deux rangs de la grille de départ
   const OVERLAP = 0.2;    // m : deux coureurs dont les positions sont à moins de BIKE + 0,2 m se chevauchent (côte à côte)
   const GAP_MIN = 0.05;   // m : écart minimal entre la roue arrière de celui de devant et notre roue avant (contrainte stricte, resolve)
@@ -530,8 +531,9 @@
       // on s'écarte d'un rang, côté vent (on abrite la ligne qui monte), sinon vers le milieu de la route
       if (L.swingY === null) {
         const side = Math.abs(tb) > 0.1 ? sgn : L.y > 0.2 ? -1 : L.y < -0.2 ? 1 : -1;
-        let sy = clamp(L.y + side * LANE, -hwA, hwA);
-        if (Math.abs(sy - L.y) < 0.4) sy = clamp(L.y - side * LANE, -hwA, hwA);
+        // un rang et demi : les suiveurs ont chacun leur décalage personnel (± OFF_MAX), un rang seul peut les laisser dans sa voie
+        let sy = clamp(L.y + side * SWING_DY, -hwA, hwA);
+        if (Math.abs(sy - L.y) < 0.4) sy = clamp(L.y - side * SWING_DY, -hwA, hwA);
         L.swingY = sy;
       }
       ty = L.swingY;
@@ -540,8 +542,10 @@
     } else if (L.mode === 'up' || tac.phase === 'move' || tac.mode === 'attack' || tac.mode === 'sprint') {
       free = true;
     } else {
+      // la roue visée est celle d'un coureur qui s'écarte (fin de relais) : on ne glisse pas avec lui dans sa nouvelle voie, sinon celui qui
+      // doit passer se retrouve dans la voie de celui qui lui cède le passage, ils ne peuvent plus se doubler et tout le groupe ralentit
       const w = tac.wheel ? byId.get(tac.wheel) : null;
-      if (w && !w.stopped && w.s - s > -(BIKE - 0.5)) {
+      if (w && !w.stopped && w.phase !== 'swing' && w.s - s > -(BIKE - 0.5)) {
         const gap = w.s - s - BIKE;
         if (gap > 1 && gap > freeAt(ctx, i, L.y) + 1) free = true; // quelqu'un entre la roue et nous : on la rejoint par une voie libre
         // par vent de côté, loin derrière sa roue et sans abri : on mène la chasse côté vent, l'éventail se forme derrière nous
@@ -788,6 +792,18 @@
     return L.nudge.y;
   }
 
+  /**
+   * Demande une position latérale y (m) pendant `secs` secondes (stratégie d'un coureur virtuel : se placer côté vent pour abriter
+   * un coureur, s'écarter après un relais) ; le placement automatique reprend ensuite. Renvoie la voie visée, ou null sans peloton 2D.
+   */
+  function steerTo(r, y, t, secs, course) {
+    const L = r.lat;
+    if (!L) return null;
+    const hw = halfWidth(course || (r.ctx && r.ctx.course), r.st.s);
+    L.nudge = { y: clamp(y, -hw, hw), until: t + (secs || NUDGE_S) };
+    return L.nudge.y;
+  }
+
   /** Voies d'une route de demi-largeur hw, écartées de LANE et centrées. */
   function lanes(hw) {
     const n = Math.max(1, Math.floor((2 * hw) / LANE + 1e-9) + 1);
@@ -828,7 +844,7 @@
 
   PYR.peloton = {
     RIDER_W, LANE, MIN_DY, EDGE, MAX_R, RELAY_FRONT, ROW,
-    halfWidth, halfAhead, yaw, pair, field, state, setY, steer, guard, resolve, pickWheel, nudge, lanes, grid, place,
+    halfWidth, halfAhead, yaw, pair, field, state, setY, steer, guard, resolve, pickWheel, nudge, steerTo, lanes, grid, place,
     lineWeights, cornerAhead, pathFactor, applyLine,
   };
 })(globalThis.PYR = globalThis.PYR || {});

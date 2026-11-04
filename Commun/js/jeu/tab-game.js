@@ -249,7 +249,7 @@
       // le vent, la météo et les revêtements font partie du parcours simulé (et des manches à air affichées)
       ['winds', 'weather', 'surfaces', 'env', 'road', 'checkpoints', 'feedZones'].forEach((e) => store.on(e, () => { if (!G.running && !G.counting && !G.liveStart) T.reset(); }));
       store.on('game', (ev) => {
-        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|pullSec|peloton|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
+        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|pullSec|peloton|strategy|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
         // course en direct pas encore partie : on peut encore choisir avatar, home-trainer ou route (la partie est réarmée)
         else if (ev && ev.path === 'game.source' && G.liveStart && !G.running) T.armLive(G.liveStart);
       });
@@ -387,7 +387,7 @@
       const r = G.mode === 'solo' ? null : currentRules();
       note.hidden = !r;
       if (!r) return;
-      const on = [r.events && 'incidents', r.form && 'forme du jour', r.fuel && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D'].filter(Boolean);
+      const on = [r.events && 'incidents', r.form && 'forme du jour', r.fuel && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D', r.strategy && 'stratégies des coureurs virtuels'].filter(Boolean);
       const cl = CV.cpsText(G.cps);
       // défi ou course d'une ancienne version, sans peloton en 2D : ses règles sont figées, les coureurs y roulent en file
       const file = r.peloton ? '' : ' Coureurs en file (règle d\'une ancienne version) : ils peuvent s\'y chevaucher.';
@@ -902,7 +902,7 @@
           if (r === G.me) continue;
           const s = r.finished ? L : Math.min(L, ext === undefined ? r.prevS + (r.st.s - r.prevS) * f : r.st.s + r.st.v * ext);
           const y = r.lat ? (ext === undefined ? r.lat.prevY + (r.lat.y - r.lat.prevY) * f : r.lat.y) : undefined;
-          out.push({ id: r.id, name: r.name, color: r.color, s, y, v: r.st.v, P: r.lastP, time: r.finished ? r.time : null, bot: true, stopped: !!r.incident });
+          out.push({ id: r.id, name: r.name, color: r.color, s, y, v: r.st.v, P: r.lastP, time: r.finished ? r.time : null, bot: true, stopped: !!r.incident, strat: r.strat || undefined });
         }
       }
       if (G.mode === 'live' && PYR.live) {
@@ -1001,7 +1001,9 @@
       for (const o of T.others(t)) {
         const ghost = !o.live && !o.bot;
         const fin = ghost ? o.s >= L - 0.5 : o.time !== null && o.time !== undefined;
-        const row = { me: false, id: o.id, name: o.name, color: o.color, s: fin ? L : o.s, v: o.stopped ? 0 : o.v, fin, time: fin ? o.time : null, stopped: !!o.stopped };
+        const row = { me: false, id: o.id, name: o.name, color: o.color, s: fin ? L : o.s, v: o.stopped ? 0 : o.v, fin, time: fin ? o.time : null, stopped: !!o.stopped,
+          // rôle et objectif du moment d'un coureur virtuel (stratégies)
+          info: o.strat && PYR.strategy ? `${PYR.strategy.ROLES[o.strat.role].label} — ${o.strat.label}` : null };
         row.dd = row.s - myS; // > 0 : devant toi (m)
         if (myFin && fin) row.dt = row.time !== null ? st.tFinish - row.time : 0; // > 0 : arrivé avant toi
         else if (myFin) row.dt = -Infinity;                                       // encore en route : derrière toi
@@ -1074,7 +1076,7 @@
         }
         body.appendChild(h('tr', { class: r.me ? 'me' : '' },
           h('td', null, String(i + 1)),
-          h('td', { class: 'name', title: r.name }, (r.me && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { '--c': r.color } }), r.name, r.stopped ? ' ⚠' : ''),
+          h('td', { class: 'name', title: r.info ? `${r.name} · ${r.info}` : r.name }, (r.me && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { '--c': r.color } }), r.name, r.stopped ? ' ⚠' : ''),
           h('td', { class: 'r' }, tCell), h('td', { class: 'r' }, dCell),
           h('td', { class: 'r' }, r.v !== undefined && r.v !== null && !r.fin ? U.fmt(r.v * 3.6, 0) : '–')));
       });
@@ -1938,6 +1940,9 @@
         const names = new Map(riders.map((r) => [r.id, r.name]));
         const name = (id) => names.get(id) || '?';
         leads.appendChild(CV.leaders(cps, sd, name, 'me'));
+        // dossard de combativité (stratégies des coureurs virtuels) : le plus offensif jusqu'ici
+        const fight = G.race && G.race.strat && PYR.strategy ? PYR.strategy.combativity(G.race)[0] : null;
+        if (fight) leads.appendChild(h('div', { class: 'classif-lead' }, h('span', null, '🔥 Combativité : '), h('strong', null, name(fight.id))));
         pPoints.appendChild(CV.table(sd.points, name, 'me', 'green'));
         if (cps.some((c) => c.type === 'kom')) pKom.appendChild(CV.table(sd.kom, name, 'me', 'kom'));
         pPass.appendChild(CV.passages(cps, sd, name, 'me'));

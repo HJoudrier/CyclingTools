@@ -51,6 +51,7 @@
       timeScale: 5, ghost: true, follow: true,
       countdown: 5,            // décompte avant le départ (s, temps réel ; 0 : aucun), affiché sur l'écran de course
       bots: 3, botLevel: 'equal', events: true, form: true, fuel: true, pullSec: 30,
+      strategy: true,         // stratégies des coureurs virtuels : équipes, rôles et objectifs (strategy.js) ; sans elles, les coureurs d'avant
       source: 'avatar',        // présence dans la course (presence.js) : avatar, home-trainer (watts mesurés) ou vraie route (GPS)
       trainerSim: true,        // home-trainer FTMS : il reçoit la pente, le vent et l'abri du peloton
       northUp: false,          // carte : nord en haut (boussole) ; sinon elle suit l'orientation du cycliste, comme le compteur

@@ -12,10 +12,10 @@
 (function (PYR) {
   'use strict';
 
-  const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
+  const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Strat = PYR.strategy, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
 
   // peloton : positions latérales et aspiration en deux dimensions (peloton.js) ; sans elle, tout le monde roule dans l'axe (une file)
-  const RULES = { events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false };
+  const RULES = { events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false, strategy: false };
   // modèle physiologique : la courbe record ne limite que les efforts de 20 min au plus, la durabilité vient de la couche lente
   const PHYSIO_REC_MAX = 1200;
   const PUNCTURE_KM = 250;  // une crevaison tous les 250 km en moyenne (asphalte, pneus route) ; revêtement et pneus la modulent
@@ -68,6 +68,8 @@
       sprints: Math.min(Cl.MAX_SPRINTS, Math.max(0, Math.floor(Number(x.sprints) || 0))), kom: !!x.kom,
       draft: x.draft !== false,   // aspiration : désactivée (false) pour les défis contre des coureurs virtuels en sortie réelle
       peloton: x.peloton === true && x.draft !== false, // seulement demandé explicitement : les anciens défis et courses restent en file
+      // stratégies des coureurs virtuels (strategy.js) : équipes, rôles, objectifs ; explicite aussi, les anciens défis gardent leurs coureurs d'avant
+      strategy: x.strategy === true,
     };
   }
 
@@ -215,6 +217,7 @@
     if (c.vlim < 16 && st.v > c.vlim - 1.5) risk *= 3;          // virage pris à la limite
     if (d.role === 'follow' && d.gapAhead < 0.8) risk *= 1.5;   // collé à la roue
     if (r.tac.mode === 'sprint' && d.groupSize > 1) risk *= 2;  // sprint en groupe
+    if (race.rules.strategy && d.groupSize >= 12) risk *= Strat.depthRisk(d.rank, d.groupSize); // gros groupe : plus de chutes au fond qu'à l'avant
     const pC = km / CRASH_KM * risk;
     const u = race.rnd();
     if (u < pP) {
@@ -312,7 +315,7 @@
 
     let Pcmd = 0;
     if (!c.stopped) {
-      if (r.bot) Tac.think(r, view, race);
+      if (r.bot) { if (race.rules.strategy) Strat.think(r, view, race); else Tac.think(r, view, race); }
       // cycliste réel : ses watts mesurés (home-trainer) ; sur la route, ceux de son capteur
       Pcmd = r.driven ? (r.drive && Number.isFinite(r.drive.P) ? r.drive.P : 0) : r.measured ? Math.max(0, Number(r.tac.cmd) || 0) : Tac.command(r, view, race.rules);
       if (race.feed.length) {
@@ -383,6 +386,7 @@
   /** Avance la course d'une seconde (tous les coureurs simulés localement). */
   function step(race) {
     const view = snapshot(race);
+    if (race.rules.strategy) Strat.tick(race, view); // équipes, situation de course, combativité (une fois par seconde)
     let order = race.riders;
     if (race.rules.peloton && race.rules.draft !== false) {
       Pel.steer(race, view); // placement latéral pour la seconde à venir
