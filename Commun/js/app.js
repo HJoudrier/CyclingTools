@@ -239,6 +239,7 @@
       PYR.gameMobile.init();
     }
     part('#g-go', () => PYR.gameSetup.init());
+    part('#gs-team-sec', () => PYR.teamSetup.init());
     part('#ride', () => PYR.tabRide.init());
     PYR.chartConfig.init();
     part('#challenge-box', () => PYR.challenges.render());

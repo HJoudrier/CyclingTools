@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="../Commun/css/style.css">
   <link rel="stylesheet" href="../Commun/css/game-mobile.css">
   <link rel="stylesheet" href="../Commun/css/ride.css">
+  <link rel="stylesheet" href="../Commun/css/team.css">
 </head>
 <body data-page="race" data-tab="game" data-display="3d">
   <header class="topbar">
@@ -135,6 +136,8 @@
       <!-- ============ JEU : écran de course (monde 3D réaliste, VirtualRide3DRealiste/monde/, par Commun/js/jeu/view3d.js) ============ -->
       <section class="panel" data-panel="game">
         <h2>Course <small class="game-display-name">· 3D réaliste</small></h2>
+        <!-- mode équipe : une vignette par coureur de ton équipe, pour le suivre et basculer de l'un à l'autre (Commun/js/jeu/team-panel.js) -->
+        <section class="team-panel" id="team-panel" aria-label="Ton équipe" hidden></section>
         <!-- sections du panneau : classements, puis (grand écran, selon leur réglage) statistiques, profil d'élévation et puissance selon la durée ;
              l'ordre se règle dans la fenêtre de configuration de chaque bloc (propriété order de chaque section) -->
         <div class="game-side-charts" id="game-side-charts">

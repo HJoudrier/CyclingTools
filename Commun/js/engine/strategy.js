@@ -118,7 +118,7 @@
   }
 
   function setRole(r, role, team, rnd, extra) {
-    const b = r.bot || {};
+    const b = r.bot || r.botProfile || {};
     // le rôle accentue le goût du coureur (sans jamais l'affaiblir) : les autres décisions (lignes, attaques) s'en servent
     if (role === 'sprinter') b.sprint = Math.max(b.sprint || 0, 0.8);
     else if (role === 'climber') b.climb = Math.max(b.climb || 0, 0.8);
@@ -160,25 +160,42 @@
 
   function applyLayout(race, S, layout) {
     const rnd = S.rnd, byId = S.by;
-    (layout.teams || []).forEach((t, i) => {
-      if (!t.riders) return;
-      const tm = newTeam(i, t.ambition || 'win');
-      for (const x of t.riders) {
-        const r = byId.get(x.id);
-        if (!r || !r.bot) continue;
-        tm.ids.push(r.id);
-        if (x.role === 'sprinter' || (!tm.sprinter && t.leader === r.id && tm.ambition === 'sprint')) tm.sprinter = r.id;
-        if (x.role === 'pilot') tm.pilot = r.id;
-        if (x.role === 'leadout') tm.leadouts.push(r.id);
-        if (x.role === 'protector') tm.protector = r.id;
-        setRole(r, x.role === 'protector' ? 'domestique' : x.role, i, rnd, x.role === 'protector' ? { protector: true } : null);
-      }
-      tm.leader = t.leader || tm.ids[0];
-      markProtector(S, tm);
-      for (const id of tm.ids) wire(S, tm, byId.get(id));
-      S.teams.push(tm);
-    });
-    for (const x of layout.solo || []) { const r = byId.get(x.id); if (r && r.bot) setRole(r, x.role, -1, rnd); }
+    (layout.teams || []).forEach((t, i) => { if (t.riders) S.teams.push(teamFromSpec(S, i, t)); });
+    for (const x of layout.solo || []) { const r = byId.get(x.id); if (r && (r.bot || r.botProfile)) setRole(r, x.role, -1, rnd); }
+  }
+
+  /** Équipe d'après sa description {ambition, leader, riders: [{id, role}]} (les rôles : ROLES, plus « protector » : équipier protecteur). */
+  function teamFromSpec(S, i, t) {
+    const rnd = S.rnd, byId = S.by;
+    const tm = newTeam(i, t.ambition || 'win');
+    for (const x of t.riders) {
+      const r = byId.get(x.id);
+      if (!r || !(r.bot || r.botProfile)) continue;
+      tm.ids.push(r.id);
+      if (x.role === 'sprinter' || (!tm.sprinter && t.leader === r.id && tm.ambition === 'sprint')) tm.sprinter = r.id;
+      if (x.role === 'pilot') tm.pilot = r.id;
+      if (x.role === 'leadout') tm.leadouts.push(r.id);
+      if (x.role === 'protector') tm.protector = r.id;
+      setRole(r, x.role === 'protector' ? 'domestique' : x.role, i, rnd, x.role === 'protector' ? { protector: true } : null);
+    }
+    tm.leader = t.leader || tm.ids[0];
+    markProtector(S, tm);
+    for (const id of tm.ids) wire(S, tm, byId.get(id));
+    return tm;
+  }
+
+  /**
+   * Change les rôles d'une équipe en cours de course (mode équipe : le joueur modifie le plan d'un coureur) : mêmes champs que layout.teams[i].
+   * Le train, le contrôle et le reste de l'état de la course sont conservés ; le train se reforme si ses lanceurs ont changé.
+   */
+  function setTeamRoles(race, i, spec) {
+    const S = race.strat;
+    if (!S || !S.teams[i]) return null;
+    const old = S.teams[i], tm = teamFromSpec(S, i, spec);
+    tm.control = old.control;
+    if (old.train && old.leadouts.join() === tm.leadouts.join() && old.sprinter === tm.sprinter) tm.train = old.train;
+    S.teams[i] = tm;
+    return tm;
   }
 
   const newTeam = (i, ambition) => ({
@@ -330,6 +347,8 @@
   /* ---------- équipes : contrôle, bordures, train (une fois par seconde) ---------- */
 
   const rider = (S, id) => S.by.get(id);
+  /** Niveau d'un coureur virtuel (1 pour celui que le joueur pilote, dont les préférences sont mises de côté). */
+  const levelOf = (r) => { const b = r && (r.bot || r.botProfile); return b && b.level > 0 ? b.level : 1; };
 
   function teamTick(race, S, sit) {
     const L = sit.L;
@@ -353,9 +372,9 @@
       if (toGo > CONTROL_END && brk.gapT > 4) {
         if (tm.ambition === 'sprint') want = true;
         else { // une équipe de leader n'y va que si l'échappée est dangereuse
-          const lv = rider(S, tm.leader).bot.level;
+          const lv = levelOf(rider(S, tm.leader));
           let best = 0;
-          for (const id of brk.ids) { const r = rider(S, id); best = Math.max(best, r && r.bot ? r.bot.level : 1); }
+          for (const id of brk.ids) best = Math.max(best, levelOf(rider(S, id)));
           want = best >= lv * 0.97 || brk.gapT > 150;
         }
       }
@@ -373,7 +392,7 @@
     const cand = [];
     for (const id of tm.ids) {
       const r = rider(S, id), x = sit.by.get(id);
-      if (!x || x.g !== pel || id === tm.leader || id === tm.sprinter || id === tm.pilot) continue;
+      if (!x || !r.bot || x.g !== pel || id === tm.leader || id === tm.sprinter || id === tm.pilot) continue; // (pas celui que pilote le joueur)
       if (r.strat.role !== 'domestique' && r.strat.role !== 'rouleur' && !(r.strat.role === 'leadout' && !tm.train)) continue;
       if (Tac.wFrac(r) < (was.has(id) ? 0.3 : 0.5)) continue;
       cand.push({ id, k: (was.has(id) ? 0 : 100) + x.rank });
@@ -403,7 +422,7 @@
     const toGo = L - sp.e.s, spr = rider(S, tm.sprinter);
     if (!tm.train) {
       if (toGo > TRAIN_START + TRAIN_FORM || sp.g !== sit.pel) return;
-      const av = tm.leadouts.map((id) => sit.by.get(id)).filter(Boolean).sort((a, b) => b.e.s - a.e.s).map((x) => x.e.id);
+      const av = tm.leadouts.filter((id) => rider(S, id).bot).map((id) => sit.by.get(id)).filter(Boolean).sort((a, b) => b.e.s - a.e.s).map((x) => x.e.id);
       if (!av.length) return;
       tm.train = { order: av, A: TRAIN_START, E: spr.strat.launch + 80, phase: 'form', cur: av[0], k: 0, last: av[av.length - 1] };
       if (race.onEvent) logTeam(race, tm, 'train-form', { n: av.length });
@@ -1031,6 +1050,6 @@
 
   PYR.strategy = {
     GOALS, ROLES, LEADER_ROLE, TRAIN_START, TRAIN_FORM, PILOT_START, FINALE_KM,
-    init, tick, think, command, describe, riderInfo, depthRisk, rankWanted, combativity, jerseys, situation, profileOf, dangerAhead,
+    init, setTeamRoles, tick, think, command, describe, riderInfo, depthRisk, rankWanted, combativity, jerseys, situation, profileOf, dangerAhead,
   };
 })(globalThis.PYR = globalThis.PYR || {});

@@ -179,6 +179,25 @@
   /** Matériel du joueur qu'on garde pour un coureur du World Tour (position, casque, tenue : son corps vient de son profil). */
   const KIT = ['position', 'helmet', 'clothing', 'glasses', 'socks', 'shave'];
 
+  /** Un coureur virtuel du World Tour (it : élément de pros.js) ; opts : {rider, bike, v0, id, name, color, bot (préférences à ajouter)}. */
+  function addPro(race, it, opts, rnd, phyRnd) {
+    const Pr = PYR.pros, ty = Pr.TYPES[it.pro.type];
+    const kit = {};
+    for (const k of KIT) if (opts.rider && opts.rider[k] !== undefined) kit[k] = opts.rider[k];
+    const rider = Object.assign({}, it.data.rider, kit);
+    const athlete = Ph.buildAthlete(rider);
+    const setup = PYR.physics.buildSetup(rider, opts.bike);
+    const physio = physioOn(race) ? botCard(rider, athlete, phyRnd) : null;
+    return addRider(race, {
+      id: opts.id, name: it.name, color: opts.color || '#6f6d66',
+      bot: Object.assign({
+        aggr: 0.1 + 0.35 * rnd() + (it.pro.level > 85 ? 0.1 : 0), team: 0.2 + 0.8 * rnd(), level: 1, pro: it.id, proTeam: Pr.TEAMS[it.pro.team], proTeamId: it.pro.team,
+        sprint: PYR.util.clamp(ty.sprint + 0.1 * (rnd() - 0.5), 0, 1), climb: PYR.util.clamp(ty.climb + 0.1 * (rnd() - 0.5), 0, 1),
+      }, opts.bot || {}),
+      setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null, gut: rider.gut, rider, physio,
+    });
+  }
+
   /** Coureurs virtuels du World Tour (voir addBots) : leur morphologie et leur puissance sont celles de pros.js, le vélo celui du joueur. */
   function addPros(race, opts) {
     const rnd = race.rnd, out = [], Pr = PYR.pros;
@@ -190,21 +209,7 @@
     else for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(proRnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const n = Math.max(0, Math.min(MAX_BOTS, pool.length, opts.n | 0));
     for (let i = 0; i < n; i++) {
-      const it = pool[i], ty = Pr.TYPES[it.pro.type];
-      const kit = {};
-      for (const k of KIT) if (opts.rider && opts.rider[k] !== undefined) kit[k] = opts.rider[k];
-      const rider = Object.assign({}, it.data.rider, kit);
-      const athlete = Ph.buildAthlete(rider);
-      const setup = PYR.physics.buildSetup(rider, opts.bike);
-      const physio = physioOn(race) ? botCard(rider, athlete, phyRnd) : null;
-      out.push(addRider(race, {
-        id: 'bot' + (i + 1), name: it.name, color: opts.colors ? opts.colors[i % opts.colors.length] : '#6f6d66',
-        bot: {
-          aggr: 0.1 + 0.35 * rnd() + (it.pro.level > 85 ? 0.1 : 0), team: 0.2 + 0.8 * rnd(), level: 1, pro: it.id, proTeam: Pr.TEAMS[it.pro.team],
-          sprint: PYR.util.clamp(ty.sprint + 0.1 * (rnd() - 0.5), 0, 1), climb: PYR.util.clamp(ty.climb + 0.1 * (rnd() - 0.5), 0, 1),
-        },
-        setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null, gut: rider.gut, rider, physio,
-      }));
+      out.push(addPro(race, pool[i], { rider: opts.rider, bike: opts.bike, v0: opts.v0, id: 'bot' + (i + 1), color: opts.colors ? opts.colors[i % opts.colors.length] : '#6f6d66' }, rnd, phyRnd));
     }
     return out;
   }
@@ -439,6 +444,34 @@
     race.t++;
   }
 
+  /**
+   * Prend la main sur un coureur virtuel (mode équipe) : ses préférences de coureur virtuel sont mises de côté (r.botProfile), il n'est plus
+   * décidé par la stratégie mais piloté par le joueur (tactique « dans les roues » au départ, puissance reprise à celle de la seconde écoulée).
+   */
+  function takeControl(race, r) {
+    if (r.human) return r;
+    r.botProfile = r.bot;
+    r.bot = null;
+    r.human = true;
+    Tac.setMode(r, 'follow', r.st.t);
+    r.tac.cmd = Math.round(r.lastP || 0);
+    r.tac.chase = undefined;
+    if (r.lat) { r.lat.roam = false; r.lat.mode = 'hold'; } // le joueur garde la voie qu'il choisit : le peloton ne le fait plus « flotter »
+    return r;
+  }
+
+  /** Rend un coureur piloté à la stratégie (il reprend son plan et sa tactique de coureur virtuel). */
+  function releaseControl(race, r) {
+    if (!r.human || !r.botProfile) return r;
+    r.bot = r.botProfile;
+    r.botProfile = null;
+    r.human = false;
+    r.tac.nextThink = 0;
+    if (r.lat) r.lat.roam = true;
+    Tac.setMode(r, 'follow', r.st.t);
+    return r;
+  }
+
   /** Termine la course des coureurs encore en route (ex. : les virtuels après l'arrivée du joueur). */
   function runToEnd(race, maxT) {
     const limit = maxT || race.t + 6 * 3600;
@@ -484,5 +517,5 @@
     return Cl.standings(race.cps, race.riders.map((r) => ({ id: r.id, splits: r.splits, s: r.st.s })));
   }
 
-  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
+  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, addPro, takeControl, releaseControl, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
 })(globalThis.PYR = globalThis.PYR || {});

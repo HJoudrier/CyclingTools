@@ -53,6 +53,7 @@
       timeScale: 5, ghost: true, follow: true,
       countdown: 5,            // décompte avant le départ (s, temps réel ; 0 : aucun), affiché sur l'écran de course
       bots: 3, botLevel: 'equal', events: true, form: true, fuel: true, pullSec: 30,
+      team: { on: false, team: '', riders: [], plans: {}, opp: 9, size: 8 }, // mode équipe : l'équipe du World Tour que le joueur gère, ses coureurs et leurs plans (team-game.js)
       strategy: true,         // stratégies des coureurs virtuels : équipes, rôles et objectifs (strategy.js) ; sans elles, les coureurs d'avant
       source: 'avatar',        // présence dans la course (presence.js) : avatar ou home-trainer (watts mesurés)
       trainerSim: true,        // home-trainer FTMS : il reçoit la pente, le vent et l'abri du peloton

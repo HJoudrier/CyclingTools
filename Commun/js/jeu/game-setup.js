@@ -289,7 +289,8 @@
     const route = find('route', pickId('route')), ath = find('athlete', pickId('athlete')), p = store.profile;
     const w = store.state.weather;
     const wx = ownSky() ? skySummary() : S.mode === 'random' ? 'météo aléatoire' : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
-    $('#gs-go-sum').textContent = route ? [route.name, ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut', wx].join(' · ') : 'Choisis un parcours pour commencer.';
+    const team = PYR.teamSetup ? PYR.teamSetup.summary() : null;
+    $('#gs-go-sum').textContent = route ? [route.name, team || (ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut'), wx].join(' · ') : 'Choisis un parcours pour commencer.';
     $('#g-go').disabled = !route || !p;
   }
 
@@ -334,6 +335,8 @@
       if (PYR.cloud.status().connected) refresh();
       PYR.cloud.onChange(() => { if (!C.state.busy) renderCloud(); });
     },
+    /** Redessine la barre de départ (le choix de l'équipe change son résumé). */
+    refreshSummary: renderSummary,
     /** Pour les tests de l'interface. */
     _state: S,
   };

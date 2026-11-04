@@ -21,7 +21,7 @@
     'Commun/js/core/util.js', 'Commun/js/engine/physio.js', 'Commun/js/engine/benchmarks.js', 'Commun/js/engine/physics.js', 'Commun/js/engine/weather.js', 'Commun/js/engine/course.js',
     'Commun/js/engine/sim.js', 'Commun/js/engine/optimizer.js', 'Commun/js/engine/gradient.js', 'Commun/js/engine/draft.js', 'Commun/js/engine/peloton.js', 'Commun/js/engine/tilt.js',
     'Commun/js/engine/metabo.js', 'Commun/js/engine/rider-radar.js', 'Commun/js/engine/fuel.js', 'Commun/js/engine/classif.js', 'Commun/js/engine/feed.js', 'Commun/js/engine/tactics.js', 'Commun/js/engine/strategy.js', 'Commun/js/engine/power-bar.js',
-    'Commun/js/engine/slowdown.js', 'Commun/js/engine/race.js', 'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/engine/plan-gpx.js', 'Commun/js/engine/plan-workout.js',
+    'Commun/js/engine/slowdown.js', 'Commun/js/engine/race.js', 'Commun/js/engine/catalog.js', 'Commun/js/engine/pros.js', 'Commun/js/engine/team-game.js', 'Commun/js/engine/plan-gpx.js', 'Commun/js/engine/plan-workout.js',
     'Commun/js/engine/activity.js', 'Commun/js/engine/nutrition.js', 'Commun/js/engine/ride.js', 'Commun/js/engine/ride-mixed.js', 'Commun/js/engine/activity-export.js',
     'Commun/js/engine/replay.js', 'Commun/js/engine/history.js', 'Commun/js/engine/nav.js', 'Commun/js/engine/presence.js',
     // état, stockage, échanges
@@ -39,7 +39,7 @@
   // interface commune aux deux jeux (carte 2D, 3D) : la page de choix et l'écran de course
   const GAME_UI = [
     'Commun/vendor/qrcode-generator/qrcode.js',
-    'Commun/js/jeu/view3d.js', 'Commun/js/jeu/game-source.js', 'Commun/js/jeu/gear-edit.js', 'Commun/js/jeu/game-setup.js', 'Commun/js/jeu/tab-game.js', 'Commun/js/jeu/game-mobile.js',
+    'Commun/js/jeu/view3d.js', 'Commun/js/jeu/game-source.js', 'Commun/js/jeu/gear-edit.js', 'Commun/js/jeu/game-setup.js', 'Commun/js/jeu/team-setup.js', 'Commun/js/jeu/team-panel.js', 'Commun/js/jeu/tab-game.js', 'Commun/js/jeu/game-mobile.js',
     'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js',
   ];
 

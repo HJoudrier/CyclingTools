@@ -181,7 +181,10 @@
       class: 'rm-sq rm-card', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Orientation de la carte',
       onclick: () => { TG.setNorthUp(!(G.snap && G.snap.northUp)); refresh(); },
     }, icCompass());
-    E.side = h('div', { class: 'rm-side' }, E.clock, E.rank, E.prof, pauseButton('rm-sq rm-card'), E.speedWrap, E.baseWrap, E.compass, ...(PYR.view3d ? PYR.view3d.buttons() : []), E.zoom, E.tilt, E.quit);
+    // mode équipe, téléphone : la liste des coureurs de l'équipe s'ouvre dans une feuille (le panneau latéral du grand écran n'existe pas ici)
+    E.teamTxt = h('span', null, '👥');
+    E.team = h('button', { class: 'rm-sq rm-card phone-only', type: 'button', hidden: true, 'aria-label': 'Ouvrir la liste des coureurs de ton équipe', onclick: () => openSheet('team') }, E.teamTxt);
+    E.side = h('div', { class: 'rm-side' }, E.clock, E.team, E.rank, E.prof, pauseButton('rm-sq rm-card'), E.speedWrap, E.baseWrap, E.compass, ...(PYR.view3d ? PYR.view3d.buttons() : []), E.zoom, E.tilt, E.quit);
     // grand écran : les trois boutons d'affichage (statistiques, profil, puissance) en haut de la colonne de gauche
     E.views = h('div', { class: 'rm-views wide-only' }, E.tgStats, E.tgProfile, E.tgCurve);
 
@@ -204,9 +207,11 @@
     E.fin = h('div', { class: 'rm-fin', hidden: true }, E.replay, E.leave);
     E.vProf = h('div', { class: 'rm-view', 'data-view': 'prof' }, E.profSlot);
     E.vRank = h('div', { class: 'rm-view', 'data-view': 'rank' }, E.noRank, E.rankSlot);
+    E.teamSlot = h('div', { class: 'rm-slot' });
+    E.vTeam = h('div', { class: 'rm-view', 'data-view': 'team' }, E.teamSlot);
     E.sheet = h('div', { class: 'rm-sheet rm-card', role: 'dialog', 'aria-label': 'Informations de course', hidden: true },
       h('div', { class: 'rm-sh' }, E.shTitle = h('strong', { class: 'rm-shtitle' }), E.shRight = h('div', { class: 'rm-shr' }, E.clsGroup)),
-      E.vProf, E.vRank, E.fin);
+      E.vProf, E.vRank, E.vTeam, E.fin);
 
     // réserves + durée tenable
     E.rows = [reserveRow('W′'), reserveRow('Glycogène', true), reserveRow('Hydratation'), reserveRow('PPR')];
@@ -626,8 +631,8 @@
     if (o) setSpeedPicker(false);
     E.sheet.hidden = !o;
     E.side.hidden = o; // la feuille couvre la colonne de boutons
-    for (const v of [E.vProf, E.vRank]) v.hidden = v.dataset.view !== sheetTab;
-    E.shTitle.textContent = sheetTab === 'rank' ? 'Classement' : sheetTab === 'prof' ? 'Profil d’élévation' : '';
+    for (const v of [E.vProf, E.vRank, E.vTeam]) v.hidden = v.dataset.view !== sheetTab;
+    E.shTitle.textContent = sheetTab === 'rank' ? 'Classement' : sheetTab === 'prof' ? 'Profil d’élévation' : sheetTab === 'team' ? 'Ton équipe' : '';
     E.shRight.hidden = sheetTab !== 'rank';
   }
 
@@ -806,6 +811,7 @@
       park($('#game-chart'), E.profSlot);
       park($('#game-legend'), E.profSlot);
       park($('#game-classif'), E.rankSlot);
+      park($('#team-panel'), E.teamSlot);
       park($('#board-all'), E.shRight); // « Résumé / Tous » en haut du bloc, en face du titre « Classement »
     } else { // grand écran : les deux profils passent sur la carte (qui garde toute la hauteur) ou dans le panneau de droite, selon leur réglage
       placeCharts();
@@ -1347,6 +1353,8 @@
     const hasBoard = !$('#game-classif').hidden;
     E.rank.hidden = !hasBoard;
     E.rankTxt.textContent = s.rank ? `${s.rank}/${s.total}` : '–';
+    E.team.hidden = !s.team;
+    if (s.team) E.teamTxt.textContent = `👥 ${s.team.i}/${s.team.n}`;
     // classements disponibles (étape toujours ; grimpeur et sprinteur quand des côtes ou des sprints sont en jeu) ; « Résumé / Tous » seulement sur l’étape
     {
       const ids = new Set([...document.querySelectorAll('#classif-tabs button')].map((b) => b.dataset.tab));
