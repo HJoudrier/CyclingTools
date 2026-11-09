@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Compteur — proposition C « Bandeau fixe et panneau »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition C : bandeau des mesures fixe sur toutes les vues, seul le panneau du dessous change ---------- */
+  .C .hd { flex: none; background: var(--surface); border-bottom: 1px solid var(--border-strong); padding: 0 12px 8px; }
+  .C .r1 { display: flex; align-items: center; gap: 8px; height: 42px; }
+  .C .r1 .gap { padding: 4px 10px; border-radius: 999px; background: var(--good-bg); color: var(--good); font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .C .r1 .gap small { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; margin-right: 4px; text-transform: uppercase; }
+  .C .r1 .chips { margin-left: auto; }
+  .C .r2 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
+  .C .m { border-radius: 14px; padding: 4px 8px 6px; background: var(--surface-2); text-align: center; }
+  .C .m .l { font-size: 10px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); }
+  .C .m .v { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+  .C .m .s { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .C .m.pw { background: var(--good-bg); box-shadow: inset 0 0 0 2px var(--good); }
+  .C .m.pw .v, .C .m.pw .s b { color: var(--good); }
+  .C .r3 { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .C .r3 b { color: var(--ink); }
+  /* sélecteur de panneau */
+  .C .seg { flex: none; margin: 8px 12px; display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .C .seg span { text-align: center; padding: 8px 0; border-radius: 9px; font-size: 14px; font-weight: 800; color: var(--ink-2); }
+  .C .seg span.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .C .panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0 12px 30px; gap: 8px; }
+  .C .box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px 10px; }
+  .C .box .l0 { font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); margin-bottom: 2px; display: flex; justify-content: space-between; }
+  /* panneau Carte */
+  .C .map { position: relative; flex: 1 1 auto; min-height: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+  .C .turn { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 12px; padding: 6px 14px; border-radius: 14px; background: #121212; color: #fff; box-shadow: var(--shadow); }
+  .C .turn .a { font-size: 34px; line-height: 1; font-weight: 800; }
+  .C .turn .d { font-size: 28px; font-weight: 800; }
+  .C .turn .r { font-size: 13px; line-height: 1.25; color: #c9c9c4; }
+  .C .nextchip { position: absolute; left: 8px; bottom: 8px; padding: 5px 10px; border-radius: 10px; background: rgba(252,252,251,0.94); border: 1px solid var(--border-strong); box-shadow: var(--shadow); font-size: 13px; font-weight: 700; }
+  .C .nextchip b { color: #c0392b; }
+  /* panneau Cible */
+  .C .tgt { display: flex; align-items: flex-end; justify-content: space-between; }
+  .C .tgt .v { font-size: 72px; line-height: 0.95; font-weight: 800; letter-spacing: -3px; font-variant-numeric: tabular-nums; }
+  .C .tgt .v small { font-size: 22px; letter-spacing: 0; color: var(--ink-2); margin-left: 3px; }
+  .C .tgt .cd { text-align: right; }
+  .C .tgt .cd .t { font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .C .tgt .cd .s { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+  .C .tgt .cd .s b { color: #c0392b; }
+  .C .zone { font-size: 13px; font-weight: 700; color: var(--good); margin-top: 2px; }
+  .C .list { margin: 2px 0 0; padding: 0; list-style: none; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .C .list li { display: grid; grid-template-columns: 14px 52px 64px 1fr; gap: 6px; align-items: center; padding: 3px 0; border-top: 1px solid var(--border); }
+  .C .list li i { width: 12px; height: 12px; border-radius: 3px; }
+  .C .list li b { font-weight: 800; }
+  .C .list li span:last-child { color: var(--ink-2); }
+  /* panneau Corps */
+  .C .leg { display: flex; gap: 12px; font-size: 11px; font-weight: 700; color: var(--ink-2); margin-top: 2px; }
+  .C .leg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+  .C .now { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .C .now > div { border-radius: 12px; padding: 4px 8px 6px; background: var(--surface); border: 1px solid var(--border); }
+  .C .now .l { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-2); }
+  .C .now .v { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .C .now .v small { font-size: 11px; color: var(--ink-2); font-weight: 600; margin-left: 2px; letter-spacing: 0; }
+  .C .now .s { font-size: 11px; color: var(--ink-2); }
+  .C .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .C .two table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .C .two td { padding: 2px 0; border-top: 1px solid var(--border); }
+  .C .two td:last-child { text-align: right; font-weight: 800; }
+  .C .two tr:first-child td { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="planche">
+  <header><span class="lettre">C</span><h1>Bandeau fixe et panneau<small>les mesures toujours visibles</small></h1></header>
+  <p class="intro">Un <b>bandeau en haut ne bouge jamais</b> : puissance, cardio, vitesse en gros, écart au plan et avancement. Seul le <b>panneau du dessous</b> change,
+    avec le sélecteur <b>Carte · Cible · Corps</b> (ou en balayant le panneau). On garde toujours sous les yeux les trois chiffres les plus regardés,
+    et chaque panneau peut montrer <b>ce qui vient</b> : le virage, les prochains tronçons, l'état des réserves à l'arrivée.</p>
+
+  <div class="ecrans">
+    <!-- ================= Panneau Carte ================= -->
+    <div class="colonne">
+      <h2><span class="n">1</span>Carte et guidage</h2>
+      <div class="tel"><div class="ecran C">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="hd">
+          <div class="r1"><span class="gap"><small>en avance</small>+0:42</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+          <div class="r2">
+            <div class="m pw"><div class="l">Puissance</div><div class="v">248</div><div class="s">W · <b>cible 250</b></div></div>
+            <div class="m"><div class="l">Cardio</div><div class="v">152</div><div class="s">bpm</div></div>
+            <div class="m"><div class="l">Vitesse</div><div class="v">32,4</div><div class="s">km/h</div></div>
+          </div>
+          <div class="r3"><span>km <b>42,3</b> / 100</span><span><b>1:24:37</b></span><span>arrivée <b>3:22</b></span></div>
+        </div>
+        <div class="seg"><span class="on">Carte</span><span>Cible</span><span>Corps</span></div>
+        <div class="panel">
+          <div class="map" id="c-map"></div>
+          <div class="box" style="padding:4px 6px 2px"><div class="l0" style="padding:0 4px"><span>Profil · 30 → 70 km</span><span>2e cat. dans 3,4 km</span></div><div id="c-prof" style="height:82px"></div></div>
+        </div>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li>Le <b>bandeau</b> (même sur les trois vues) : puissance encadrée de la couleur de la consigne, cardio, vitesse ; l'écart au plan juste au-dessus.</li>
+        <li>Carte orientée, virage annoncé, <b>consigne suivante</b> en pastille ; profil des 40 km autour de soi avec les côtes classées.</li>
+      </ul>
+    </div>
+
+    <!-- ================= Panneau Cible ================= -->
+    <div class="colonne">
+      <h2><span class="n">2</span>Puissance cible</h2>
+      <div class="tel"><div class="ecran C">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="hd">
+          <div class="r1"><span class="gap"><small>en avance</small>+0:42</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+          <div class="r2">
+            <div class="m pw"><div class="l">Puissance</div><div class="v">248</div><div class="s">W · <b>cible 250</b></div></div>
+            <div class="m"><div class="l">Cardio</div><div class="v">152</div><div class="s">bpm</div></div>
+            <div class="m"><div class="l">Vitesse</div><div class="v">32,4</div><div class="s">km/h</div></div>
+          </div>
+          <div class="r3"><span>km <b>42,3</b> / 100</span><span><b>1:24:37</b></span><span>arrivée <b>3:22</b></span></div>
+        </div>
+        <div class="seg"><span>Carte</span><span class="on">Cible</span><span>Corps</span></div>
+        <div class="panel">
+          <div class="box">
+            <div class="tgt"><div><div class="l0">Consigne</div><div class="v">250<small>W</small></div><div class="zone">92 % du tronçon dans la cible</div></div>
+              <div class="cd"><div class="s">fin du tronçon</div><div class="t">2:15</div><div class="s">puis <b>310 W ▲</b> · 3:00</div></div></div>
+          </div>
+          <div class="box" style="padding:6px 6px 2px"><div class="l0" style="padding:0 4px"><span>Il y a 1 min → dans 3 min</span><span>± 5 %</span></div><div id="c-tube" style="height:176px"></div></div>
+          <div class="box" style="padding:6px 8px 4px"><div class="l0"><span>Prochains tronçons</span><span>25 min</span></div><div id="c-frise" style="height:92px"></div>
+            <ul class="list">
+              <li><i style="background:#f1d95a"></i><b>2:15</b><b>250 W</b><span>faux plat · en cours</span></li>
+              <li><i style="background:#ee6a5a"></i><b>3:00</b><b>310 W</b><span>côte de 6 %</span></li>
+              <li><i style="background:#f1d95a"></i><b>5:40</b><b>220 W</b><span>plateau</span></li>
+            </ul></div>
+        </div>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li>La <b>courbe « tube »</b> d'aujourd'hui, agrandie et étendue à <b>3 minutes devant</b> : on voit la marche vers 310 W arriver.</li>
+        <li>La <b>frise des tronçons</b> et la liste des trois suivants (durée, puissance, terrain).</li>
+      </ul>
+    </div>
+
+    <!-- ================= Panneau Corps ================= -->
+    <div class="colonne">
+      <h2><span class="n">3</span>Athlète et sortie en cours</h2>
+      <div class="tel"><div class="ecran C">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="hd">
+          <div class="r1"><span class="gap"><small>en avance</small>+0:42</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+          <div class="r2">
+            <div class="m pw"><div class="l">Puissance</div><div class="v">248</div><div class="s">W · <b>cible 250</b></div></div>
+            <div class="m"><div class="l">Cardio</div><div class="v">152</div><div class="s">bpm</div></div>
+            <div class="m"><div class="l">Vitesse</div><div class="v">32,4</div><div class="s">km/h</div></div>
+          </div>
+          <div class="r3"><span>km <b>42,3</b> / 100</span><span><b>1:24:37</b></span><span>arrivée <b>3:22</b></span></div>
+        </div>
+        <div class="seg"><span>Carte</span><span>Cible</span><span class="on">Corps</span></div>
+        <div class="panel">
+          <div class="box" style="padding:6px 6px 4px"><div class="l0" style="padding:0 4px"><span>Réserves jusqu'à l'arrivée</span><span>%</span></div><div id="c-proj" style="height:214px"></div>
+            <div class="leg" style="padding:0 4px"><span><i style="background:var(--gly-muscle)"></i>glycogène</span><span><i style="background:var(--low)"></i>hydratation</span><span><i style="background:var(--ink-2)"></i>plan</span><span>— roulé · - - prévu</span></div></div>
+          <div class="now">
+            <div><div class="l">W′</div><div class="v">78<small>%</small></div><div class="s">plan 74 %</div></div>
+            <div><div class="l">Chaleur</div><div class="v">38,3<small>°C</small></div><div class="s">sueur 0,9 L/h</div></div>
+            <div><div class="l">Glycémie</div><div class="v">5,1<small>mmol</small></div><div class="s">PC 271 W (95 %)</div></div>
+          </div>
+          <div class="two">
+            <div class="box"><div class="l0">Athlète</div><table>
+              <tr><td>PC</td><td>285 W</td></tr><tr><td>W′</td><td>20,4 kJ</td></tr><tr><td>FTP</td><td>280 W</td></tr><tr><td>Poids</td><td>70 kg</td></tr><tr><td>FC max</td><td>188</td></tr></table></div>
+            <div class="box"><div class="l0">Sortie</div><table>
+              <tr><td>Moyenne</td><td>212 W</td></tr><tr><td>Normalisée</td><td>231 W</td></tr><tr><td>Travail</td><td>1 076 kJ</td></tr><tr><td>D+</td><td>640 m</td></tr><tr><td>Prises</td><td>1 gel, 1 barre</td></tr></table></div>
+          </div>
+          <div class="box" style="border:2px solid var(--warn);background:var(--warn-bg);font-size:14px;font-weight:700">🍌 Un gel <span style="color:#a86b00">dans 6 min</span> · 💧 boire dans 2 min</div>
+        </div>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li>Une <b>projection jusqu'à l'arrivée</b> : glycogène et hydratation roulés (trait plein) puis prévus avec les prises du plan (tirets, G = gel, B = barre), comparés au plan.</li>
+        <li>L'état présent (W′, chaleur, glycémie), puis l'athlète et la sortie côte à côte.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bas">
+    <div class="plus"><h3>Points forts</h3><ul><li>Puissance, cardio et vitesse toujours visibles, quelle que soit la vue.</li><li>Montre ce qui vient (tronçons, réserves à l'arrivée), pas seulement l'instant.</li><li>Reprend la courbe « tube » actuelle, déjà connue.</li></ul></div>
+    <div class="moins"><h3>Limites</h3><ul><li>Le bandeau prend 200 px : carte plus petite qu'en B.</li><li>Plus dense : demande de bien choisir ce qu'on regarde.</li><li>La projection des réserves demande un calcul de plus (déjà fait par le plan, à exposer).</li></ul></div>
+  </div>
+</div>
+<script src="maquettes.js"></script>
+<script>
+  MQ.carte('#c-map', { align: 'xMidYMid' });
+  document.querySelector('#c-map').insertAdjacentHTML('beforeend', '<div class="turn"><span class="a">↱</span><span class="d">300 m</span><span class="r">à droite<br>D12 · Velars</span></div><div class="nextchip">Fin du tronçon 2:15 · puis <b>310 W</b></div>');
+  MQ.profil('#c-prof', { from: 30, to: 70, axis: true, climbs: true });
+  MQ.tube('#c-tube', { past: 60, ahead: 180, step: 135, ticks: [-60, 0, 60, 120, 180] });
+  MQ.frise('#c-frise', { minutes: 25, labels: true });
+  MQ.projection('#c-proj');
+</script>
+</body>
+</html>

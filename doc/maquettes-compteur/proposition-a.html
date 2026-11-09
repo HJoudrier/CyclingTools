@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Compteur — proposition A « Compteur GPS »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition A : champs de données en cases, barre d'onglets en bas ---------- */
+  .A .top { flex: none; height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .A .top .ttl { font-size: 15px; font-weight: 800; letter-spacing: -0.2px; }
+  .A .top .chips { margin-left: auto; }
+  .A .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* barre d'onglets */
+  .A .tabs { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); height: 84px; padding-bottom: 22px; background: var(--surface); border-top: 1px solid var(--border-strong); }
+  .A .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  .A .tab svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .A .tab.on { color: var(--accent); }
+  .A .tab.on::before { content: ''; display: block; width: 36px; height: 3px; border-radius: 2px; background: var(--accent); margin: -8px 0 5px; }
+  /* cases de données (séparées par des filets, comme un compteur dédié) */
+  .A .grid { display: grid; grid-template-columns: 1fr 1fr; background: var(--border-strong); gap: 1px; border-top: 1px solid var(--border-strong); }
+  .A .cell { background: var(--surface); padding: 6px 12px 8px; min-width: 0; }
+  .A .cell .l { font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; }
+  .A .cell .v { font-size: 50px; line-height: 1.02; font-weight: 800; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+  .A .cell .v small { font-size: 17px; font-weight: 700; letter-spacing: 0; margin-left: 3px; color: var(--ink-2); }
+  .A .cell .s { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .A .cell.pw { box-shadow: inset 6px 0 0 var(--good); }
+  .A .good { color: var(--good) !important; }
+  /* vue 1 : carte */
+  .A .map { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .A .turn { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 14px; background: #121212; color: #fff; box-shadow: var(--shadow); }
+  .A .turn .a { font-size: 38px; line-height: 1; font-weight: 800; }
+  .A .turn .d { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; }
+  .A .turn .r { font-size: 13px; line-height: 1.25; color: #c9c9c4; }
+  .A .north { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.92); box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+  .A .north i { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #d03b3b; transform: rotate(-20deg); }
+  .A .mprof { flex: none; height: 58px; border-top: 1px solid var(--border-strong); background: var(--surface); position: relative; }
+  .A .mprof .cap { position: absolute; left: 8px; top: 3px; font-size: 10px; font-weight: 800; color: var(--ink-2); letter-spacing: 0.5px; z-index: 2; }
+  .A .strip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--good-bg); border-top: 1px solid var(--border-strong); font-size: 14px; font-weight: 700; }
+  .A .strip .lbl { font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink-2); }
+  .A .strip .nx { margin-left: auto; color: var(--ink-2); font-weight: 600; }
+  /* vue 2 : puissance */
+  .A .big { background: var(--surface); padding: 6px 14px 4px; border-bottom: 1px solid var(--border-strong); }
+  .A .big .l { font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-2); display: flex; justify-content: space-between; }
+  .A .big .v { font-size: 104px; line-height: 0.98; font-weight: 800; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
+  .A .big .v small { font-size: 30px; letter-spacing: 0; margin-left: 4px; color: var(--ink-2); }
+  .A .cur { display: flex; align-items: baseline; gap: 10px; }
+  .A .cur .v { font-size: 66px; letter-spacing: -2px; }
+  .A .cur .p { margin-left: auto; text-align: right; font-size: 13px; color: var(--ink-2); line-height: 1.35; }
+  .A .cur .p b { font-size: 22px; color: var(--good); }
+  .A .gauge { position: relative; height: 34px; margin: 6px 0 9px; border-radius: 8px; background: linear-gradient(90deg, var(--low-bg) 0 37%, var(--good) 37% 63%, var(--warn-bg) 63%); border: 1px solid var(--border-strong); }
+  .A .gauge .mk { position: absolute; top: -6px; bottom: -6px; left: 48%; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+  .A .gauge-l { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-2); font-weight: 600; padding-bottom: 6px; }
+  .A .frise { background: var(--surface); padding: 6px 12px 4px; border-top: 1px solid var(--border-strong); }
+  .A .frise .l, .A .sec .l0 { font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); margin-bottom: 2px; }
+  .A .mini { display: flex; justify-content: space-around; padding: 8px 6px; background: var(--surface-2); border-top: 1px solid var(--border-strong); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .A .mini span small { font-size: 11px; color: var(--ink-2); font-weight: 600; margin-left: 2px; }
+  /* vue 3 : corps et sortie */
+  .A .sec { background: var(--surface); padding: 8px 12px 10px; border-bottom: 1px solid var(--border-strong); }
+  .A .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+  .A .g3 > div { background: var(--surface); padding: 5px 8px 7px; }
+  .A .g3 .l { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-2); }
+  .A .g3 .v { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .A .g3 .v small { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-left: 2px; letter-spacing: 0; }
+  .A .bar { display: grid; grid-template-columns: 92px 1fr 64px; align-items: center; gap: 8px; margin: 10px 0; font-size: 15px; }
+  .A .bar .nm { font-weight: 800; }
+  .A .bar .tr { position: relative; height: 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; display: flex; }
+  .A .bar .tr i { display: block; height: 100%; }
+  .A .bar .tk { position: absolute; top: -1px; bottom: -1px; width: 3px; background: var(--ink); }
+  .A .bar .vv { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .A .bar .sub { grid-column: 2 / 4; margin-top: -6px; font-size: 11px; color: var(--ink-2); }
+  .A .phys { font-size: 12px; color: var(--ink-2); line-height: 1.4; margin-top: 2px; }
+  .A .nut { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; }
+  .A .nut > div { border: 2px solid var(--border-strong); border-radius: 12px; padding: 6px 10px; background: var(--surface); font-size: 13px; }
+  .A .nut > div b { display: block; font-size: 17px; }
+  .A .nut .due { border-color: var(--warn); background: var(--warn-bg); }
+</style>
+</head>
+<body>
+<div class="planche">
+  <header><span class="lettre">A</span><h1>Compteur GPS<small>des cases de données, des onglets en bas</small></h1></header>
+  <p class="intro">Le compteur ressemble à un compteur de vélo dédié : des <b>cases séparées par des filets</b>, des chiffres de 50 à 100 px, un fond clair très contrasté
+    (lisible en plein soleil). On change de vue en <b>balayant l'écran</b> ou en touchant la <b>barre d'onglets</b> en bas (grande zone de 84 px, utilisable avec des gants).
+    Les alertes (consigne qui change, manger, W′ presque vide) s'affichent en bandeau au-dessus de n'importe quelle vue.</p>
+
+  <div class="ecrans">
+    <!-- ================= Vue 1 : carte et guidage ================= -->
+    <div class="colonne">
+      <h2><span class="n">1</span>Carte et guidage</h2>
+      <div class="tel"><div class="ecran A">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="top"><span class="ttl">Carte</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+        <div class="body">
+          <div class="map" id="a-map">
+          </div>
+          <div class="mprof"><span class="cap">PROFIL · 30 → 60 KM</span><div id="a-prof" style="position:absolute;inset:0"></div></div>
+          <div class="grid">
+            <div class="cell pw"><div class="l"><span>Puissance 3 s</span><span class="good">cible 250</span></div><div class="v">248<small>W</small></div></div>
+            <div class="cell"><div class="l"><span>Cardio</span></div><div class="v">152<small>bpm</small></div></div>
+            <div class="cell"><div class="l"><span>Vitesse</span></div><div class="v">32,4<small>km/h</small></div></div>
+            <div class="cell"><div class="l"><span>Écart au plan</span></div><div class="v good">+0:42</div></div>
+          </div>
+          <div class="strip"><span class="lbl">Km</span> 42,3 / 100<span class="nx">arrivée prévue 3:22</span></div>
+        </div>
+        <nav class="tabs"><span class="tab on"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Carte</span><span class="tab"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Puissance</span><span class="tab"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Corps</span></nav>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li><b>Carte sur la moitié de l'écran</b>, orientée dans le sens de la marche, avec le virage annoncé en gros (« 300 m, à droite »).</li>
+        <li>Les <b>4 chiffres qui comptent</b> en 50 px : puissance (avec un liseré vert/orange/bleu selon la consigne), cardio, vitesse, écart au plan.</li>
+        <li>Profil des 30 km autour de soi, coloré par zone de puissance du plan.</li>
+      </ul>
+    </div>
+
+    <!-- ================= Vue 2 : puissance cible ================= -->
+    <div class="colonne">
+      <h2><span class="n">2</span>Puissance cible</h2>
+      <div class="tel"><div class="ecran A">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="top"><span class="ttl">Puissance</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+        <div class="body">
+          <div class="big"><div class="l"><span>Cible</span><span>tronçon 14/38 · faux plat</span></div><div class="v">250<small>W</small></div></div>
+          <div class="big">
+            <div class="l"><span>Actuelle · 3 s</span><span class="good">dans la cible</span></div>
+            <div class="cur"><span class="v good" style="font-size:66px;line-height:1;font-weight:800;letter-spacing:-2px">248<small style="font-size:22px;color:var(--ink-2);margin-left:3px;letter-spacing:0">W</small></span>
+              <span class="p"><b>92 %</b><br>du tronçon dans la cible<br>88 tr/min</span></div>
+            <div class="gauge"><span class="mk"></span></div>
+            <div class="gauge-l"><span>200</span><span>trop faible</span><span style="color:var(--good)">237 – 263</span><span>trop fort</span><span>300</span></div>
+          </div>
+          <div class="grid">
+            <div class="cell"><div class="l"><span>Fin du tronçon</span></div><div class="v">2:15</div><div class="s">1,2 km</div></div>
+            <div class="cell" style="box-shadow: inset 6px 0 0 #ee6a5a"><div class="l"><span>Ensuite · 3:00</span></div><div class="v">310<small>W ▲</small></div><div class="s">côte de 6 %</div></div>
+          </div>
+          <div class="frise"><div class="l">Les 25 prochaines minutes</div><div id="a-frise" style="height:150px"></div></div>
+          <div class="mini"><span>152<small>bpm</small></span><span>32,4<small>km/h</small></span><span style="color:var(--good)">+0:42</span><span>1:24:37</span></div>
+        </div>
+        <nav class="tabs"><span class="tab"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Carte</span><span class="tab on"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Puissance</span><span class="tab"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Corps</span></nav>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li>La <b>cible en 104 px</b>, la puissance actuelle juste dessous, et une <b>jauge horizontale</b> : le trait noir doit rester dans la bande verte (± 5 %).</li>
+        <li>Le <b>compte à rebours du tronçon</b> et la consigne suivante, colorée par zone : on sait quand et combien il faudra appuyer.</li>
+        <li>La <b>frise des tronçons</b> (comme un entraînement structuré) montre les 25 prochaines minutes.</li>
+      </ul>
+    </div>
+
+    <!-- ================= Vue 3 : corps et sortie ================= -->
+    <div class="colonne">
+      <h2><span class="n">3</span>Athlète et sortie en cours</h2>
+      <div class="tel"><div class="ecran A">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="top"><span class="ttl">Corps</span><span class="chips"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></span><span class="menu-btn">⋯</span></div>
+        <div class="body">
+          <div class="sec"><div class="l0">Athlète</div>
+            <div class="g3">
+              <div><div class="l">PC</div><div class="v">285<small>W</small></div></div>
+              <div><div class="l">W′</div><div class="v">20,4<small>kJ</small></div></div>
+              <div><div class="l">FTP</div><div class="v">280<small>W</small></div></div>
+              <div><div class="l">Poids</div><div class="v">70<small>kg</small></div></div>
+              <div><div class="l">FTP/kg</div><div class="v">4,0<small>W/kg</small></div></div>
+              <div><div class="l">FC max</div><div class="v">188<small>bpm</small></div></div>
+            </div></div>
+          <div class="sec"><div class="l0">Réserves en ce moment</div>
+            <div class="bar"><span class="nm">W′</span><span class="tr"><i style="width:78%;background:var(--good)"></i><span class="tk" style="left:74%"></span></span><span class="vv">78 %</span><span class="sub">plan 74 % · 16,0 kJ disponibles</span></div>
+            <div class="bar"><span class="nm">Glycogène</span><span class="tr"><i style="width:48%;background:var(--gly-muscle)"></i><i style="width:14%;background:var(--gly-liver)"></i></span><span class="vv">62 %</span><span class="sub">muscles 48 % · foie 14 % · −18 %/h</span></div>
+            <div class="bar"><span class="nm">Hydratation</span><span class="tr"><i style="width:85%;background:var(--good)"></i></span><span class="vv">85 %</span><span class="sub">−1,2 % du poids</span></div>
+            <div class="bar"><span class="nm">Chaleur</span><span class="tr"><i style="width:43%;background:var(--warn)"></i></span><span class="vv">38,3°</span><span class="sub">sueur 0,9 L/h</span></div>
+            <div class="phys">PC du moment 271 W (95 %) · glycémie 5,1 mmol/L · FC prévue 149 (mesurée 152)</div>
+          </div>
+          <div class="sec"><div class="l0">Sortie en cours</div>
+            <div class="g3">
+              <div><div class="l">Temps</div><div class="v">1:24:37</div></div>
+              <div><div class="l">Distance</div><div class="v">42,3<small>km</small></div></div>
+              <div><div class="l">D+</div><div class="v">640<small>m</small></div></div>
+              <div><div class="l">Moyenne</div><div class="v">212<small>W</small></div></div>
+              <div><div class="l">Normalisée</div><div class="v">231<small>W</small></div></div>
+              <div><div class="l">Travail</div><div class="v">1 076<small>kJ</small></div></div>
+            </div></div>
+          <div class="nut"><div class="due">🍌 Manger <b>dans 6 min</b>un gel · 2 restants</div><div>💧 Boire <b>dans 2 min</b>bidon 1 : 0,4 L</div></div>
+        </div>
+        <nav class="tabs"><span class="tab"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Carte</span><span class="tab"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>Puissance</span><span class="tab on"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Corps</span></nav>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li><b>L'athlète</b> (PC, W′, FTP, poids, FC max) et <b>l'état de son corps</b> : les barres de réserves actuelles, sans rien par-dessus.</li>
+        <li>Le <b>résumé de la sortie</b> en cases : temps, distance, D+, puissances moyenne et normalisée, travail.</li>
+        <li>Prochaines prises en bas ; toucher une case ouvre les poches.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bas">
+    <div class="plus"><h3>Points forts</h3><ul><li>Lecture immédiate, aucun élément superposé.</li><li>Familier pour qui vient d'un compteur dédié ; onglets faciles à toucher.</li><li>Le plus simple à réaliser à partir du code actuel.</li></ul></div>
+    <div class="moins"><h3>Limites</h3><ul><li>La carte ne prend que la moitié de l'écran.</li><li>Sur la vue Puissance, on perd la carte et le virage à venir (le bandeau d'alerte prévient du virage).</li><li>Aspect plus « outil » que « moderne ».</li></ul></div>
+  </div>
+</div>
+<script src="maquettes.js"></script>
+<script>
+  MQ.carte('#a-map', { align: 'xMidYMid' });
+  document.querySelector('#a-map').insertAdjacentHTML('beforeend', '<div class="turn"><span class="a">↱</span><span class="d">300 m</span><span class="r">à droite<br>D12 · Velars</span></div><div class="north"><i></i>N</div>');
+  MQ.profil('#a-prof', { from: 30, to: 60, climbs: true });
+  MQ.frise('#a-frise', { minutes: 25, labels: true });
+</script>
+</body>
+</html>
