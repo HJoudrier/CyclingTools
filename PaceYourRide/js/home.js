@@ -32,7 +32,11 @@
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
   }
   function writeJSON(key, obj) {
-    try { localStorage.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); return false; }
+    try { localStorage.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) {
+      const full = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+      D.toast(full ? 'Enregistrement impossible : l\'espace de stockage du navigateur est plein (parcours très long ou bibliothèque volumineuse). Supprime des parcours inutiles de ta bibliothèque.' : 'Enregistrement impossible : stockage du navigateur indisponible.', 'error');
+      return false;
+    }
   }
   const readProject = () => { const p = readJSON(PROJECT_KEY); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; };
   const readLibrary = () => {
@@ -402,8 +406,8 @@
     const lib = readLibrary(), cur = describeCurrent('route', project);
     const data = hasData('route', project) ? L.extract('route', project) : null;
     // le projet est déjà dans la bibliothèque quand un parcours porte son nom et sa longueur (les données du projet ont pu être recalculées depuis)
-    const len = data ? L.routeLength(data) : 0, pname = projectName('route', project);
-    const same = data ? lib.routes.find((it) => it.name === pname && Math.abs(L.routeLength(it.data) - len) < 2) : null;
+    const len = data ? L.routeLength(data, true) : 0, pname = projectName('route', project);
+    const same = data ? lib.routes.find((it) => it.name === pname && Math.abs(L.routeLength(it.data, true) - len) < 2) : null;
     const items = lib.routes.slice();
     if (data && !same) items.unshift({ id: 'current', name: cur.title, savedAt: Number(localStorage.getItem(MTIME_KEY)) || 0, data, project: true });
     // chaque vignette : modifier (l'éditeur de parcours), dupliquer, supprimer ; « Nouveau parcours » est au-dessus du carrousel

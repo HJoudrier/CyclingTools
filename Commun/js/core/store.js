@@ -159,6 +159,11 @@
         if (PYR.appId === 'pro' && PYR.cloud) PYR.cloud.pushSoon();     // les jeux et le compteur le lisent dans Dropbox
       } catch (e) {
         console.warn('Sauvegarde locale impossible', e);
+        const now = Date.now();
+        if (PYR.dom && PYR.dom.toast && now - (this._warnedAt || 0) > 60000) {      // au plus un message par minute
+          this._warnedAt = now;
+          PYR.dom.toast(e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) ? 'Sauvegarde impossible : l\'espace de stockage du navigateur est plein (parcours très long ?).' : 'Sauvegarde locale impossible.', 'error');
+        }
       }
     },
 
@@ -415,7 +420,7 @@
       waypoints: state.route.waypoints.map((w) => ({ lat: +w.lat.toFixed(6), lng: +w.lng.toFixed(6) })),
       legs: state.route.legs.map((l) => ({
         mode: l.mode,
-        coords: l.coords ? l.coords.map((c) => [+c[0].toFixed(6), +c[1].toFixed(6), c[2] === null || c[2] === undefined ? null : +(+c[2]).toFixed(1)]) : null,
+        coords: l.coords ? PYR.util.thinCoords(l.coords).map((c) => [+c[0].toFixed(6), +c[1].toFixed(6), c[2] === null || c[2] === undefined ? null : +(+c[2]).toFixed(1)]) : null,
       })),
     };
     return s;

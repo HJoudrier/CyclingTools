@@ -59,7 +59,9 @@
     const out = C.lib[L.KINDS[kind].list].slice();
     const pj = projectItem(kind);
     const json = pj ? JSON.stringify(pj.data) : '';
-    C.memo[kind] = pj && !out.some((x) => JSON.stringify(x.data) === json) ? [pj].concat(out) : out;
+    // le projet est enregistré avec un tracé allégé (extract) : un parcours plus ancien de la bibliothèque, plus dense, s'allège de même avant la comparaison
+    const same = (x) => JSON.stringify(kind === 'route' ? L.extract('route', x.data) : x.data) === json;
+    C.memo[kind] = pj && !out.some(same) ? [pj].concat(out) : out;
     return C.memo[kind];
   }
   /** Un élément par son identifiant : le projet en cours (PROJECT_ID : ce qui est choisi sur l'accueil du site), la bibliothèque ou, pour un athlète, un coureur du World Tour. */
