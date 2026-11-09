@@ -18,6 +18,9 @@
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' },
     { id: 'carto', label: 'CARTO Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', maxZoom: 20, subdomains: 'abcd',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+    // fond sombre : celui du compteur pendant la sortie (Compteur/js/tab-ride.js), choisissable ailleurs
+    { id: 'dark', label: 'CARTO sombre', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', maxZoom: 20, subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' },
     { id: 'cyclosm', label: 'CyclOSM (vélo)', url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', maxZoom: 20, subdomains: 'abc',
       attribution: '<a href="https://www.cyclosm.org">CyclOSM</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' },
     { id: 'topo', label: 'OpenTopoMap (relief)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', maxZoom: 17, subdomains: 'abc',
@@ -91,14 +94,19 @@
     M.baseSpecs = BASE_LAYERS;     // adresses des tuiles : la vue 3D du parcours (route3d.js) assemble son fond avec
     M.baseId = () => { for (const b of BASE_LAYERS) if (map.hasLayer(bases[b.label])) return b.id; return first.id; };
     M.baseSpec = () => BASE_LAYERS.find((b) => b.id === M.baseId()) || BASE_LAYERS[0];     // fond affiché (url, attribution), pour les cartes annexes
-    M.setBase = (id) => {
+    // opts.temp : changement passager (le compteur passe en fond sombre le temps de la sortie), le choix de l'utilisateur n'est pas enregistré
+    let tempBase = false;
+    M.setBase = (id, opts) => {
       const pick = BASE_LAYERS.find((b) => b.id === id);
       if (!pick) return;
-      for (const b of BASE_LAYERS) if (b !== pick && map.hasLayer(bases[b.label])) map.removeLayer(bases[b.label]);
-      if (!map.hasLayer(bases[pick.label])) bases[pick.label].addTo(map);
+      tempBase = !!(opts && opts.temp);
+      try {
+        for (const b of BASE_LAYERS) if (b !== pick && map.hasLayer(bases[b.label])) map.removeLayer(bases[b.label]);
+        if (!map.hasLayer(bases[pick.label])) bases[pick.label].addTo(map);
+      } finally { tempBase = false; }
     };
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
-    map.on('baselayerchange', (e) => { store.state.ui.baseLayer = e.layer._pyrId; store.save(); M.applyMaxZoom(); });
+    map.on('baselayerchange', (e) => { if (!tempBase) { store.state.ui.baseLayer = e.layer._pyrId; store.save(); } M.applyMaxZoom(); });
     M.applyMaxZoom();
 
     M.layers.road = L.layerGroup().addTo(map); // mode jeu, peloton en 2D : la route à sa largeur, sous le tracé

@@ -88,7 +88,8 @@
     ride: {
       plan: null, planInfo: null,
       kit: { slots: ['iso', 'iso', '', ''], items: { gel: 3, gelglu: 0, gelplus: 0, bar: 2, barmini: 0 } },
-      cfg: { auto: true, sens: 'normal', gapTau: 8, sound: true, vibrate: true, voice: false, lookahead: 10, altAlpha: 0.3, powerAvg: 3, weatherMin: 15, mapProfile: true, mixed: false, physio: true },
+      cfg: { auto: true, sens: 'normal', gapTau: 8, sound: true, vibrate: true, voice: false, lookahead: 10, altAlpha: 0.3, powerAvg: 3, weatherMin: 15, mapProfile: true, mixed: false, physio: true,
+        view: 'map', powerView: 'gauge' },       // compteur : dernière vue regardée (map, pow, body, mix) ; consigne de la vue Puissance (gauge : jauge, dial : cadran)
       demo: { speed: 5, bias: 0 },
     },
     shop: {},                // magasin : article acheté par catégorie (cadre, roues…)

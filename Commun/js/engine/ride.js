@@ -308,6 +308,7 @@
     const OBS = new Uint8Array(N);                       // recalage du modèle physiologique par la FC : 0 non, 1 puissance mesurée, 2 puissance estimée
     const ALT = new Float32Array(N).fill(NaN);           // altitude mesurée (GPS) à chaque seconde, NaN sans mesure
     const WBk = new Float32Array(N), GBk = new Float32Array(N), GSk = new Float32Array(N);   // fin de chaque seconde : W′bal (J), glycogène dépensé depuis le départ (g), glycogène restant (g)
+    const HYk = new Float32Array(N);                     // fin de chaque seconde : hydratation (0–1, comme fuel.status)
     const kit = Fu.normKit(o.kit || KIT_DEFAULT);
     const cfg = Object.assign({}, DEFAULT_CFG, o.cfg);
     const mass = o.mass > 0 ? o.mass : 72;
@@ -449,7 +450,7 @@
       // la FC enregistrée (HRK, au bpm) sert, pour que la reprise rejoue exactement le même recalage
       OBS[k] = phyCard && hrOk && (noPower === 0 || S.powerEstimated || inp.sensorOn) ? (S.powerEstimated ? 2 : 1) : 0;
       if (OBS[k]) Fu.observeHR(S.fuel, HRK[k], { estimated: OBS[k] === 2 });
-      WBk[k] = S.wbal; GBk[k] = S.fuel.burned; GSk[k] = S.fuel.G;
+      WBk[k] = S.wbal; GBk[k] = S.fuel.burned; GSk[k] = S.fuel.G; HYk[k] = hydrationOf(S.fuel);
       S.t = k + 1;
 
       // --- écart au plan
@@ -747,7 +748,7 @@
         if (hrs) HRK[k] = hrs[k] || 0;
         OBS[k] = !phyCard ? 0 : obs ? obs[k] : HRK[k] > 0 ? 1 : 0;
         if (OBS[k]) Fu.observeHR(S.fuel, HRK[k], { estimated: OBS[k] === 2 });
-        WBk[k] = S.wbal; GBk[k] = S.fuel.burned; GSk[k] = S.fuel.G;
+        WBk[k] = S.wbal; GBk[k] = S.fuel.burned; GSk[k] = S.fuel.G; HYk[k] = hydrationOf(S.fuel);
         if (cads) CAD[k] = cads[k] || 0;
       }
       S.t = n;
@@ -772,8 +773,64 @@
       return {
         n, P: Pk.subarray(0, n), s: Sk.subarray(0, n), v: Vk.subarray(0, n), lat: LAT.subarray(0, n), lng: LNG.subarray(0, n), ele: ELE.subarray(0, n),
         target: TG.subarray(0, n), hr: HRK.subarray(0, n), cad: CAD.subarray(0, n),
-        wbal: WBk.subarray(0, n), gBurned: GBk.subarray(0, n), gStock: GSk.subarray(0, n), w0, g0: S.fuel.G0,
+        wbal: WBk.subarray(0, n), gBurned: GBk.subarray(0, n), gStock: GSk.subarray(0, n), w0, g0: S.fuel.G0, hydration: HYk.subarray(0, n),
       };
+    };
+
+    /**
+     * Prévision des réserves jusqu'à l'arrivée : une copie du corps (glycogène, eau, modèle physiologique) suit le plan depuis la position
+     * actuelle (puissance, position et vitesse du plan, météo du parcours) avec les prises `events` à venir ([{ dt (s d'ici), type :
+     * 'eat' | 'drink', kind, slot }], appliquées comme celles du cycliste). Calcul découpé pour ne pas bloquer l'écran : job.run(n) avance de
+     * n secondes au plus et renvoie true quand c'est fini. job.out : { s (m), G (part du glycogène), hyd (hydratation, 0–1) }, un point tous
+     * les `every` s (le premier maintenant, le dernier à l'arrivée), et { t, s } : instant et position de départ. null sans plan.
+     */
+    S.forecastJob = function (events, every) {
+      const plan = S.plan;
+      if (!plan) return null;
+      const f = structuredClone(S.fuel);
+      const evs = (events || []).filter((e) => e && Number.isFinite(e.dt) && e.dt >= 0).slice().sort((a, b) => a.dt - b.dt);
+      const step = Math.max(1, Math.round(every || 60));
+      const k0 = Math.max(0, Math.min(plan.P.length, Math.floor(plan.tAt(S.s) - plan.t0)));
+      const nSteps = plan.P.length - k0, t0 = S.t, s0 = S.s;
+      const cap = Math.floor(nSteps / step) + 2;
+      const outS = new Float32Array(cap), outG = new Float32Array(cap), outH = new Float32Array(cap);
+      let j = 0, e = 0, m = 0;
+      const put = (s) => { if (m < cap) { outS[m] = s; outG[m] = f.G / f.G0; outH[m] = hydrationOf(f); m++; } };
+      put(s0);
+      const job = {
+        t: t0, s: s0, done: nSteps <= 0,
+        out: null,
+        run(budget) {
+          if (job.done) return true;
+          const lim = Math.min(nSteps, j + (budget >= 1 ? Math.floor(budget) : 1));
+          for (; j < lim; j++) {
+            const kk = k0 + j, t = t0 + j;
+            while (e < evs.length && evs[e].dt <= j) {
+              const ev = evs[e++];
+              if (ev.type === 'eat' && Fu.FOODS[ev.kind]) { f.items[ev.kind] = Math.max(1, f.items[ev.kind] || 0); f.lastEat = -1e9; Fu.eat(f, t, ev.kind, true); }
+              else if (ev.type === 'drink') { f.lastDrink = -1e9; Fu.drink(f, t, ev.slot); }
+            }
+            const sp = Math.max(s0, plan.s[kk]), v = Math.max(0, plan.s[Math.min(plan.n, kk + 1)] - plan.s[kk]);
+            Fu.step(f, plan.P[kk], cp, tempC, phyEnv(t, sp, v));
+            if ((j + 1) % step === 0) put(Math.max(s0, plan.s[Math.min(plan.n, kk + 1)]));
+          }
+          if (j >= nSteps) {
+            if (nSteps % step !== 0 || m === 1) put(Math.max(s0, Math.min(course.length, plan.s[plan.n])));
+            job.done = true;
+          }
+          job.out = { s: outS.subarray(0, m), G: outG.subarray(0, m), hyd: outH.subarray(0, m) };
+          return job.done;
+        },
+      };
+      job.out = { s: outS.subarray(0, m), G: outG.subarray(0, m), hyd: outH.subarray(0, m) };
+      return job;
+    };
+    /** Prévision des réserves calculée d'un trait (voir forecastJob). */
+    S.forecast = function (events, every) {
+      const job = S.forecastJob(events, every);
+      if (!job) return null;
+      job.run(Infinity);
+      return job.out;
     };
 
     /**
@@ -793,6 +850,9 @@
     S.getCtx = getCtx;
     return S;
   }
+
+  /** Hydratation (0–1) : 1 sans perte d'eau, 0 à 5 % du poids perdus (comme fuel.status). */
+  function hydrationOf(f) { return Math.max(0, 1 - Fu.lossPct(f) / 5); }
 
   /* ======================================================================
    * Export GPX de la sortie réalisée

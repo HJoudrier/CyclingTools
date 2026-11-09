@@ -548,6 +548,45 @@ test('séance : sauvegarde puis reprise — même temps, mêmes réserves, même
   assert.equal(R.createSession({ course: env.course, setup: env.setup, athlete: env.athlete }).restore({ v: 9 }), false);
 });
 
+test('séance : historique de l\'hydratation, et prévision des réserves jusqu\'à l\'arrivée en suivant le plan avec les prises à venir', async () => {
+  const env = await planOf(HILLY);
+  const sess = newSession(env);
+  const demo = R.createDemo({ course: env.course, setup: env.setup, athlete: env.athlete, noise: 0.02, gps: 2, seed: 4 });
+  ride(sess, demo, 300);
+  const tr = sess.track();
+  assert.equal(tr.hydration.length, sess.t);
+  assert.ok(Math.abs(tr.hydration[sess.t - 1] - PYR.fuel.status(sess.fuel).hydration) < 1e-6, 'même hydratation que l\'état');
+  assert.ok(tr.hydration[sess.t - 1] <= tr.hydration[0]);
+  const G = sess.fuel.G, items = Object.assign({}, sess.fuel.items), bottles = sess.fuel.bottles.slice();
+  const fc = sess.forecast([], 30);
+  assert.equal(sess.fuel.G, G, 'la prévision travaille sur une copie');
+  assert.deepEqual(sess.fuel.items, items);
+  assert.deepEqual(sess.fuel.bottles, bottles);
+  const n = fc.G.length;
+  assert.ok(Math.abs(fc.s[0] - sess.s) < 1e-3 && Math.abs(fc.G[0] - G / sess.fuel.G0) < 1e-6, 'premier point : maintenant');
+  assert.ok(Math.abs(fc.s[n - 1] - env.course.length) < 30, `dernier point à l'arrivée : ${fc.s[n - 1]}`);
+  for (let i = 1; i < n; i++) assert.ok(fc.s[i] >= fc.s[i - 1]);
+  const rest = env.plan.tFinish - env.plan.tAt(sess.s);
+  assert.ok(Math.abs(n - (Math.ceil(rest / 30) + 1)) <= 2, `${n} points pour ${rest} s restantes`);
+  assert.ok(fc.G[n - 1] < fc.G[0], 'sans prise, le glycogène baisse');
+  const gel = sess.forecast([{ dt: 60, type: 'eat', kind: 'gel' }], 30);
+  assert.ok(gel.G[n - 1] > fc.G[n - 1], 'un gel relève la réserve à l\'arrivée');
+  const sips = sess.forecast([{ dt: 10, type: 'drink' }, { dt: 400, type: 'drink' }], 30);
+  assert.ok(sips.hyd[n - 1] > fc.hyd[n - 1], 'boire relève l\'hydratation à l\'arrivée');
+  // calcul découpé : même résultat que d'un trait
+  const job = sess.forecastJob([{ dt: 60, type: 'eat', kind: 'gel' }], 30);
+  let calls = 1;
+  while (!job.run(100)) calls++;
+  assert.ok(calls > 2);
+  assert.deepEqual(Array.from(job.out.G), Array.from(gel.G));
+  // la reprise rejoue le même historique
+  const again = R.createSession({ course: env.course, setup: env.setup, athlete: env.athlete, mass: 72 });
+  assert.ok(again.restore(JSON.parse(JSON.stringify(sess.pack()))));
+  assert.ok(Math.abs(again.track().hydration[sess.t - 1] - tr.hydration[sess.t - 1]) < 1e-6);
+  // sans plan : pas de prévision
+  assert.equal(R.createSession({ course: env.course, setup: env.setup, athlete: env.athlete }).forecast([]), null);
+});
+
 test('export GPX : un point par seconde avec heure et puissance, relu par activity.js', async () => {
   const env = await planOf(HILLY);
   const sess = newSession(env);
