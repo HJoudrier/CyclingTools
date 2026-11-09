@@ -386,7 +386,7 @@
   }
 
   /** Le parcours et l'athlète se choisissent (et se créent, ou se modifient) sur la page d'accueil du site, pour toutes les applications. */
-  const goHome = () => { store.saveNow(); location.href = (PYR.root || '') + 'index.html'; };
+  const goHome = () => { store.saveNow(); const go = () => { location.href = (PYR.root || '') + 'index.html'; }; PYR.kv.flush().then(go, go); };
   const chosen = (kind) => LC.find(kind, LC.pickId(kind, LC.PROJECT_ID));
 
   function renderPickers() {
@@ -2078,14 +2078,14 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     if (!sess) return;
     run.lastSave = sess.t;
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
+      PYR.kv.setItem(SESSION_KEY, JSON.stringify({
         session: sess.pack(), coach: { lastEat: run.coach.lastEat, lastDrink: run.coach.lastDrink }, demo: !!run.demo, savedAt: Date.now(),
         mix: run.mix ? PYR.rideMixed.pack(run.mix) : null,
       }));
     } catch (e) { console.warn('Sauvegarde de la sortie impossible', e); }
   }
-  function readSaved() { try { const r = localStorage.getItem(SESSION_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
-  function clearSaved() { try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* rien */ } }
+  function readSaved() { try { const r = PYR.kv.getItem(SESSION_KEY); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function clearSaved() { try { PYR.kv.removeItem(SESSION_KEY); } catch (e) { /* rien */ } }
 
   function renderResume() {
     const d = readSaved();
@@ -2262,7 +2262,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       renderPickers(); renderCloud();
       pullFromCloud(false);                                       // la bibliothèque est relue dans Dropbox à l'ouverture
       // le parcours et l'athlète se choisissent sur la page d'accueil : on les relit au retour sur cette page
-      window.addEventListener('pageshow', (e) => { if (e.persisted && run.mode === 'prep') { LC.load(); composeSelection(); renderPickers(); renderCloud(); renderPrep(); } });
+      window.addEventListener('pageshow', (e) => { if (e.persisted && run.mode === 'prep') { const again = () => { LC.load(); composeSelection(); renderPickers(); renderCloud(); renderPrep(); }; PYR.kv.refresh().then(again, again); } });
       ['profile', 'rider', 'bike', 'env', 'perf', 'weather', 'surfaces', 'winds'].forEach((e) => store.on(e, () => { if (run.mode === 'prep' && document.body.dataset.tab === 'ride') renderPrep(); }));
       // la référence de W′bal est inscrite dans le plan : un plan repris de la page Pacing optimal est repris à nouveau, les autres sont signalés périmés (empreinte)
       store.on('formref', () => {

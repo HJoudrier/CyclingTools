@@ -2,7 +2,7 @@
 /* PaceYourRide — bibliothèque de l'accueil : parcours, athlètes, vélos et tenues mis de côté pour être recombinés.
  * Le projet de l'application (store.js) ne contient qu'un parcours, un cycliste, un vélo et une tenue ; la bibliothèque en garde
  * plusieurs et sait en recopier un dans le projet (« appliquer »). Fonctions pures sur des objets simples : aucun accès au DOM.
- * Le stockage (localStorage) est fait par la page d'accueil (PaceYourRide/js/home.js). */
+ * Le stockage (IndexedDB, par Commun/js/core/kv.js) est fait par la page d'accueil (PaceYourRide/js/home.js) et par le nuage (cloud.js, lib-cache.js). */
 (function (PYR) {
   'use strict';
 
@@ -74,6 +74,8 @@
     const d = clone(data);
     if (kind === 'route') {
       for (const k of ROUTE_KEYS) if (d[k] !== undefined) state[k] = d[k];
+      // un ancien parcours de la bibliothèque, enregistré avant l'allègement, est allégé en entrant dans le projet
+      if (state.route && Array.isArray(state.route.legs)) for (const leg of state.route.legs) if (leg && Array.isArray(leg.coords)) leg.coords = PYR.util.thinCoords(leg.coords);
     } else if (kind === 'athlete') {
       state.rider = Object.assign({}, omit(d.rider, OUTFIT_RIDER), pick(state.rider, OUTFIT_RIDER));
       const born = PYR.util.ageFrom(state.rider.birthDate);      // l'âge enregistré date d'alors : on le recalcule d'après la date de naissance

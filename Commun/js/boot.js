@@ -77,16 +77,26 @@
   const list = app.light ? app.scripts : app.scripts.concat(['Commun/js/app.js']);
 
   // insérés dynamiquement, les scripts se téléchargent ensemble mais s'exécutent dans l'ordre de la liste (async = false)
-  for (const src of list) {
-    const el = document.createElement('script');
-    el.src = PYR.root + src;
-    el.async = false;
-    el.onerror = () => {
-      const msg = `Impossible de charger ${src} : la page doit être servie depuis la racine du site (python3 -m http.server).`;
-      console.error(msg);
-      const box = document.getElementById('toasts');
-      if (box) { const t = document.createElement('div'); t.className = 'toast error'; t.textContent = msg; box.appendChild(t); }
-    };
-    document.body.appendChild(el);
+  function start() {
+    for (const src of list) {
+      const el = document.createElement('script');
+      el.src = PYR.root + src;
+      el.async = false;
+      el.onerror = () => {
+        const msg = `Impossible de charger ${src} : la page doit être servie depuis la racine du site (python3 -m http.server).`;
+        console.error(msg);
+        const box = document.getElementById('toasts');
+        if (box) { const t = document.createElement('div'); t.className = 'toast error'; t.textContent = msg; box.appendChild(t); }
+      };
+      document.body.appendChild(el);
+    }
   }
+
+  // le stockage des données volumineuses (IndexedDB, Commun/js/core/kv.js) est chargé en premier : le reste de la page le lit de façon synchrone
+  // dans son cache, qu'il faut donc avoir rempli avant. S'il échoue, les données restent dans localStorage.
+  const gate = document.createElement('script');
+  gate.src = PYR.root + 'Commun/js/core/kv.js';
+  gate.onload = () => { Promise.resolve(PYR.kv && PYR.kv.ready).then(start, start); };
+  gate.onerror = start;
+  document.body.appendChild(gate);
 })();

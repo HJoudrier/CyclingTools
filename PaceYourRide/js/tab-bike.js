@@ -36,14 +36,14 @@
       if (!name) { name = field.dflt; field.obj[field.key] = name; field.input.value = name; store.save(); }
       try {
         let raw = null;
-        try { raw = JSON.parse(localStorage.getItem(Lib.STORAGE_KEY)); } catch (e) { /* bibliothèque illisible : on repart d'une vide */ }
+        try { raw = JSON.parse(PYR.kv.getItem(Lib.STORAGE_KEY)); } catch (e) { /* bibliothèque illisible : on repart d'une vide */ }
         const lib = Lib.normalize(raw), data = Lib.extract(kind, st);
         let r = Lib.save(lib, kind, name, data);
         if (r.exists) {
           if (!confirm(`« ${r.exists.name} » existe déjà dans ta bibliothèque. Veux-tu vraiment l'écraser ?`)) return;
           r = Lib.save(lib, kind, name, data, Date.now(), true);
         }
-        localStorage.setItem(Lib.STORAGE_KEY, JSON.stringify(lib));
+        PYR.kv.setItem(Lib.STORAGE_KEY, JSON.stringify(lib));
         D.toast(`« ${r.item.name} » ${r.replaced ? 'mis à jour dans' : 'enregistré dans'} ta bibliothèque (page d'accueil › Sélectionner ${kind === 'bike' ? 'un vélo' : 'une tenue'}).`);
       } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); }
     },

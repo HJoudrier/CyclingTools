@@ -29,7 +29,7 @@ La carte utilise par défaut le fond OpenStreetMap (et bascule sur CARTO Voyager
 
 Ouvrir les pages par double-clic (`file://`) fonctionne dans Chrome et Edge, mais **pas toujours dans Firefox** (stockage propre à chaque fichier) ; la synchronisation Dropbox ne marche pas non plus en `file://`. Passer par un serveur local règle le problème.
 
-Dans PaceYourRide, tout est enregistré automatiquement dans le navigateur (`localStorage`). Les boutons **Exporter / Importer** (en haut à droite) sauvegardent ou rechargent un projet complet au format JSON.
+Dans PaceYourRide, tout est enregistré automatiquement dans le navigateur. Le projet en cours, la bibliothèque et la sortie du compteur sont dans **IndexedDB**, qui n'a pas la limite d'environ 5 Mo de `localStorage` : un parcours de plusieurs centaines de km y tient. Le module `Commun/js/core/kv.js` garde un cache en mémoire (lecture et écriture synchrones pour le reste du code), écrit dans IndexedDB en arrière-plan, prévient les autres onglets, et reprend tout seul les anciennes données de `localStorage` à la première lecture ; sans IndexedDB (certains modes privés), tout reste dans `localStorage`. Les tracés enregistrés sont allégés à un point tous les 10 m au plus (le moteur rééchantillonne à 10 m). Les boutons **Exporter / Importer** (en haut à droite) sauvegardent ou rechargent un projet complet au format JSON.
 
 ## Organisation du dépôt : des applications reliées par Dropbox
 

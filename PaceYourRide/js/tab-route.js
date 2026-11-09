@@ -128,14 +128,14 @@
         const name = store.state.route.name.trim();
         try {
           let raw = null;
-          try { raw = JSON.parse(localStorage.getItem(Lib.STORAGE_KEY)); } catch (e) { /* bibliothèque illisible : on repart d'une vide */ }
+          try { raw = JSON.parse(PYR.kv.getItem(Lib.STORAGE_KEY)); } catch (e) { /* bibliothèque illisible : on repart d'une vide */ }
           const lib = Lib.normalize(raw), data = Lib.extract('route', store.state);
           let r = Lib.save(lib, 'route', name, data);
           if (r.exists) {
             if (!confirm(`Un parcours nommé « ${r.exists.name} » existe déjà dans ta bibliothèque. Veux-tu vraiment l'écraser ?`)) return;
             r = Lib.save(lib, 'route', name, data, Date.now(), true);
           }
-          localStorage.setItem(Lib.STORAGE_KEY, JSON.stringify(lib));
+          PYR.kv.setItem(Lib.STORAGE_KEY, JSON.stringify(lib));
           D.toast(`« ${r.item.name} » ${r.replaced ? 'mis à jour dans' : 'enregistré dans'} ta bibliothèque (page d'accueil › Sélectionner un parcours).`);
         } catch (e) { D.toast('Enregistrement impossible : stockage du navigateur indisponible.', 'error'); }
       });

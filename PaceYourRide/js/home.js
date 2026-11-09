@@ -17,6 +17,9 @@
   const IN_PYR = PYR.appDir === 'PaceYourRide', BASE = IN_PYR ? '' : 'PaceYourRide/', UP = IN_PYR ? '../' : '';
   const PAGE = { route: BASE + 'parcours.html', rider: BASE + 'athlete.html', bike: BASE + 'equipement.html', perf: BASE + 'pacing.html' };
 
+  /** Change de page une fois les écritures dans IndexedDB terminées (kv.js) : la page suivante relit le projet et la bibliothèque. */
+  const goTo = (url) => { const go = () => { location.href = url; }; PYR.kv.flush().then(go, go); };
+
   /** Rubriques, dans l'ordre de l'assistant : libellé, page (PAGE) où les modifier. */
   const KINDS = [
     { id: 'route', label: 'Parcours', tab: 'route', empty: 'Aucun parcours', emptyHint: 'Trace-en un ou importe un GPX.', pick: 'Choisis le parcours' },
@@ -29,10 +32,10 @@
   // ---------- Stockage ----------
 
   function readJSON(key) {
-    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+    try { const raw = PYR.kv.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
   }
   function writeJSON(key, obj) {
-    try { localStorage.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) {
+    try { PYR.kv.setItem(key, JSON.stringify(obj)); if (key === LIBRARY_KEY) PYR.cloud.syncSoon(); return true; } catch (e) {
       const full = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
       D.toast(full ? 'Enregistrement impossible : l\'espace de stockage du navigateur est plein (parcours très long ou bibliothèque volumineuse). Supprime des parcours inutiles de ta bibliothèque.' : 'Enregistrement impossible : stockage du navigateur indisponible.', 'error');
       return false;
@@ -86,7 +89,7 @@
     if (!writeJSON(PROJECT_KEY, project)) return;
     try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
     PYR.cloud.syncSoon();
-    location.href = PAGE.route;
+    goTo(PAGE.route);
   }
 
   // ---------- Projet en cours ----------
@@ -373,7 +376,7 @@
   /** ✎ sur un coureur du World Tour : il devient l'athlète du projet et la page Athlète s'ouvre pour le modifier (« Enregistrer » le range dans la bibliothèque). */
   function editPro(it) {
     W.sel.athlete = it.id;
-    if (applySelection()) { dlg.close(); location.href = PAGE.rider; }
+    if (applySelection()) { dlg.close(); goTo(PAGE.rider); }
   }
 
   /** ↺ : on retire de la bibliothèque la version modifiée d'un coureur du World Tour, il retrouve son profil d'origine. */
@@ -422,7 +425,7 @@
         try { localStorage.setItem(MTIME_KEY, String(Date.now())); } catch (e) { /* stockage indisponible */ }
         PYR.cloud.syncSoon();
       }
-      location.href = PAGE.route;
+      goTo(PAGE.route);
     };
     const duplicate = (it) => {
       const l = readLibrary(), taken = new Set(l.routes.map((r) => r.name.toLowerCase()));
@@ -500,7 +503,7 @@
       return ok;
     };
     const choose = (id) => { if (id !== 'current' && apply(id)) renderProject(); };
-    const edit = (it) => { if (apply(it.id)) location.href = PAGE.rider; };
+    const edit = (it) => { if (apply(it.id)) goTo(PAGE.rider); };
     const duplicate = (it) => {
       const l = readLibrary(), src = itemOf(it.id);
       if (!src) return;
@@ -614,7 +617,7 @@
     if (W.mode === 'single') {
       if (applySelection()) { dlg.close(); renderProject(); D.toast('Projet mis à jour.'); }
     } else if (step === 'recap') {
-      if (applySelection()) location.href = PAGE.perf + '?do=optimize';
+      if (applySelection()) goTo(PAGE.perf + '?do=optimize');
     } else { W.i++; renderWizard(); }
   }
 
@@ -719,8 +722,8 @@
     if (dlg) dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });      // clic sur le fond
     // une autre page a pu changer le projet pendant que celle-ci était en arrière-plan
     initCloud();
-    window.addEventListener('pageshow', () => { renderProject(); PYR.cloud.syncSoon(300); });
-    window.addEventListener('storage', (e) => { if (e.key === PROJECT_KEY) renderProject(); });
+    window.addEventListener('pageshow', (e) => { const go = () => { renderProject(); PYR.cloud.syncSoon(300); }; if (e.persisted) PYR.kv.refresh().then(go, go); else go(); });
+    window.addEventListener('pyr:kv', (e) => { const k = e.detail && e.detail.key; if (k === PROJECT_KEY || k === LIBRARY_KEY) renderProject(); });      // une autre page a écrit (kv.js)
   }
 
   // chargé par Commun/js/boot.js, après le document : le départ est déjà donné

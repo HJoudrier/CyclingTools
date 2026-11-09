@@ -154,8 +154,8 @@
     saveNow() {
       try {
         const json = JSON.stringify(serialize(this.state));
-        if (localStorage.getItem(KEY) !== json) localStorage.setItem(MTIME_KEY, String(Date.now()));     // une écriture sans changement (ouverture de l'éditeur) ne rajeunit pas le projet
-        localStorage.setItem(KEY, json);
+        if (PYR.kv.getItem(KEY) !== json) localStorage.setItem(MTIME_KEY, String(Date.now()));     // une écriture sans changement (ouverture de l'éditeur) ne rajeunit pas le projet
+        PYR.kv.setItem(KEY, json);
         if (PYR.appId === 'pro' && PYR.cloud) PYR.cloud.pushSoon();     // les jeux et le compteur le lisent dans Dropbox
       } catch (e) {
         console.warn('Sauvegarde locale impossible', e);
@@ -169,7 +169,7 @@
 
     load() {
       try {
-        const raw = localStorage.getItem(KEY);
+        const raw = PYR.kv.getItem(KEY);
         if (raw) this.state = sanitize(merge(defaults(), upgrade(JSON.parse(raw))));
       } catch (e) {
         console.warn('Lecture de la sauvegarde impossible', e);
@@ -180,7 +180,7 @@
     reset() {
       this.state = defaults();
       this.plan = null;
-      try { localStorage.removeItem(KEY); localStorage.removeItem(MTIME_KEY); } catch (e) { /* stockage indisponible */ }
+      try { PYR.kv.removeItem(KEY); localStorage.removeItem(MTIME_KEY); } catch (e) { /* stockage indisponible */ }
     },
 
     exportProject() {
