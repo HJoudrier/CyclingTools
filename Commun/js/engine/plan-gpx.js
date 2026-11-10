@@ -94,13 +94,13 @@
   /** GPX du plan. opts : { name, start (ms, heure de départ affichée dans la trace) }. */
   function build(plan, opts) {
     const o = opts || {};
-    const name = o.name || 'Plan PaceYourRide', start = Number.isFinite(o.start) ? o.start : Date.now();
+    const name = o.name || 'Plan Wattlas', start = Number.isFinite(o.start) ? o.start : Date.now();
     const course = plan.course, L = plan.inputs.length;
     const secs = sections(plan, { cuts: o.cuts });
     const km = (m) => U.fmt(m / 1000, 1);
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      '<gpx version="1.1" creator="PaceYourRide" xmlns="http://www.topografix.com/GPX/1/1">',
+      '<gpx version="1.1" creator="Wattlas" xmlns="http://www.topografix.com/GPX/1/1">',
       `  <metadata><name>${xml(name)}</name><desc>${xml(`Plan optimal : ${U.fmtDuration(plan.tFinish)} pour ${km(L)} km. Un repère par tronçon à puissance constante.`)}</desc><time>${iso(start)}</time></metadata>`,
     ];
     // repères de puissance, au début de chaque tronçon puis à l'arrivée
@@ -133,7 +133,7 @@
    * opts : { name, start (ms) }. */
   function buildTcx(plan, opts) {
     const o = opts || {};
-    const name = o.name || 'Plan PaceYourRide', start = Number.isFinite(o.start) ? o.start : Date.now();
+    const name = o.name || 'Plan Wattlas', start = Number.isFinite(o.start) ? o.start : Date.now();
     const course = plan.course, L = plan.inputs.length;
     const secs = sections(plan, { cuts: o.cuts });
     const km = (m) => U.fmt(m / 1000, 1);

@@ -84,7 +84,7 @@
       this.hudOn = /[?&]hud=1/.test(location.search) || !this.embedded;
       game.hide('screen-menu');
       game.show('screen-loading');
-      game.setLoading(0, 'En attente du parcours de PaceYourRide…');
+      game.setLoading(0, 'En attente du parcours de Wattlas…');
       window.addEventListener('message', (e) => this.onMessage(e));
       window.addEventListener('keydown', (e) => this.onKey(e), true);
       // le son ne démarre qu'après un geste (règle des navigateurs) ; une touche brève sur la vue change de caméra
@@ -103,7 +103,7 @@
       game.sound.setMuted(!this.soundOn);
       this.buildHud();
       if (!this.hostWin) {
-        game.setLoading(0, 'Cette vue s\'ouvre depuis l\'écran de course en 3D de PaceYourRide (page Jeu, « Univers 3D »).');
+        game.setLoading(0, 'Cette vue s\'ouvre depuis l\'écran de course de Course 3D (page Jeu, « Univers 3D »).');
         return;
       }
       // l'application n'écoute peut-être pas encore : on se signale chaque seconde jusqu'à recevoir le parcours
@@ -185,7 +185,7 @@
       const ele = Array.isArray(m.ele) ? m.ele : [];
       const points = m.lat.map((lat, i) => ({ lat: +lat, lon: +m.lng[i], ele: Number.isFinite(+ele[i]) && ele[i] !== null ? +ele[i] : null }));
       let route;
-      try { route = new B3D.Route({ name: String(m.name || 'Parcours PaceYourRide').slice(0, 80), points }); } catch (err) { this.fail(err.message); return; }
+      try { route = new B3D.Route({ name: String(m.name || 'Parcours Wattlas').slice(0, 80), points }); } catch (err) { this.fail(err.message); return; }
       this.course = m;
       this.seed = seed;
       this.pyrLen = num(m.length, 0) > 0 ? m.length : route.length;

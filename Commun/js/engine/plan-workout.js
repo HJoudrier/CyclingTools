@@ -90,7 +90,7 @@
   function buildFit(plan, opts) {
     const o = opts || {};
     const secs = PYR.planGpx.sections(plan, { max: o.max || FIT_MAX_STEPS, cuts: o.cuts });
-    const name = o.name || 'Plan PaceYourRide';
+    const name = o.name || 'Plan Wattlas';
     const now = Number.isFinite(o.now) ? o.now : Date.now();
     // durées en distance arrondies au mètre, sans dérive : on arrondit les bornes cumulées
     const cm = (m) => Math.round(m) * 100;
@@ -138,11 +138,11 @@
 
   /** ZWO (Zwift et compatibles) : une étape à puissance constante par tronçon, avec un message à l'écran au début. */
   function buildZwo(plan, opts) {
-    const o = opts || {}, name = o.name || 'Plan PaceYourRide', ftp = Number(o.ftp) > 0 ? Number(o.ftp) : 250;
+    const o = opts || {}, name = o.name || 'Plan Wattlas', ftp = Number(o.ftp) > 0 ? Number(o.ftp) : 250;
     const steps = timed(plan, ftp, o.cuts);
     const lines = [
       '<workout_file>',
-      '  <author>PaceYourRide</author>',
+      '  <author>Wattlas</author>',
       `  <name>${xml(name)}</name>`,
       `  <description>${xml(`Plan optimal : ${U.fmtDuration(plan.tFinish)} pour ${km(plan.inputs.length)} km, puissances en % de la PMA (${Math.round(ftp)} W).`)}</description>`,
       '  <sportType>bike</sportType>',
@@ -158,7 +158,7 @@
 
   /** MRC (TrainerRoad, Golden Cheetah…) : minutes et % de la PMA, deux points par tronçon. */
   function buildMrc(plan, opts) {
-    const o = opts || {}, name = o.name || 'Plan PaceYourRide', ftp = Number(o.ftp) > 0 ? Number(o.ftp) : 250;
+    const o = opts || {}, name = o.name || 'Plan Wattlas', ftp = Number(o.ftp) > 0 ? Number(o.ftp) : 250;
     const steps = timed(plan, ftp, o.cuts);
     const lines = [
       '[COURSE HEADER]', 'VERSION = 2', 'UNITS = ENGLISH',

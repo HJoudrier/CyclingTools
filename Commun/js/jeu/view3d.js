@@ -120,7 +120,7 @@
     let seed = 0;
     for (let i = 0; i < geo.length; i++) seed = (Math.imul(seed, 31) + geo.charCodeAt(i)) >>> 0;
     const msg = {
-      type: 'course', seed: seed % 1000000, name: (PYR.store && st().route && st().route.name) || 'Parcours PaceYourRide',
+      type: 'course', seed: seed % 1000000, name: (PYR.store && st().route && st().route.name) || 'Parcours Wattlas',
       lat, lng, ele, length: course.length,
       cps: (cps || []).map((c) => ({ type: c.type, s: c.s, start: c.start, cat: c.cat })),
       feed: (feed || []).map((z) => ({ s: z.s, end: z.end })),

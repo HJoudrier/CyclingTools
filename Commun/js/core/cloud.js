@@ -167,7 +167,7 @@
     let snap = null;
     if (remote) {
       try { snap = JSON.parse(remote.text); } catch (e) { throw new Error('Le fichier sur Dropbox est illisible : renomme-le ou supprime-le dans Dropbox.'); }
-      if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier PaceYourRide.");
+      if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier Wattlas.");
     }
     let project = readJSON(PROJECT_KEY), savedAt = hasProject(project) ? mtime() : 0, changed = false;
     if (!pushOnly && snap && hasProject(snap.project) && Number(snap.savedAt) > savedAt) {
@@ -238,7 +238,7 @@
       if (!remote) return null;
       let snap = null;
       try { snap = JSON.parse(remote.text); } catch (e) { throw new Error('Le fichier sur Dropbox est illisible.'); }
-      if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier PaceYourRide.");
+      if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier Wattlas.");
       saveCfg({ lastSync: Date.now() });
       return { library: L.normalize(snap.library), project: hasProject(snap.project) ? snap.project : null, savedAt: Number(snap.savedAt) || 0, pulledAt: Date.now() };
     } catch (e) {
@@ -260,7 +260,7 @@
         let snap = null;
         if (remote) {
           try { snap = JSON.parse(remote.text); } catch (e) { throw new Error('Le fichier sur Dropbox est illisible.'); }
-          if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier PaceYourRide.");
+          if (!snap || typeof snap !== 'object' || snap.app !== 'PaceYourRide') throw new Error("Le fichier sur Dropbox n'est pas un fichier Wattlas.");
         }
         const merged = L.merge(lib, snap ? snap.library : null);
         const out = Object.assign({ app: 'PaceYourRide', kind: 'cloud', version: 1, savedAt: 0, project: null }, snap || {}, { library: merged });

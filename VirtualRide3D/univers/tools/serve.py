@@ -69,7 +69,7 @@ def main():
         ctx.load_cert_chain(crt, key)
         httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
         scheme = 'https'
-    print('Le site est servi (accueil de PaceYourRide ; Bike3D seul : /%s) :' % GAME)
+    print('Le site est servi (accueil de Wattlas ; Bike3D seul : /%s) :' % GAME)
     print('  sur ce PC          %s://localhost:%d/' % (scheme, port))
     print('  sur le réseau      %s://%s:%d/' % (scheme, ip, port))
     print('  Bike3D seul        %s://%s:%d/%s' % (scheme, ip, port, GAME))

@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Documentation PaceYourRide</title>
-<meta name="description" content="Documentation complète de PaceYourRide : guide d'utilisation, modèle mécanique, modèle physiologique, simulation de course et algorithmes d'optimisation de la stratégie d'allure.">
+<title>Documentation Wattlas</title>
+<link rel="icon" href="Commun/img/marque/wattlas.svg" type="image/svg+xml">
+<meta name="description" content="Documentation complète de Wattlas : guide d'utilisation, modèle mécanique, modèle physiologique, simulation de course et algorithmes d'optimisation de la stratégie d'allure.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -190,14 +191,14 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
 </style>
 </head>
 <body>
-<a class="home-brand" href="index.html" title="Retour à l'accueil" aria-label="PaceYourRide — retour à l'accueil"><svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg><span>PaceYourRide</span></a>
+<a class="home-brand" href="index.html" title="Retour à l'accueil" aria-label="Wattlas — retour à l'accueil"><img src="Commun/img/marque/wattlas.svg" alt="" width="26" height="26"><span>Wattlas</span></a>
 <div class="page">
 
 <nav class="toc" aria-label="Sommaire">
   <h2>Sommaire</h2>
   <ol id="toc">
     <li><a href="#lire"><span class="n">00</span><span>Lire cette documentation</span></a></li>
-    <li><a href="#apercu"><span class="n">01</span><span>PaceYourRide en un coup d'œil</span></a></li>
+    <li><a href="#apercu"><span class="n">01</span><span>Wattlas en un coup d'œil</span></a></li>
     <li><a href="#guide"><span class="n">02</span><span>Guide de l'utilisateur</span></a></li>
     <li><a href="#archi"><span class="n">03</span><span>Architecture logicielle</span></a></li>
     <li><a href="#meca"><span class="n">04</span><span>Modèle mécanique</span></a></li>
@@ -227,8 +228,8 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
 <main>
 <header class="hero">
   <div class="kicker"><span class="dossard">PYR</span><span>Documentation de l'application</span><span>·</span><span>utilisateurs et experts</span></div>
-  <h1>Documentation PaceYourRide</h1>
-  <p class="lede">Comment PaceYourRide simule un cycliste seconde par seconde, ce que dit son modèle physiologique, comment il calcule la stratégie d'allure la plus rapide (principe de Pontryagin et descente de gradient projetée), et comment s'en servir : de la préparation d'un parcours jusqu'à la sortie réelle, téléphone au guidon.</p>
+  <h1>Documentation Wattlas</h1>
+  <p class="lede">Comment Wattlas simule un cycliste seconde par seconde, ce que dit son modèle physiologique, comment il calcule la stratégie d'allure la plus rapide (principe de Pontryagin et descente de gradient projetée), et comment s'en servir : de la préparation d'un parcours jusqu'à la sortie réelle, téléphone au guidon.</p>
   <div class="meta"><span>Version <b>1.0</b></span><span>Rédigée le <b>21 octobre 2026</b></span><span>Code : <b>JavaScript sans dépendance</b>, pas de calcul <b>1 s</b></span><span><a class="back" href="index.html">← Revenir à l'application</a></span></div>
   <div class="facts">
     <div><div class="v">1 s</div><div class="l">pas de simulation, partagé par tous les modes</div></div>
@@ -267,8 +268,8 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
 
 <!-- ===================================================================================================== 01 -->
 <section class="sec" id="apercu">
-  <div class="sec-h"><span class="num">01</span><h2>PaceYourRide en un coup d'œil</h2></div>
-  <p>PaceYourRide est une application web écrite entièrement en HTML, CSS et JavaScript. Elle n'a ni serveur à elle, ni étape de compilation : tout tourne dans le navigateur et se sauvegarde dans celui-ci. Elle répond à une question simple : <b>à quelle puissance rouler, seconde après seconde, pour boucler un parcours le plus vite possible</b> sans dépasser ce que l'on est capable de produire ? Autour de cette question, elle propose de jouer une course et d'emporter le plan sur le vélo.</p>
+  <div class="sec-h"><span class="num">01</span><h2>Wattlas en un coup d'œil</h2></div>
+  <p>Wattlas est une application web écrite entièrement en HTML, CSS et JavaScript. Elle n'a ni serveur à elle, ni étape de compilation : tout tourne dans le navigateur et se sauvegarde dans celui-ci. Elle répond à une question simple : <b>à quelle puissance rouler, seconde après seconde, pour boucler un parcours le plus vite possible</b> sans dépasser ce que l'on est capable de produire ? Autour de cette question, elle propose de jouer une course et d'emporter le plan sur le vélo.</p>
   <div class="cols">
     <div class="card"><h4>Préparer</h4><p>Tracer ou importer un parcours ; décrire le cycliste (courbe de puissance record, seuils, carte athlète), le vélo, la tenue et la position ; récupérer la météo prévue le long du parcours, à l'heure de passage.</p></div>
     <div class="card"><h4>Optimiser</h4><p>Calculer la stratégie d'allure optimale : la puissance à chaque seconde qui minimise le temps total, sous les contraintes de la physiologie (W′, courbe record, endurance, et en option le modèle physiologique complet). Exporter le plan vers un compteur GPS.</p></div>
@@ -321,7 +322,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
 <!-- ===================================================================================================== 02 -->
 <section class="sec" id="guide">
   <div class="sec-h"><span class="num">02</span><h2>Guide de l'utilisateur</h2></div>
-  <p>Le site est fait d'<b>applications indépendantes</b>, chacune dans son dossier, qui ne s'échangent leurs données que par <b>Dropbox</b> : <b>PaceYourRide</b> (<code>PaceYourRide/</code> : accueil et bibliothèque, <code>parcours.html</code>, <code>athlete.html</code>, <code>equipement.html</code> avec le magasin, <code>pacing.html</code>), le <b>Virtual Ride 2D</b> (<code>VirtualRide2D/</code>) et le <b>Virtual Ride 3D</b> (<code>VirtualRide3D/</code>, avec l'univers de Bike3D, <code>VirtualRide3D/univers/</code>), le <b>Virtual Ride 3D Réaliste</b> (<code>VirtualRide3DRealiste/</code> : la même course dans un monde 3D réaliste pour PC et consoles de salon, <code>VirtualRide3DRealiste/monde/</code>), dont la page d'ouverture fait choisir le parcours (en vue 3D, avec sa distance, son D+ et son D−), l'athlète et la météo avant la course (<code>course.html</code>), et le <b>Compteur</b> (<code>Compteur/</code>, la vraie sortie). Un portail (<code>index.html</code>, à la racine) les réunit. Le code commun (moteur, interface partagée, styles) est dans <code>Commun/</code>. PaceYourRide est la seule à écrire : elle enregistre le projet en cours, son plan optimal et la bibliothèque (parcours, athlètes, vélos, tenues) dans le dossier de ton application Dropbox ; les jeux et le compteur les y lisent et en gardent une copie dans leur propre stockage. Dans PaceYourRide, tout est enregistré automatiquement dans le navigateur ; <b>Exporter / Importer</b> sauvegarde un projet complet en JSON, et le bouton ☁ de l'accueil le synchronise par Dropbox.</p>
+  <p>Le site est fait d'<b>applications indépendantes</b>, chacune dans son dossier, qui ne s'échangent leurs données que par <b>Dropbox</b> : <b>Plan</b> (<code>PaceYourRide/</code> : accueil et bibliothèque, <code>parcours.html</code>, <code>athlete.html</code>, <code>equipement.html</code> avec le magasin, <code>pacing.html</code>), <b>Course 2D</b> (<code>VirtualRide2D/</code>) et <b>Course 3D</b> (<code>VirtualRide3D/</code>, avec l'univers de Bike3D, <code>VirtualRide3D/univers/</code>), <b>Course 3D Réaliste</b> (<code>VirtualRide3DRealiste/</code> : la même course dans un monde 3D réaliste pour PC et consoles de salon, <code>VirtualRide3DRealiste/monde/</code>), dont la page d'ouverture fait choisir le parcours (en vue 3D, avec sa distance, son D+ et son D−), l'athlète et la météo avant la course (<code>course.html</code>), et le <b>Compteur</b> (<code>Compteur/</code>, la vraie sortie). Un portail (<code>index.html</code>, à la racine) les réunit. Le code commun (moteur, interface partagée, styles) est dans <code>Commun/</code>. Plan est la seule à écrire : elle enregistre le projet en cours, son plan optimal et la bibliothèque (parcours, athlètes, vélos, tenues) dans le dossier de ton application Dropbox ; les jeux et le compteur les y lisent et en gardent une copie dans leur propre stockage. Dans Plan, tout est enregistré automatiquement dans le navigateur ; <b>Exporter / Importer</b> sauvegarde un projet complet en JSON, et le bouton ☁ de l'accueil le synchronise par Dropbox.</p>
   <figure class="fig">
     <div class="fh"><span class="ft">Le parcours type, du premier clic à la sortie</span><span class="fn">Figure 2</span></div>
     <div class="scroll"><svg class="dia" viewBox="0 0 960 150" role="img" aria-label="Six étapes : parcours, cycliste, équipement, performance, mode jeu, sortie">
@@ -361,7 +362,7 @@ footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--rule);font-fa
   <div class="note user"><b>Lire le plan</b>Le plan pousse dans les montées et le vent de face, et récupère dans les descentes et le vent de dos : à effort égal, un watt rapporte plus de temps quand on va lentement. La courbe W′bal descend au-dessus de la puissance critique et remonte en dessous ; un plan optimal la vide exactement là où cela rapporte le plus, souvent au sommet du dernier col ou sur la ligne.</div>
 
   <h3>5. Le mode jeu</h3>
-  <p>Le mode jeu a deux pages. La <b>page de réglages</b> choisit la vitesse du temps (×1 à ×50), le fantôme, le <b>décompte avant le départ</b>, la météo (dans Virtual Ride 3D, « Ciel et Météo » : date et heure de départ, source — météo du parcours, prévisions réelles ou météo du jeu —, temps et vent du jeu, vitesse du temps du ciel), les coureurs virtuels (0 à 89) et leur niveau, les règles (incidents, forme du jour, alimentation, modèle physiologique détaillé, durée des relais) et le retour à ×1 aux événements. <b>Démarrer</b> ouvre la <b>page de jeu</b> : écran de course plein écran sur téléphone, colonne de la carte sur grand écran, avec le décompte au centre. On y règle la puissance (barre de puissance, flèches <kbd>↑</kbd> <kbd>↓</kbd>) ou une tactique (<kbd>1</kbd> à <kbd>9</kbd>, <kbd>S</kbd>) ; <kbd>Espace</kbd> met en pause. Le chapitre <a href="#course">08</a> détaille ce qui est simulé.</p>
+  <p>Le mode jeu a deux pages. La <b>page de réglages</b> choisit la vitesse du temps (×1 à ×50), le fantôme, le <b>décompte avant le départ</b>, la météo (dans Course 3D, « Ciel et Météo » : date et heure de départ, source — météo du parcours, prévisions réelles ou météo du jeu —, temps et vent du jeu, vitesse du temps du ciel), les coureurs virtuels (0 à 89) et leur niveau, les règles (incidents, forme du jour, alimentation, modèle physiologique détaillé, durée des relais) et le retour à ×1 aux événements. <b>Démarrer</b> ouvre la <b>page de jeu</b> : écran de course plein écran sur téléphone, colonne de la carte sur grand écran, avec le décompte au centre. On y règle la puissance (barre de puissance, flèches <kbd>↑</kbd> <kbd>↓</kbd>) ou une tactique (<kbd>1</kbd> à <kbd>9</kbd>, <kbd>S</kbd>) ; <kbd>Espace</kbd> met en pause. Le chapitre <a href="#course">08</a> détaille ce qui est simulé.</p>
   <ul>
     <li><b>Durée tenable</b> : combien de temps la puissance actuelle peut encore être tenue (W′ et courbe record).</li>
     <li><b>PPR</b> : part de la courbe de puissance record déjà utilisée sur la fenêtre la plus chargée ; à 100 %, la limite se resserre.</li>
@@ -1202,7 +1203,7 @@ t ← t + 1 ;  f ← facteurs(nouvel état)                          <span class
   <p>Par dichotomie (26 itérations entre 50 W et le record d'une seconde), on cherche la plus forte puissance constante (on ne pédale pas en phase de freinage) qui arrive au bout sans jamais être écrêtée par la physiologie et dont l'endurance reste sous 1. C'est la référence du résultat (« gain par rapport à l'allure constante ») et le point de départ de la descente de gradient.</p>
 
   <h3 id="optim-pontryagin">L'algorithme analytique : principe de Pontryagin</h3>
-  <p>Le principe du minimum de Pontryagin<cite data-k="pontryagin1962"></cite> transforme un problème de contrôle optimal en une condition à vérifier en chaque instant : la commande optimale minimise un <b>hamiltonien</b>, somme du coût instantané et des « prix » des contraintes. De Jong et al.<cite data-k="dejong2017"></cite> ont formulé le contre-la-montre individuel comme un problème de contrôle optimal ; PaceYourRide en propose une résolution approchée, adaptée au simulateur et à ses contraintes.</p>
+  <p>Le principe du minimum de Pontryagin<cite data-k="pontryagin1962"></cite> transforme un problème de contrôle optimal en une condition à vérifier en chaque instant : la commande optimale minimise un <b>hamiltonien</b>, somme du coût instantané et des « prix » des contraintes. De Jong et al.<cite data-k="dejong2017"></cite> ont formulé le contre-la-montre individuel comme un problème de contrôle optimal ; Wattlas en propose une résolution approchée, adaptée au simulateur et à ses contraintes.</p>
   <div class="eq"><span class="lab">Hamiltonien par unité de distance (approximation quasi statique) <span class="tag app">appli</span></span>
     <div class="f">ℋ = <span class="fr"><span>1 + μ (<i>P</i> − CP)<sup>+</sup> − μ <i>c</i> (CP − <i>P</i>)<sup>+</sup> + λ <i>P</i>⁴ / FTP³</span><span><i>v</i></span></span>,&nbsp;&nbsp;&nbsp; <i>c</i> = <span class="fr"><span>W′<sub>0</sub> − W′<sub>bal</sub></span><span>W′<sub>0</sub></span></span></div>
     <div class="f"><i>P</i>(<i>v</i>) = <i>A v</i> + <i>k v</i> √((<i>v</i> + <i>w</i><sub>h</sub>)² + <i>w</i><sub>c</sub>²) (<i>v</i> + <i>w</i><sub>h</sub>),&nbsp;&nbsp; <i>A</i> = <i>m g</i> (sin θ + C<sub>rr</sub> cos θ) / η,&nbsp;&nbsp; <i>k</i> = ½ ρ CdA / η</div>
@@ -1683,9 +1684,9 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
   <ol class="refs" id="refList"></ol>
 </section>
 
-<footer>Documentation PaceYourRide · version 1.0 · 21 octobre 2026 · Hugo Joudrier-Faure. Les équations décrivent le code de <code>Commun/js/engine/</code> à cette date ; les coefficients marqués « calage » sont des propositions à ajuster sur des données réelles. <a href="DocModelePhysioCycliste.html">Rapport du modèle physiologique</a> · <a href="index.html">Revenir à l'application</a></footer>
+<footer>Documentation Wattlas · version 1.0 · 21 octobre 2026 · Hugo Joudrier-Faure. Les équations décrivent le code de <code>Commun/js/engine/</code> à cette date ; les coefficients marqués « calage » sont des propositions à ajuster sur des données réelles. <a href="DocModelePhysioCycliste.html">Rapport du modèle physiologique</a> · <a href="index.html">Revenir à l'application</a></footer>
 <script>
-/* Documentation PaceYourRide : références numérotées, diagrammes de séquence (dessinés à partir d'une description), graphiques calculés
+/* Documentation Wattlas : références numérotées, diagrammes de séquence (dessinés à partir d'une description), graphiques calculés
    (modèle de Morton, aspiration), sommaire et niveau de lecture. Sans dépendance : la page fonctionne hors ligne. */
 (function () {
   "use strict";
@@ -1696,7 +1697,7 @@ endK ← 1 ; capS, wS ← nuls (capacité entière) ; tenu ← ∅ ; non_tenu �
 
   /* ---------- références ---------- */
   const R = {
-    pyr_physio: ["Joudrier-Faure H (2026). Modèle physiologique du cycliste : signature de puissance et modèle physiologique couplé. Rapport technique PaceYourRide, version 1.1.", "DocModelePhysioCycliste.html"],
+    pyr_physio: ["Joudrier-Faure H (2026). Modèle physiologique du cycliste : signature de puissance et modèle physiologique couplé. Rapport technique Wattlas, version 1.1.", "DocModelePhysioCycliste.html"],
     martin1998: ["Martin JC, Milliken DL, Cobb JE, McFadden KL, Coggan AR (1998). Validation of a mathematical model for road cycling power. J Appl Biomech.", gs("Validation of a mathematical model for road cycling power")],
     bassett1999: ["Bassett DR, Kyle CR, Passfield L, Broker JP, Burke ER (1999). Comparing cycling world hour records, 1967–1996: modeling with empirical data. Med Sci Sports Exerc.", "https://sponet.de/sponet/Record/4002241?lng=en"],
     openmeteo: ["Open-Meteo. Forecast API (prévisions horaires) et Elevation API (modèle numérique de terrain Copernicus GLO-90).", "https://open-meteo.com/en/docs"],

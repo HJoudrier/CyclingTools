@@ -1,6 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}.home-brand{position:fixed;top:10px;right:max(16px,env(safe-area-inset-right,0px));z-index:50;display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--accent);font-family:var(--f-ui);font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 1px 6px rgba(0,0,0,.08)}.home-brand span{color:var(--ink)}.home-brand:hover{border-color:var(--accent)}@media (max-width:600px){.home-brand span{display:none}.home-brand{padding:5px}}
 </style></head><body>
 <title>Modèle physiologique cycliste</title>
+<link rel="icon" href="Commun/img/marque/wattlas.svg" type="image/svg+xml">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -169,7 +170,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);font-fa
 @media (max-width:600px){body{font-size:16px}.lede{font-size:17px}.lim .r{grid-template-columns:112px 1fr 60px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 
-<a class="home-brand" href="index.html" title="Retour à l'accueil" aria-label="PaceYourRide — retour à l'accueil"><svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><rect width="64" height="64" rx="14" fill="currentColor"/><path d="M10 44 L24 26 L32 36 L42 20 L54 44 Z" fill="#fff"/></svg><span>PaceYourRide</span></a>
+<a class="home-brand" href="index.html" title="Retour à l'accueil" aria-label="Wattlas — retour à l'accueil"><img src="Commun/img/marque/wattlas.svg" alt="" width="26" height="26"><span>Wattlas</span></a>
 <div class="page">
 <nav class="toc" aria-label="Sommaire">
   <h2>Sommaire</h2>
@@ -177,7 +178,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);font-fa
 </nav>
 <main id="top">
 <header class="hero">
-  <div class="kicker"><span class="dossard">Rapport technique</span><span>PaceYourRide · carte athlète · Garmin</span></div>
+  <div class="kicker"><span class="dossard">Rapport technique</span><span>Wattlas · carte athlète · Garmin</span></div>
   <h1>Modèle physiologique du cycliste</h1>
   <p class="lede">Toutes les équations et tous les paramètres pour coupler la signature de puissance (Pmax, W′, CP2, CP1) au modèle physiologique complet : trois stocks de glycogène, fibres musculaires, substrats, digestion, thermorégulation, hydratation, altitude, cardio, fatigue périphérique et centrale, caféine, sommeil et motivation. Chaque module est sourcé, et les figures sont calculées en direct par le même moteur que le simulateur d'étape.</p>
   <div class="meta"><span>Version <b>1.1</b></span><span>Rédigé le <b>16 octobre 2026</b>, mis à jour le <b>20 octobre 2026</b></span><span>Pas de calcul <b>1 s</b></span><span>Langage du moteur <b>JavaScript</b> (portable en Monkey C / Python)</span></div>
@@ -665,7 +666,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);font-fa
   <figure class="fig">
     <div class="fh"><span class="ft">Gain et perte d'acclimatation</span><span class="fn">Figure 12</span></div>
     <div class="chart" id="ch_acc"></div>
-    <figcaption>Scénario A : 10 jours de stage chaud, puis retour au frais. Scénario B : 5 jours seulement, puis 3 jours de réexposition au jour 25. Dans PaceYourRide, l'acclimatation progresse pendant une course par étapes sous la canicule.</figcaption>
+    <figcaption>Scénario A : 10 jours de stage chaud, puis retour au frais. Scénario B : 5 jours seulement, puis 3 jours de réexposition au jour 25. Dans Wattlas, l'acclimatation progresse pendant une course par étapes sous la canicule.</figcaption>
   </figure>
 </section>
 
@@ -722,7 +723,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--rule);font-fa
     </div>
     <figcaption>Lignes : modèle, athlète CP2 = 300 W pédalant à 230 W (77 % de CP2) à 20 °C. Points : mesures de Clark et al. <cite data-k="clark2019"></cite> (puissance de fin de test ≈ CP, travail au-dessus ≈ W′, en % du contrôle). Le modèle reproduit la baisse de W′ et celle de CP2 sans glucides, mais il sous-estime l'effet protecteur des glucides sur CP2. Pistes : renforcer l'épargne du glycogène des fibres I <cite data-k="tsintzas1995"></cite> ou l'effet central de la glycémie <cite data-k="nybo2003"></cite>.</figcaption>
   </figure>
-  <div class="note"><b>Durabilité dans PaceYourRide</b><br>Pour un affichage simple, résumez la durabilité par la baisse de CP2<sub>e</sub> en fonction des kJ/kg déjà produits. Le simulateur d'étape la calcule en continu : c'est la courbe CP2<sub>e</sub> du graphique de puissance.</div>
+  <div class="note"><b>Durabilité dans Wattlas</b><br>Pour un affichage simple, résumez la durabilité par la baisse de CP2<sub>e</sub> en fonction des kJ/kg déjà produits. Le simulateur d'étape la calcule en continu : c'est la courbe CP2<sub>e</sub> du graphique de puissance.</div>
 </section>
 
 <section class="sec" id="central" data-t="Fatigue centrale et perception">

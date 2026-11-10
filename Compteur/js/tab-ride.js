@@ -226,7 +226,7 @@
     V.cloudCard = card('Parcours et athlète', V.cloudLine, h('div', { class: 'rd-btns' }, V.cloudBtn),
     V.pickRoutes, V.pickAth,
     h('div', { class: 'grid2' }, rowEl('Vélo', V.pickBike), rowEl('Tenue et position', V.pickOutfit)),
-    h('p', { class: 'rd-note' }, 'Les parcours, athlètes, vélos et tenues sont ceux de PaceYourRide, lus dans ton Dropbox ; le plan optimal vient avec le projet en cours de PaceYourRide (ou calcule-le ici).'));
+    h('p', { class: 'rd-note' }, 'Les parcours, athlètes, vélos et tenues sont ceux de Wattlas, lus dans ton Dropbox ; le plan optimal vient avec le projet en cours de Plan (ou calcule-le ici).'));
     V.routeCard = card('Parcours', V.routeLine, V.mapCard, V.pprofCard);
     V.formRef = selectEl([['athlete', 'Profil de l\'athlète à 100 %'], ['form', 'Profil ajusté à la forme']], store.state.perf.formRef, (v) => store.set('perf.formRef', v));
     V.formRefRow = rowEl('W′bal et temps tenable sur', V.formRef);
@@ -300,7 +300,7 @@
     V.startBtn = h('button', { class: 'btn primary big', type: 'button', onclick: () => startLive() }, 'Démarrer la sortie');
     V.startHint = h('p', { class: 'rd-note center' });
     V.liveBox = h('div', { id: 'live-box' });
-    V.liveCard = card('Partie Virtual Ride', V.liveBox);
+    V.liveCard = card('Partie de Course', V.liveBox);
     V.prep.append(V.resume, V.liveCard, V.cloudCard, V.routeCard, V.planCard, V.mixCard, V.sensCard, V.nutCard, V.setCard, V.startBtn, V.startHint);
     buildKit();
   }
@@ -327,7 +327,7 @@
     if (!run.plan) loadStoredPlan();
     // parcours
     V.routeLine.hidden = !!p;                                    // sans parcours : seul ce message s'affiche
-    setTxt(V.routeLine, 'Aucun parcours : crée-le dans PaceYourRide, puis récupère-le ici depuis Dropbox.');
+    setTxt(V.routeLine, 'Aucun parcours : crée-le dans Plan, puis récupère-le ici depuis Dropbox.');
     if (p) {
       const st = p.stats || {};
       setTxt(V.distLine, `Distance : ${km(p.length)} km`);
@@ -349,7 +349,7 @@
       setTxt(V.planWarn, diffLen ? 'Ce plan ne correspond plus au parcours : recalcule-le.' : 'Le parcours, le cycliste ou le vélo ont changé depuis le calcul : recalcule le plan.');
       renderSegTable(plan);
     } else {
-      setTxt(V.planLine, 'Pas encore de plan. Calcule-le ici, ou dans PaceYourRide (page Pacing optimal) puis récupère-le depuis Dropbox.');
+      setTxt(V.planLine, 'Pas encore de plan. Calcule-le ici, ou dans Plan (page Pacing optimal) puis récupère-le depuis Dropbox.');
       V.planWarn.hidden = true;
       D.clear(V.segTable);
     }
@@ -380,7 +380,7 @@
     const st = PYR.cloud.status(), c = LC.state, n = (k) => c.lib[PYR.library.KINDS[k].list].length;
     const when = c.pulledAt ? new Date(c.pulledAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
     setTxt(V.cloudLine, run.cloudBusy ? 'Échange avec Dropbox…' : run.cloudMsg ? run.cloudMsg
-      : !st.connected ? 'Dropbox non connecté : connecte-le pour retrouver les parcours et athlètes de PaceYourRide.'
+      : !st.connected ? 'Dropbox non connecté : connecte-le pour retrouver les parcours et athlètes de Wattlas.'
         : `Dropbox connecté · ${n('route')} parcours, ${n('athlete')} athlète${n('athlete') > 1 ? 's' : ''}${when ? ' · lu le ' + when : ''}`);
     V.cloudBtn.disabled = !!run.cloudBusy;
     setTxt(V.cloudBtn, st.connected ? '↻ Actualiser' : 'Se connecter à Dropbox');
@@ -440,7 +440,7 @@
     run.cloudBusy = true; run.cloudMsg = ''; renderCloud();
     try {
       const r = await LC.refresh();
-      if (r === 'vide') run.cloudMsg = 'Ton Dropbox ne contient encore rien : ajoute un parcours et un athlète ici, ou ouvre PaceYourRide.';
+      if (r === 'vide') run.cloudMsg = 'Ton Dropbox ne contient encore rien : ajoute un parcours et un athlète ici, ou ouvre Plan.';
       else if (force) D.toast('Bibliothèque lue dans Dropbox.');
     } catch (e) { run.cloudMsg = e.message; if (force) D.toast(e.message, 'error'); }
     run.cloudBusy = false;
@@ -501,7 +501,7 @@
     if (!opp.length) { V.liveBar.hidden = true; return; }
     const ahead = opp.filter((o) => o.s > g.s).sort((a, b) => a.s - b.s)[0], behind = opp.filter((o) => o.s <= g.s).sort((a, b) => b.s - a.s)[0];
     const rank = 1 + opp.filter((o) => o.s > g.s).length;
-    const txt = `Virtual Ride · ${PYR.classifView.ordinal(rank)} sur ${opp.length + 1}` + (ahead ? ` · devant : ${ahead.name} +${distTxt(ahead.s - g.s)}` : '') + (behind ? ` · derrière : ${behind.name} −${distTxt(g.s - behind.s)}` : '');
+    const txt = `Course · ${PYR.classifView.ordinal(rank)} sur ${opp.length + 1}` + (ahead ? ` · devant : ${ahead.name} +${distTxt(ahead.s - g.s)}` : '') + (behind ? ` · derrière : ${behind.name} −${distTxt(g.s - behind.s)}` : '');
     V.liveBar.hidden = false;
     setTxt(V.liveBar, txt);
   }

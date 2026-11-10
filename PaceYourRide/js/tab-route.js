@@ -272,7 +272,7 @@
     exportTrace() {
       const p = store.profile;
       if (!p) { D.toast('Aucun parcours à exporter', 'error'); return; }
-      D.download(`${T.fileBase()}.gpx`, PYR.services.toGpx(store.state.route.name || 'Parcours PaceYourRide', p.lat, p.lng, p.ele, p.n), 'application/gpx+xml');
+      D.download(`${T.fileBase()}.gpx`, PYR.services.toGpx(store.state.route.name || 'Parcours Wattlas', p.lat, p.lng, p.ele, p.n), 'application/gpx+xml');
     },
 
     /** Parcours complet : GPX enrichi des sprints, côtes, ravitaillements, portions et de la météo (Commun/js/core/route-file.js). */
