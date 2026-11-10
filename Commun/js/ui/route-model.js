@@ -40,7 +40,7 @@
 
   /** Remplace le tracé par une suite de points [lat, lng, ele] (géométrie conservée, points de passage simplifiés). */
   function buildFromPoints(points) {
-    const pts = points.filter((p, i, a) => i === 0 || U.haversine(a[i - 1][0], a[i - 1][1], p[0], p[1]) > 0.5);
+    const pts = U.thinCoords(points.filter((p, i, a) => i === 0 || U.haversine(a[i - 1][0], a[i - 1][1], p[0], p[1]) > 0.5));      // un point tous les 10 m au plus (le moteur rééchantillonne à 10 m)
     let tol = 150, idx = S.simplifyIdx(pts, tol);
     while (idx.length > 30) { tol *= 1.5; idx = S.simplifyIdx(pts, tol); }
     const r = route();

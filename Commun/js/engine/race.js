@@ -12,10 +12,10 @@
 (function (PYR) {
   'use strict';
 
-  const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
+  const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Strat = PYR.strategy, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
 
   // peloton : positions latérales et aspiration en deux dimensions (peloton.js) ; sans elle, tout le monde roule dans l'axe (une file)
-  const RULES = { events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false };
+  const RULES = { events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false, strategy: false };
   // modèle physiologique : la courbe record ne limite que les efforts de 20 min au plus, la durabilité vient de la couche lente
   const PHYSIO_REC_MAX = 1200;
   const PUNCTURE_KM = 250;  // une crevaison tous les 250 km en moyenne (asphalte, pneus route) ; revêtement et pneus la modulent
@@ -68,6 +68,8 @@
       sprints: Math.min(Cl.MAX_SPRINTS, Math.max(0, Math.floor(Number(x.sprints) || 0))), kom: !!x.kom,
       draft: x.draft !== false,   // aspiration : désactivée (false) pour les défis contre des coureurs virtuels en sortie réelle
       peloton: x.peloton === true && x.draft !== false, // seulement demandé explicitement : les anciens défis et courses restent en file
+      // stratégies des coureurs virtuels (strategy.js) : équipes, rôles, objectifs ; explicite aussi, les anciens défis gardent leurs coureurs d'avant
+      strategy: x.strategy === true,
     };
   }
 
@@ -177,6 +179,25 @@
   /** Matériel du joueur qu'on garde pour un coureur du World Tour (position, casque, tenue : son corps vient de son profil). */
   const KIT = ['position', 'helmet', 'clothing', 'glasses', 'socks', 'shave'];
 
+  /** Un coureur virtuel du World Tour (it : élément de pros.js) ; opts : {rider, bike, v0, id, name, color, bot (préférences à ajouter)}. */
+  function addPro(race, it, opts, rnd, phyRnd) {
+    const Pr = PYR.pros, ty = Pr.TYPES[it.pro.type];
+    const kit = {};
+    for (const k of KIT) if (opts.rider && opts.rider[k] !== undefined) kit[k] = opts.rider[k];
+    const rider = Object.assign({}, it.data.rider, kit);
+    const athlete = Ph.buildAthlete(rider);
+    const setup = PYR.physics.buildSetup(rider, opts.bike);
+    const physio = physioOn(race) ? botCard(rider, athlete, phyRnd) : null;
+    return addRider(race, {
+      id: opts.id, name: it.name, color: opts.color || '#6f6d66',
+      bot: Object.assign({
+        aggr: 0.1 + 0.35 * rnd() + (it.pro.level > 85 ? 0.1 : 0), team: 0.2 + 0.8 * rnd(), level: 1, pro: it.id, proTeam: Pr.TEAMS[it.pro.team], proTeamId: it.pro.team,
+        sprint: PYR.util.clamp(ty.sprint + 0.1 * (rnd() - 0.5), 0, 1), climb: PYR.util.clamp(ty.climb + 0.1 * (rnd() - 0.5), 0, 1),
+      }, opts.bot || {}),
+      setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null, gut: rider.gut, rider, physio,
+    });
+  }
+
   /** Coureurs virtuels du World Tour (voir addBots) : leur morphologie et leur puissance sont celles de pros.js, le vélo celui du joueur. */
   function addPros(race, opts) {
     const rnd = race.rnd, out = [], Pr = PYR.pros;
@@ -188,21 +209,7 @@
     else for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(proRnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const n = Math.max(0, Math.min(MAX_BOTS, pool.length, opts.n | 0));
     for (let i = 0; i < n; i++) {
-      const it = pool[i], ty = Pr.TYPES[it.pro.type];
-      const kit = {};
-      for (const k of KIT) if (opts.rider && opts.rider[k] !== undefined) kit[k] = opts.rider[k];
-      const rider = Object.assign({}, it.data.rider, kit);
-      const athlete = Ph.buildAthlete(rider);
-      const setup = PYR.physics.buildSetup(rider, opts.bike);
-      const physio = physioOn(race) ? botCard(rider, athlete, phyRnd) : null;
-      out.push(addRider(race, {
-        id: 'bot' + (i + 1), name: it.name, color: opts.colors ? opts.colors[i % opts.colors.length] : '#6f6d66',
-        bot: {
-          aggr: 0.1 + 0.35 * rnd() + (it.pro.level > 85 ? 0.1 : 0), team: 0.2 + 0.8 * rnd(), level: 1, pro: it.id, proTeam: Pr.TEAMS[it.pro.team],
-          sprint: PYR.util.clamp(ty.sprint + 0.1 * (rnd() - 0.5), 0, 1), climb: PYR.util.clamp(ty.climb + 0.1 * (rnd() - 0.5), 0, 1),
-        },
-        setup, athlete, v0: opts.v0 || 0, form: race.rules.form ? Ph.drawForm(rnd) : null, gut: rider.gut, rider, physio,
-      }));
+      out.push(addPro(race, pool[i], { rider: opts.rider, bike: opts.bike, v0: opts.v0, id: 'bot' + (i + 1), color: opts.colors ? opts.colors[i % opts.colors.length] : '#6f6d66' }, rnd, phyRnd));
     }
     return out;
   }
@@ -251,6 +258,7 @@
     if (c.vlim < 16 && st.v > c.vlim - 1.5) risk *= 3;          // virage pris à la limite
     if (d.role === 'follow' && d.gapAhead < 0.8) risk *= 1.5;   // collé à la roue
     if (r.tac.mode === 'sprint' && d.groupSize > 1) risk *= 2;  // sprint en groupe
+    if (race.rules.strategy && d.groupSize >= 12) risk *= Strat.depthRisk(d.rank, d.groupSize); // gros groupe : plus de chutes au fond qu'à l'avant
     const pC = km / CRASH_KM * risk;
     const u = race.rnd();
     if (u < pP) {
@@ -348,7 +356,7 @@
 
     let Pcmd = 0;
     if (!c.stopped) {
-      if (r.bot) Tac.think(r, view, race);
+      if (r.bot) { if (race.rules.strategy) Strat.think(r, view, race); else Tac.think(r, view, race); }
       // cycliste réel : ses watts mesurés (home-trainer) ; sur la route, ceux de son capteur
       Pcmd = r.driven ? (r.drive && Number.isFinite(r.drive.P) ? r.drive.P : 0) : r.measured ? Math.max(0, Number(r.tac.cmd) || 0) : Tac.command(r, view, race.rules);
       if (race.feed.length) {
@@ -419,6 +427,7 @@
   /** Avance la course d'une seconde (tous les coureurs simulés localement). */
   function step(race) {
     const view = snapshot(race);
+    if (race.rules.strategy) Strat.tick(race, view); // équipes, situation de course, combativité (une fois par seconde)
     let order = race.riders;
     if (race.rules.peloton && race.rules.draft !== false) {
       Pel.steer(race, view); // placement latéral pour la seconde à venir
@@ -433,6 +442,34 @@
       race.pending.length = 0;
     }
     race.t++;
+  }
+
+  /**
+   * Prend la main sur un coureur virtuel (mode équipe) : ses préférences de coureur virtuel sont mises de côté (r.botProfile), il n'est plus
+   * décidé par la stratégie mais piloté par le joueur (tactique « dans les roues » au départ, puissance reprise à celle de la seconde écoulée).
+   */
+  function takeControl(race, r) {
+    if (r.human) return r;
+    r.botProfile = r.bot;
+    r.bot = null;
+    r.human = true;
+    Tac.setMode(r, 'follow', r.st.t);
+    r.tac.cmd = Math.round(r.lastP || 0);
+    r.tac.chase = undefined;
+    if (r.lat) { r.lat.roam = false; r.lat.mode = 'hold'; } // le joueur garde la voie qu'il choisit : le peloton ne le fait plus « flotter »
+    return r;
+  }
+
+  /** Rend un coureur piloté à la stratégie (il reprend son plan et sa tactique de coureur virtuel). */
+  function releaseControl(race, r) {
+    if (!r.human || !r.botProfile) return r;
+    r.bot = r.botProfile;
+    r.botProfile = null;
+    r.human = false;
+    r.tac.nextThink = 0;
+    if (r.lat) r.lat.roam = true;
+    Tac.setMode(r, 'follow', r.st.t);
+    return r;
   }
 
   /** Termine la course des coureurs encore en route (ex. : les virtuels après l'arrivée du joueur). */
@@ -480,5 +517,5 @@
     return Cl.standings(race.cps, race.riders.map((r) => ({ id: r.id, splits: r.splits, s: r.st.s })));
   }
 
-  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
+  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, addPro, takeControl, releaseControl, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
 })(globalThis.PYR = globalThis.PYR || {});

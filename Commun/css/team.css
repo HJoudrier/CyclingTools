@@ -1,0 +1,68 @@
+/* author : Hugo Joudrier-Faure */
+/* PaceYourRide — mode équipe : étape « Équipe » de la page de choix (team-setup.js) et liste des coureurs de l'écran de course (team-panel.js). */
+
+/* ---- page de choix ---- */
+.tg-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.tg-team { display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: inherit; padding: 8px 10px; border: 2px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.tg-team:hover { border-color: var(--border-strong); }
+.tg-team[aria-selected="true"] { border-color: var(--tc, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tc, var(--accent)) 24%, transparent); }
+.tg-team span { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.tg-team strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-dot { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: var(--tc, #6f6d66); border: 2px solid color-mix(in srgb, var(--tc, #6f6d66) 55%, #000); }
+.tg-tools { align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.tg-roster { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.tg-rider { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(130px, 170px); align-items: center; gap: 8px 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.tg-rider.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.tg-pick { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: 0; }
+.tg-id { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.tg-id strong, .tg-id span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-id span { font-size: 12px; }
+.tg-photo { flex: 0 0 auto; display: inline-grid; place-items: center; width: 38px; height: 46px; border-radius: 8px; border: 2px solid var(--tc, #6f6d66); background: color-mix(in srgb, var(--tc, #6f6d66) 26%, var(--surface-2)) center / cover no-repeat; font-size: 14px; font-weight: 800; color: var(--tc, #6f6d66); }
+.tg-stats { font-size: 12px; white-space: nowrap; }
+.tg-rider select { min-width: 0; width: 100%; }
+@media (max-width: 640px) { .tg-rider { grid-template-columns: minmax(0, 1fr); } .tg-stats { white-space: normal; } }
+
+/* ---- écran de course : liste des coureurs de l'équipe ---- */
+.team-panel { display: grid; gap: 8px; margin: 0 0 12px; }
+.team-panel[hidden] { display: none; }
+.team-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.team-panel h3 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.team-panel h3 .tg-dot { width: 14px; height: 14px; }
+.team-panel .hint { margin: 0; font-size: 11px; }
+.tp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.tp-card { position: relative; display: grid; gap: 5px; padding: 8px 9px; text-align: left; font: inherit; color: inherit; border: 2px solid var(--border); border-left: 5px solid var(--tc, #6f6d66); border-radius: 10px; background: var(--surface); cursor: pointer; }
+.tp-card:hover { border-color: var(--border-strong); border-left-color: var(--tc, #6f6d66); }
+.tp-card.is-me { border-color: var(--accent); border-left-color: var(--tc, #6f6d66); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-soft); }
+.tp-card.is-out { opacity: .6; }
+.tp-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tp-head .tg-photo { width: 30px; height: 36px; font-size: 12px; }
+.tp-id { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; flex: 1 1 auto; }
+.tp-id strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-id small { color: var(--ink-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-key { flex: 0 0 auto; font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border-strong); color: var(--ink-2); }
+.tp-badge { flex: 0 0 auto; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); }
+.tp-rank { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.tp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 6px; font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tp-stats b { display: block; font-size: 13px; color: var(--ink); }
+.tp-meters { display: grid; gap: 3px; }
+.tp-meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.tp-meter > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.tp-meter.w > i { background: #e8791d; }
+.tp-meter.e > i { background: #3f9d4f; }
+.tp-meter.low > i { background: #b3261e; }
+.tp-do { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--ink-2); }
+.tp-do span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tp-card select { font-size: 11px; max-width: 46%; }
+.tp-warn { color: #b3261e; font-weight: 700; }
+
+/* téléphone : la liste des coureurs s'ouvre dans la feuille du bas ; vignettes plus compactes, sans la phrase d'aide */
+.rm-sheet .team-panel { margin: 0; }
+.rm-sheet .team-panel .hint { display: none; }
+.rm-sheet .tp-list { grid-template-columns: 1fr 1fr; gap: 6px; }
+.rm-sheet .tp-card { padding: 6px 7px; gap: 4px; }
+.rm-sheet .tp-head .tg-photo { display: none; }
+.rm-sheet .tp-key { display: none; }
+.rm-sheet .tp-stats { grid-template-columns: repeat(2, 1fr); }
+.rm-sheet .tp-id small { display: none; }
+@media (max-width: 420px) { .rm-sheet .tp-list { grid-template-columns: 1fr; } }
+.tg-total { margin-top: 8px; font-weight: 600; }

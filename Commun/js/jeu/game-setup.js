@@ -63,7 +63,7 @@
 
   /** Page d'accueil du site : c'est là qu'on choisit (et qu'on crée) le parcours et l'athlète, pour toutes les applications. */
   const homeUrl = () => (PYR.root || '') + 'index.html';
-  const goHome = () => { store.saveNow(); location.href = homeUrl(); };
+  const goHome = () => { store.saveNow(); const go = () => { location.href = homeUrl(); }; PYR.kv.flush().then(go, go); };
 
   function renderRoutes() {
     for (const v of S.views) v.destroy();
@@ -289,7 +289,8 @@
     const route = find('route', pickId('route')), ath = find('athlete', pickId('athlete')), p = store.profile;
     const w = store.state.weather;
     const wx = ownSky() ? skySummary() : S.mode === 'random' ? 'météo aléatoire' : (w.snapshot && w.enabled ? 'météo du ' + String(w.startAt).replace('T', ' à ') : 'météo à récupérer');
-    $('#gs-go-sum').textContent = route ? [route.name, ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut', wx].join(' · ') : 'Choisis un parcours pour commencer.';
+    const team = PYR.teamSetup ? PYR.teamSetup.summary() : null;
+    $('#gs-go-sum').textContent = route ? [route.name, team || (ath ? (L.summary('athlete', ath.data) || {}).title || ath.name : 'athlète par défaut'), wx].join(' · ') : 'Choisis un parcours pour commencer.';
     $('#g-go').disabled = !route || !p;
   }
 
@@ -327,13 +328,15 @@
       if (ownSky()) renderSky(); else setMode(S.mode, true);
       // le choix se fait sur la page d'accueil : on le relit au retour sur cette page et quand une autre page le change
       const reread = () => { C.load(); renderAll(); };
-      window.addEventListener('pageshow', (e) => { if (e.persisted) reread(); });
-      window.addEventListener('storage', (e) => { if (e.key === 'paceyourride.v1' || e.key === 'paceyourride.library.v1') reread(); });
+      window.addEventListener('pageshow', (e) => { if (e.persisted) PYR.kv.refresh().then(reread, reread); });
+      window.addEventListener('pyr:kv', (e) => { const k = e.detail && e.detail.key; if (k === 'paceyourride.v1' || k === 'paceyourride.library.v1') reread(); });      // une autre page a écrit (kv.js)
       store.on('weather', () => { randomSummary(); if (ownSky()) renderSky(); renderSummary(); });      // météo récupérée, ou tirée à nouveau
       // lecture de Dropbox à l'ouverture, quand l'appareil est connecté
       if (PYR.cloud.status().connected) refresh();
       PYR.cloud.onChange(() => { if (!C.state.busy) renderCloud(); });
     },
+    /** Redessine la barre de départ (le choix de l'équipe change son résumé). */
+    refreshSummary: renderSummary,
     /** Pour les tests de l'interface. */
     _state: S,
   };

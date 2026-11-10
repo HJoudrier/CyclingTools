@@ -32,6 +32,24 @@
     return 2 * R_EARTH * Math.asin(Math.min(1, Math.sqrt(a)));
   };
 
+  /**
+   * Allège un tracé de points [lat, lng, altitude] : garde le premier et le dernier, et chaque point à au moins `minStep` mètres du dernier gardé
+   * (10 m par défaut : le moteur rééchantillonne le tracé tous les 10 m, des points plus serrés ne servent à rien et font exploser la sauvegarde
+   * d'un parcours de plusieurs centaines de km). Renvoie un nouveau tableau qui partage les points gardés ; un tracé déjà espacé est rendu tel quel (idempotent).
+   */
+  U.thinCoords = function (coords, minStep) {
+    const step = minStep > 0 ? minStep : 10;
+    if (!Array.isArray(coords) || coords.length <= 2) return coords;
+    const out = [coords[0]];
+    let last = coords[0];
+    for (let i = 1; i < coords.length - 1; i++) {
+      const c = coords[i];
+      if (U.haversine(last[0], last[1], c[0], c[1]) >= step) { out.push(c); last = c; }
+    }
+    out.push(coords[coords.length - 1]);
+    return out.length === coords.length ? coords : out;
+  };
+
   /** Cap (0–360°, 0 = nord, sens horaire) de 1 vers 2. */
   U.bearing = function (lat1, lng1, lat2, lng2) {
     const p1 = U.toRad(lat1), p2 = U.toRad(lat2), dl = U.toRad(lng2 - lng1);

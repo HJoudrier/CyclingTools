@@ -732,7 +732,7 @@
   function rulesBadges(rules, cps) {
     if (!rules) return [];
     const cl = CV.cpsText(cps);
-    return [rules.events && 'incidents', rules.form && 'forme du jour', rules.fuel && 'alimentation', rules.physio && 'modèle physiologique', rules.peloton && 'peloton en 2D', cl && `classements : ${cl}`]
+    return [rules.events && 'incidents', rules.form && 'forme du jour', rules.fuel && 'alimentation', rules.physio && 'modèle physiologique', rules.peloton && 'peloton en 2D', rules.strategy && 'stratégies', cl && `classements : ${cl}`]
       .filter(Boolean).map((x) => h('span', { class: 'badge' }, x));
   }
 

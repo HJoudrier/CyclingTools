@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="../Commun/css/style.css">
   <link rel="stylesheet" href="../Commun/css/game-mobile.css">
   <link rel="stylesheet" href="../Commun/css/ride.css">
+  <link rel="stylesheet" href="../Commun/css/team.css">
   <link rel="stylesheet" href="../Commun/css/select.css">
 </head>
 <body data-page="game" data-tab="game" class="gs-page">
@@ -62,6 +63,17 @@
       <!-- matériel modifiable sur la vue 3D : on choisit la partie, les flèches font défiler les articles (js/jeu/gear-edit.js) -->
       <h3>Ton matériel en 3D</h3>
       <div class="gs-gear3d" id="gs-gear3d"></div>
+    </section>
+
+    <!-- ============ 2b. ÉQUIPE : un coureur, ou une équipe du World Tour à gérer (Commun/js/jeu/team-setup.js) ============ -->
+    <section class="gs-sec" id="gs-team-sec" aria-labelledby="gs-h-team">
+      <h2 id="gs-h-team"><span class="gs-num">2b</span> Équipe</h2>
+      <div class="seg-control gs-seg" role="radiogroup" aria-label="Mode de jeu">
+        <button type="button" data-team-mode="solo" aria-pressed="true" title="Tu pilotes l'athlète choisi ci-dessus">🚴 Un coureur</button>
+        <button type="button" data-team-mode="team" aria-pressed="false" title="Tu gères une équipe du World Tour : tu choisis ses coureurs et tu bascules de l'un à l'autre en course">👥 Gérer une équipe</button>
+      </div>
+      <p class="hint" id="gs-team-note" hidden>En mode équipe, les coureurs viennent de l'équipe choisie ci-dessous (leur poids et leur puissance sont ceux de leur profil) ; le vélo, la tenue et la position sont ceux de l'étape précédente. Les autres équipes du World Tour participent aussi.</p>
+      <div id="gs-team" hidden></div>
     </section>
 
     <!-- ============ 3. MÉTÉO : une date, ou un temps aléatoire qui évolue ============ -->
@@ -152,6 +164,7 @@
         <div class="grid2">
           <div class="field checks">
             <label><input type="checkbox" id="g-events" data-bind="game.events"> Incidents : crevaisons, chutes</label>
+            <label title="Les coureurs virtuels forment des équipes (leader, sprinteur, poisson pilote, lanceurs, équipiers) et poursuivent chacun un objectif : gagner, points de la montagne ou des sprints, combativité, maillot, contrôle des échappées, bordures, protection d'un coureur, train… Décoché, ils roulent comme avant."><input type="checkbox" id="g-strategy" data-bind="game.strategy"> Stratégies des coureurs virtuels : équipes, rôles, objectifs</label>
             <label><input type="checkbox" id="g-fx" data-bind="game.fx"> Animations météo (pluie, battement des manches à air)</label>
             <label><input type="checkbox" id="g-form" data-bind="game.form"> Forme du jour tirée au hasard</label>
             <label><input type="checkbox" id="g-fuel" data-bind="game.fuel"> Alimentation et hydratation</label>

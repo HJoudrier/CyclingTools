@@ -53,6 +53,8 @@
       timeScale: 5, ghost: true, follow: true,
       countdown: 5,            // décompte avant le départ (s, temps réel ; 0 : aucun), affiché sur l'écran de course
       bots: 3, botLevel: 'equal', events: true, form: true, fuel: true, pullSec: 30,
+      team: { on: false, team: '', riders: [], plans: {}, opp: 9, size: 8 }, // mode équipe : l'équipe du World Tour que le joueur gère, ses coureurs et leurs plans (team-game.js)
+      strategy: true,         // stratégies des coureurs virtuels : équipes, rôles et objectifs (strategy.js) ; sans elles, les coureurs d'avant
       source: 'avatar',        // présence dans la course (presence.js) : avatar ou home-trainer (watts mesurés)
       trainerSim: true,        // home-trainer FTMS : il reçoit la pente, le vent et l'abri du peloton
       northUp: false,          // carte : nord en haut (boussole) ; sinon elle suit l'orientation du cycliste, comme le compteur
@@ -152,17 +154,22 @@
     saveNow() {
       try {
         const json = JSON.stringify(serialize(this.state));
-        if (localStorage.getItem(KEY) !== json) localStorage.setItem(MTIME_KEY, String(Date.now()));     // une écriture sans changement (ouverture de l'éditeur) ne rajeunit pas le projet
-        localStorage.setItem(KEY, json);
+        if (PYR.kv.getItem(KEY) !== json) localStorage.setItem(MTIME_KEY, String(Date.now()));     // une écriture sans changement (ouverture de l'éditeur) ne rajeunit pas le projet
+        PYR.kv.setItem(KEY, json);
         if (PYR.appId === 'pro' && PYR.cloud) PYR.cloud.pushSoon();     // les jeux et le compteur le lisent dans Dropbox
       } catch (e) {
         console.warn('Sauvegarde locale impossible', e);
+        const now = Date.now();
+        if (PYR.dom && PYR.dom.toast && now - (this._warnedAt || 0) > 60000) {      // au plus un message par minute
+          this._warnedAt = now;
+          PYR.dom.toast(e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) ? 'Sauvegarde impossible : l\'espace de stockage du navigateur est plein (parcours très long ?).' : 'Sauvegarde locale impossible.', 'error');
+        }
       }
     },
 
     load() {
       try {
-        const raw = localStorage.getItem(KEY);
+        const raw = PYR.kv.getItem(KEY);
         if (raw) this.state = sanitize(merge(defaults(), upgrade(JSON.parse(raw))));
       } catch (e) {
         console.warn('Lecture de la sauvegarde impossible', e);
@@ -173,7 +180,7 @@
     reset() {
       this.state = defaults();
       this.plan = null;
-      try { localStorage.removeItem(KEY); localStorage.removeItem(MTIME_KEY); } catch (e) { /* stockage indisponible */ }
+      try { PYR.kv.removeItem(KEY); localStorage.removeItem(MTIME_KEY); } catch (e) { /* stockage indisponible */ }
     },
 
     exportProject() {
@@ -413,7 +420,7 @@
       waypoints: state.route.waypoints.map((w) => ({ lat: +w.lat.toFixed(6), lng: +w.lng.toFixed(6) })),
       legs: state.route.legs.map((l) => ({
         mode: l.mode,
-        coords: l.coords ? l.coords.map((c) => [+c[0].toFixed(6), +c[1].toFixed(6), c[2] === null || c[2] === undefined ? null : +(+c[2]).toFixed(1)]) : null,
+        coords: l.coords ? PYR.util.thinCoords(l.coords).map((c) => [+c[0].toFixed(6), +c[1].toFixed(6), c[2] === null || c[2] === undefined ? null : +(+c[2]).toFixed(1)]) : null,
       })),
     };
     return s;

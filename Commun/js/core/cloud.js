@@ -32,8 +32,10 @@
   const S = { busy: false, error: '', pulls: 0 };             // état visible de l'interface
 
   const emit = () => { for (const fn of listeners) { try { fn(status()); } catch (e) { console.error(e); } } };
-  const readJSON = (k) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } };
-  const writeJSON = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  // la connexion Dropbox (petite, lue tout de suite après une redirection de page) reste dans localStorage ; le projet et la bibliothèque, volumineux, vont dans IndexedDB (kv.js)
+  const area = (k) => (k === CFG_KEY ? localStorage : PYR.kv);
+  const readJSON = (k) => { try { const r = area(k).getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } };
+  const writeJSON = (k, v) => area(k).setItem(k, JSON.stringify(v));
   const cfg = () => { const c = readJSON(CFG_KEY); return c && typeof c === 'object' && !Array.isArray(c) ? c : {}; };
   const saveCfg = (patch) => { writeJSON(CFG_KEY, Object.assign(cfg(), patch)); };
 
@@ -71,7 +73,8 @@
     const q = new URLSearchParams(location.search);
     if (!q.has('state') || !(q.has('code') || q.has('error'))) return '';
     history.replaceState(null, '', location.pathname + location.hash);
-    const pk = readJSON(PKCE_KEY);
+    let pk = null;
+    try { pk = JSON.parse(localStorage.getItem(PKCE_KEY)); } catch (e) { /* illisible : connexion refusée plus bas */ }      // petite valeur de passage, restée dans localStorage
     try { localStorage.removeItem(PKCE_KEY); } catch (e) { /* stockage indisponible */ }
     if (!pk || pk.state !== q.get('state')) return '';
     if (q.has('error')) { S.error = q.get('error') === 'access_denied' ? 'Connexion refusée.' : 'Connexion impossible : ' + (q.get('error_description') || q.get('error')); emit(); return 'error'; }
@@ -168,7 +171,7 @@
     }
     let project = readJSON(PROJECT_KEY), savedAt = hasProject(project) ? mtime() : 0, changed = false;
     if (!pushOnly && snap && hasProject(snap.project) && Number(snap.savedAt) > savedAt) {
-      if (hasProject(project)) localStorage.setItem(BACKUP_KEY, JSON.stringify(project));
+      if (hasProject(project)) PYR.kv.setItem(BACKUP_KEY, JSON.stringify(project));
       project = snap.project; savedAt = Number(snap.savedAt);
       writeJSON(PROJECT_KEY, project); localStorage.setItem(MTIME_KEY, String(savedAt));
       changed = true;

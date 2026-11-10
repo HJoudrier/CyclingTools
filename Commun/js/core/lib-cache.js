@@ -16,7 +16,7 @@
 
   const C = { lib: L.empty(), project: null, local: null, localAt: 0, projectAt: 0, pulledAt: 0, busy: false, error: '', memo: {}, profiles: new Map() };
 
-  function readJSON(k) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function readJSON(k) { try { const r = PYR.kv.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
 
   /** Le projet en cours de l'accueil de ce navigateur (parcours, athlète… choisis), ou null s'il est vide. */
   function localProject() {
@@ -36,9 +36,9 @@
   }
   function save() {
     try {
-      localStorage.setItem(L.STORAGE_KEY, JSON.stringify(C.lib));
-      if (L.STORAGE_KEY !== SHARED_LIB) localStorage.setItem(SHARED_LIB, JSON.stringify(L.merge(readJSON(SHARED_LIB), C.lib)));      // l'accueil et les autres applications le retrouvent
-      localStorage.setItem(PROJECT_KEY, JSON.stringify({ project: C.project, savedAt: C.projectAt, pulledAt: C.pulledAt }));
+      PYR.kv.setItem(L.STORAGE_KEY, JSON.stringify(C.lib));
+      if (L.STORAGE_KEY !== SHARED_LIB) PYR.kv.setItem(SHARED_LIB, JSON.stringify(L.merge(readJSON(SHARED_LIB), C.lib)));      // l'accueil et les autres applications le retrouvent
+      PYR.kv.setItem(PROJECT_KEY, JSON.stringify({ project: C.project, savedAt: C.projectAt, pulledAt: C.pulledAt }));
       return true;
     } catch (e) { return false; }
   }
@@ -59,7 +59,9 @@
     const out = C.lib[L.KINDS[kind].list].slice();
     const pj = projectItem(kind);
     const json = pj ? JSON.stringify(pj.data) : '';
-    C.memo[kind] = pj && !out.some((x) => JSON.stringify(x.data) === json) ? [pj].concat(out) : out;
+    // le projet est enregistré avec un tracé allégé (extract) : un parcours plus ancien de la bibliothèque, plus dense, s'allège de même avant la comparaison
+    const same = (x) => JSON.stringify(kind === 'route' ? L.extract('route', x.data) : x.data) === json;
+    C.memo[kind] = pj && !out.some(same) ? [pj].concat(out) : out;
     return C.memo[kind];
   }
   /** Un élément par son identifiant : le projet en cours (PROJECT_ID : ce qui est choisi sur l'accueil du site), la bibliothèque ou, pour un athlète, un coureur du World Tour. */

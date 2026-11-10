@@ -23,6 +23,9 @@
   const Cl = PYR.classif, CV = PYR.classifView;
   const { h, $ } = D;
   const ME_COLOR = '#eb6834';
+  /** Mode équipe (team-game.js) : le joueur gère une équipe du World Tour et pilote un coureur à la fois (page de choix, étape Équipe). */
+  const teamCfg = () => store.state.game.team;
+  const teamOn = () => G.mode === 'solo' && !!PYR.teamGame && !!teamCfg() && teamCfg().on === true && PYR.teamGame.normalize(teamCfg()).on;
   const SPRINT_COLOR = '#1d9a4a', KOM_COLOR = '#d62828', FEED_COLOR = '#0a7ea4';
 
   const G = {
@@ -71,7 +74,7 @@
 
   /** Comment tu participes (presence.js) : avatar (barre de puissance) ou home-trainer (watts mesurés). Le GPS n'est plus proposé ici : on roule pour de vrai avec le Compteur,
    *  qui rejoint la partie ; un ancien réglage « route » redevient avatar. */
-  function source() { const k = PYR.presence ? PYR.presence.normKind(store.state.game.source) : 'avatar'; return k === 'road' ? 'avatar' : k; }
+  function source() { if (teamOn()) return 'avatar'; const k = PYR.presence ? PYR.presence.normKind(store.state.game.source) : 'avatar'; return k === 'road' ? 'avatar' : k; }
 
   /** Vitesse du temps choisie : ×1 en direct et pour un cycliste réel (home-trainer, route), qui pédale en temps réel. */
   function timeScale() { return G.mode === 'live' || source() !== 'avatar' ? 1 : Number(store.state.game.timeScale) || 1; }
@@ -88,7 +91,9 @@
     };
   }
 
-  function myName() { return String(store.state.rider.name || '').trim() || 'Toi'; }
+  function myName() { return G.team && G.me ? G.me.name : String(store.state.rider.name || '').trim() || 'Toi'; }
+  /** Identifiant du coureur piloté dans la course : « me », ou en mode équipe celui du coureur du moment. */
+  const meId = () => (G.team && G.me ? G.me.id : 'me');
 
   /** Durée du décompte avant le départ (s, réglage du panneau ; 0 : départ immédiat). */
   function countdownSec() { return U.clamp(Math.round(Number(store.state.game.countdown) || 0), 0, 600); }
@@ -117,7 +122,9 @@
   function currentRules() {
     if (G.mode === 'live' && PYR.live) return Race.normRules(PYR.live.rules());
     if (G.mode === 'challenge') return Race.normRules(PYR.challenges.rules());
-    return Race.normRules(store.state.game);
+    const rules = Race.normRules(store.state.game);
+    if (teamOn()) rules.strategy = true;      // les coureurs de l'équipe que tu ne pilotes pas courent avec leur plan (strategy.js)
+    return rules;
   }
 
   /** Points de passage (sprints, sommets, arrivée) : ceux de l'organisateur ou du créateur, sinon ceux choisis sur la page Parcours. */
@@ -250,7 +257,7 @@
       // le vent, la météo et les revêtements font partie du parcours simulé (et des manches à air affichées)
       ['winds', 'weather', 'surfaces', 'env', 'road', 'checkpoints', 'feedZones'].forEach((e) => store.on(e, () => { if (!G.running && !G.counting && !G.liveStart) T.reset(); }));
       store.on('game', (ev) => {
-        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|pullSec|peloton|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
+        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|pullSec|peloton|strategy|team|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
         // course en direct pas encore partie : on peut encore choisir avatar, home-trainer ou route (la partie est réarmée)
         else if (ev && ev.path === 'game.source' && G.liveStart && !G.running) T.armLive(G.liveStart);
       });
@@ -374,10 +381,10 @@
       D.clear(el);
       const th = PYR.charts.theme();
       const key = (color, label) => h('span', { class: 'key' }, h('span', { class: 'sw', style: { background: color, borderRadius: '50%', width: '9px', height: '9px' } }), label);
-      el.appendChild(key(th.s2, 'Toi'));
+      el.appendChild(key(G.team ? G.me.color : th.s2, G.team ? `${G.me.name} (piloté)` : 'Toi'));
       for (const g of G.ghosts) el.appendChild(key(g.color, g.name));
       const bots = G.race ? G.race.riders.filter((r) => r !== G.me) : [];
-      if (bots.length > MAX_LEGEND) el.appendChild(h('span', { class: 'key' }, `${bots.length} coureurs virtuels`)); // trop pour les nommer tous
+      if (bots.length > MAX_LEGEND) el.appendChild(h('span', { class: 'key' }, G.team ? `${bots.length} autres coureurs` : `${bots.length} coureurs virtuels`)); // trop pour les nommer tous
       else for (const r of bots) el.appendChild(key(r.color, r.name));
       if (G.mode === 'live' && PYR.live) for (const o of PYR.live.opponents()) el.appendChild(key(o.color, o.name));
     },
@@ -388,7 +395,7 @@
       const r = G.mode === 'solo' ? null : currentRules();
       note.hidden = !r;
       if (!r) return;
-      const on = [r.events && 'incidents', r.form && 'forme du jour', r.fuel && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D'].filter(Boolean);
+      const on = [r.events && 'incidents', r.form && 'forme du jour', r.fuel && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D', r.strategy && 'stratégies des coureurs virtuels'].filter(Boolean);
       const cl = CV.cpsText(G.cps);
       // défi ou course d'une ancienne version, sans peloton en 2D : ses règles sont figées, les coureurs y roulent en file
       const file = r.peloton ? '' : ' Coureurs en file (règle d\'une ancienne version) : ils peuvent s\'y chevaucher.';
@@ -466,10 +473,17 @@
       const riderIn = machine && machine.rider ? machine.rider : store.state.rider;
       const src = source();
       if (PYR.gameSource) PYR.gameSource.prepare(src === 'road' ? inputs.course : null);
-      G.me = Race.addRider(race, { id: 'me', name: myName(), color: ME_COLOR, human: true, measured: src === 'trainer', driven: src === 'road', setup: inputs.setup, athlete: inputs.athlete, v0: inputs.v0, margin: inputs.margin, form, cmd: G.cmd, gut: Number(store.state.rider.gut) || 0, kit: Fu.normKit(store.state.game.kit), rider: riderIn });
+      const teamRun = teamOn();
+      G.team = null; G.saved = {};
+      if (teamRun) {
+        // mode équipe : ton équipe et les équipes adverses ; tu pilotes un coureur de la tienne
+        G.team = PYR.teamGame.populate(race, { cfg: teamCfg(), rider: store.state.rider, bike: store.state.bike, v0: inputs.v0 });
+        G.me = G.team.controlled;
+        G.cmd = Math.round(G.me.athlete.ftp * 0.75 / 10) * 10;
+      } else G.me = Race.addRider(race, { id: 'me', name: myName(), color: ME_COLOR, human: true, measured: src === 'trainer', driven: src === 'road', setup: inputs.setup, athlete: inputs.athlete, v0: inputs.v0, margin: inputs.margin, form, cmd: G.cmd, gut: Number(store.state.rider.gut) || 0, kit: Fu.normKit(store.state.game.kit), rider: riderIn });
       G.ctx = G.me.ctx; G.st = G.me.st;
       T.applyFollowLimits();
-      const nBots = G.mode === 'solo' ? Math.max(0, Math.min(Race.MAX_BOTS, Math.floor(Number(store.state.game.bots) || 0))) : 0;
+      const nBots = G.mode === 'solo' && !teamRun ? Math.max(0, Math.min(Race.MAX_BOTS, Math.floor(Number(store.state.game.bots) || 0))) : 0;
       if (nBots > 0) {
         Race.addBots(race, { n: nBots, level: store.state.game.botLevel, rider: store.state.rider, bike: store.state.bike, v0: inputs.v0, colors: Race.palette(PYR.challenges.COLORS, nBots) });
       }
@@ -488,7 +502,7 @@
       G.ghosts = [];
       const th = PYR.charts.theme();
       const p = plan();
-      if (!isLive && p && store.state.game.ghost) G.ghosts.push({ id: 'plan', name: 'Plan optimal', color: th.s1, s: p.series.s, time: p.tFinish });
+      if (!isLive && p && store.state.game.ghost && !G.team) G.ghosts.push({ id: 'plan', name: 'Plan optimal', color: th.s1, s: p.series.s, time: p.tFinish });
       if (G.mode === 'challenge') G.ghosts.push(...PYR.challenges.ghosts());
       G.ready = true;
       G.chart.setFlags(flagsFor(cps, G.feed));
@@ -499,9 +513,11 @@
       T.renderRulesNote();
       T.renderCpsNote();
       T.renderClassif();
+      if (PYR.teamPanel) PYR.teamPanel.build(G.team);
       const formText = form ? ` Forme du jour : ${form.label} (PC −${U.fmt((1 - form.cpK) * 100, 1)} %, HIE −${U.fmt((1 - form.wK) * 100, 1)} %).` : '';
       if (isLive) setStatus('Course en direct : le départ est donné automatiquement à l\'heure prévue.' + formText);
       else if (G.mode === 'challenge') setStatus((G.ghosts.length ? `Défi : ${G.ghosts.length} fantôme${G.ghosts.length > 1 ? 's' : ''} à battre. Ton arrivée sera ajoutée au classement.` : 'Défi : sois le premier à poser un temps !') + formText);
+      else if (G.team) setStatus(`Prêt ! ${G.team.teams[0].name} : ${G.team.own.length} coureur${G.team.own.length > 1 ? 's' : ''} dans un peloton de ${race.riders.length} ; tu pilotes ${G.me.name}. Bascule sur un autre coureur en cliquant sa vignette ou avec N (Maj+N : le précédent).` + formText);
       else if (nBots) setStatus(`Prêt ! ${nBots} coureur${nBots > 1 ? 's' : ''} virtuel${nBots > 1 ? 's' : ''} au départ (${nBots + 1} avec toi) : reste dans les roues, prends des relais, attaque… (touches 1 à 9 et S${rules.peloton ? ' ; ← → pour changer de rang, Z pour le zoom peloton' : ''}).` + formText);
       else setStatus((p ? 'Prêt ! Bats le fantôme de la stratégie optimale.' : 'Prêt ! (Calcule la stratégie dans l\'page Pacing optimal pour affronter un fantôme.)') + formText);
       if (store.state.ui.tab === 'game') {
@@ -649,6 +665,7 @@
       let n = 0;
       while (G.acc >= 1 && !G.st.finished && n < 400) {
         T.stepOnce(); G.acc -= 1; n++;
+        if (G.team && G.st.finished) T.teamAdvance();   // le coureur piloté est arrivé : on prend la main sur un équipier encore en course
         if (performance.now() > deadline) break;
         if (performance.now() < G.holdUntil) { G.acc = Math.min(G.acc, 0.99); break; } // une pause vient de commencer
         if (T.effScale(base) < scale) { G.acc = Math.min(G.acc, 0.99); break; }       // retour à ×1 : on ne rattrape pas le temps accéléré
@@ -868,7 +885,7 @@
 
     /** Évènements de course : incidents, attaques des coureurs virtuels. */
     onRaceEvent(ev) {
-      const me = ev.id === 'me';
+      const me = ev.id === meId();
       if (!me && !T.worthAnnouncing(ev)) return;
       T.onSlowEvent(ev);
       if (ev.type === 'puncture') D.toast(me ? `Crevaison ! Dépannage pendant ${ev.dur} s.` : `${ev.name} a crevé.`, me ? 'error' : undefined);
@@ -903,7 +920,7 @@
           if (r === G.me) continue;
           const s = r.finished ? L : Math.min(L, ext === undefined ? r.prevS + (r.st.s - r.prevS) * f : r.st.s + r.st.v * ext);
           const y = r.lat ? (ext === undefined ? r.lat.prevY + (r.lat.y - r.lat.prevY) * f : r.lat.y) : undefined;
-          out.push({ id: r.id, name: r.name, color: r.color, s, y, v: r.st.v, P: r.lastP, time: r.finished ? r.time : null, bot: true, stopped: !!r.incident });
+          out.push({ id: r.id, name: r.name, color: r.color, s, y, v: r.st.v, P: r.lastP, time: r.finished ? r.time : null, bot: true, stopped: !!r.incident, strat: r.strat || undefined, own: !!r.own });
         }
       }
       if (G.mode === 'live' && PYR.live) {
@@ -955,7 +972,7 @@
         k: T.effScale(timeScale()),
         run: G.running && !G.finished && performance.now() >= G.holdUntil,
         me: {
-          id: 'me', name: myName(), color: ME_COLOR, kind: source(), s, y, v: me.incident ? 0 : me.st.v, P: G.lastP, w: me.st.wbal / G.ctx.w0,
+          id: meId(), name: myName(), color: G.team ? G.me.color : ME_COLOR, kind: source(), s, y, v: me.incident ? 0 : me.st.v, P: G.lastP, w: me.st.wbal / G.ctx.w0,
           dr: me.draft && me.draft.k > 0 && me.draft.k < 1 ? 1 - me.draft.k : 0, st: !!me.incident, fin: !!me.finished, cp: G.ctx.cp,
           // ton vélo et ta tenue en 3D, ceux de la vitrine du magasin
           gear: PYR.gearArt ? PYR.gearArt.gear3d({ rider: store.state.rider, bike: store.state.bike, picks: store.state.shop || {} }) : undefined,
@@ -998,11 +1015,13 @@
       const myFin = st.finished;
       const myS = myFin ? L : G.mode === 'live' && G.renderS !== undefined ? G.renderS : st.s;
       const myV = Math.max(1, st.v);
-      const rows = [{ me: true, id: 'me', name: 'Toi', color: PYR.charts.theme().s2, s: myS, v: st.v, fin: myFin, time: myFin ? st.tFinish : null, dt: 0, dd: 0 }];
+      const rows = [{ me: true, id: meId(), name: G.team ? G.me.name : 'Toi', color: G.team ? G.me.color : PYR.charts.theme().s2, s: myS, v: st.v, fin: myFin, time: myFin ? st.tFinish : null, dt: 0, dd: 0 }];
       for (const o of T.others(t)) {
         const ghost = !o.live && !o.bot;
         const fin = ghost ? o.s >= L - 0.5 : o.time !== null && o.time !== undefined;
-        const row = { me: false, id: o.id, name: o.name, color: o.color, s: fin ? L : o.s, v: o.stopped ? 0 : o.v, fin, time: fin ? o.time : null, stopped: !!o.stopped };
+        const row = { me: false, id: o.id, name: o.name, color: o.color, s: fin ? L : o.s, v: o.stopped ? 0 : o.v, fin, time: fin ? o.time : null, stopped: !!o.stopped, mate: !!o.own,
+          // rôle et objectif du moment d'un coureur virtuel (stratégies)
+          info: o.strat && PYR.strategy ? `${PYR.strategy.ROLES[o.strat.role].label} — ${o.strat.label}` : null };
         row.dd = row.s - myS; // > 0 : devant toi (m)
         if (myFin && fin) row.dt = row.time !== null ? st.tFinish - row.time : 0; // > 0 : arrivé avant toi
         else if (myFin) row.dt = -Infinity;                                       // encore en route : derrière toi
@@ -1073,9 +1092,9 @@
           else if (myFin) { tCell = h('span', { class: 'behind' }, '▼ en route'); dCell = h('span', { class: 'behind' }, `▼ ${dist(r.dd)}`); }
           else { tCell = h('span', { class: cls }, `${sign} ${time(r.dt)}`); dCell = h('span', { class: cls }, `${sign} ${dist(r.dd)}`); }
         }
-        body.appendChild(h('tr', { class: r.me ? 'me' : '' },
+        body.appendChild(h('tr', { class: r.me ? 'me' : r.mate ? 'mate' : '' },
           h('td', null, String(i + 1)),
-          h('td', { class: 'name', title: r.name }, (r.me && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { '--c': r.color } }), r.name, r.stopped ? ' ⚠' : ''),
+          h('td', { class: 'name', title: r.info ? `${r.name} · ${r.info}` : r.name }, (r.me && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { '--c': r.color } }), r.name, r.stopped ? ' ⚠' : ''),
           h('td', { class: 'r' }, tCell), h('td', { class: 'r' }, dCell),
           h('td', { class: 'r' }, r.v !== undefined && r.v !== null && !r.fin ? U.fmt(r.v * 3.6, 0) : '–')));
       });
@@ -1089,6 +1108,7 @@
     renderHud(force) {
       const me = G.me, st = G.st, ctx = G.ctx;
       if (!me || !st || !ctx) return;
+      if (G.team && PYR.teamPanel) PYR.teamPanel.update(!!force);
       $('#hud-speed').textContent = U.fmt(st.v * 3.6, 1);
       $('#hud-power').textContent = U.fmt(G.lastP || 0, 0);
       const cond = {};
@@ -1200,6 +1220,7 @@
         // vent au cycliste (conditions de la seconde écoulée) : vitesse du vent, direction où il souffle dans le repère du cycliste
         // (0° : vers l'avant, 180° : vers l'arrière, donc vent de face), vitesse du vent apparent, composantes de face et de côté
         wind: windOf(me), hr: fs && fs.phys ? fs.phys : null,
+        team: G.team ? { i: G.team.own.indexOf(me) + 1, n: G.team.own.length } : null, // mode équipe : place du coureur piloté dans la liste
         northUp: !!store.state.game.northUp, peloton: !!me.lat, closeUp: !!G.closeUp, tiltable: 'DeviceOrientationEvent' in window, tilt: !!G.tiltOn, edge: !!(me.lat && me.draft && me.draft.edge),
         pullSec: G.race ? G.race.rules.pullSec : Number.isFinite(Number(store.state.game.pullSec)) ? Number(store.state.game.pullSec) : 30, pullFixed: G.mode !== 'solo',
       };
@@ -1845,6 +1866,7 @@
       else if (e.key === 'ArrowDown') T.setCmd(G.cmd - (e.shiftKey ? 50 : 10));
       else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && G.me && G.me.lat) T.nudge(e.key === 'ArrowLeft' ? -1 : 1);
       else if ((e.key === 'z' || e.key === 'Z') && G.ready) T.toggleCloseUp();
+      else if ((e.key === 'n' || e.key === 'N') && G.team) T.nextRider(e.shiftKey ? -1 : 1);
       else if (e.key === 'PageUp') T.setCmd(G.cmd + 50);
       else if (e.key === 'PageDown') T.setCmd(G.cmd - 50);
       else if (e.key === '0') T.setCmd(0);
@@ -1938,10 +1960,13 @@
         const sd = Cl.standings(cps, riders);
         const names = new Map(riders.map((r) => [r.id, r.name]));
         const name = (id) => names.get(id) || '?';
-        leads.appendChild(CV.leaders(cps, sd, name, 'me'));
-        pPoints.appendChild(CV.table(sd.points, name, 'me', 'green'));
-        if (cps.some((c) => c.type === 'kom')) pKom.appendChild(CV.table(sd.kom, name, 'me', 'kom'));
-        pPass.appendChild(CV.passages(cps, sd, name, 'me'));
+        leads.appendChild(CV.leaders(cps, sd, name, meId()));
+        // dossard de combativité (stratégies des coureurs virtuels) : le plus offensif jusqu'ici
+        const fight = G.race && G.race.strat && PYR.strategy ? PYR.strategy.combativity(G.race)[0] : null;
+        if (fight) leads.appendChild(h('div', { class: 'classif-lead' }, h('span', null, '🔥 Combativité : '), h('strong', null, name(fight.id))));
+        pPoints.appendChild(CV.table(sd.points, name, meId(), 'green'));
+        if (cps.some((c) => c.type === 'kom')) pKom.appendChild(CV.table(sd.kom, name, meId(), 'kom'));
+        pPass.appendChild(CV.passages(cps, sd, name, meId()));
       }
       for (const p of document.querySelectorAll('#game-classif .classif-pane')) p.hidden = p.dataset.pane !== G.ctab;
     },
@@ -1972,6 +1997,17 @@
       $('#g-start').textContent = 'Rejouer';
       $('#g-pause').disabled = true;
       $('#g-quit').disabled = false;
+      if (G.team) {
+        // mode équipe : classement par équipes et résultats de tous les coureurs
+        const box = $('#game-result');
+        D.clear(box);
+        PYR.teamPanel.result(box);
+        T.renderRaceResults(box);
+        box.hidden = false;
+        setStatus('Course terminée !');
+        T.renderStats();
+        return;
+      }
       const time = st.tFinish;
       const entry = T.entry();
       const S = me.stats;
@@ -2026,16 +2062,16 @@
       const res = Race.results(G.race);
       const rank = res.indexOf(G.me) + 1;
       const best = res[0].finished ? res[0].time : NaN;
-      box.appendChild(h('div', { style: { marginTop: '6px', fontWeight: '650' } }, rank === 1 ? `Victoire ! Tu gagnes devant ${res.length - 1} coureur${res.length > 2 ? 's' : ''} virtuel${res.length > 2 ? 's' : ''}.` : `Tu termines ${rank}ᵉ sur ${res.length}.`));
+      if (!G.team) box.appendChild(h('div', { style: { marginTop: '6px', fontWeight: '650' } }, rank === 1 ? `Victoire ! Tu gagnes devant ${res.length - 1} coureur${res.length > 2 ? 's' : ''} virtuel${res.length > 2 ? 's' : ''}.` : `Tu termines ${rank}ᵉ sur ${res.length}.`));
       const cps = G.cps, act = Cl.active(cps), hasKom = act && cps.some((c) => c.type === 'kom');
       const sd = act ? Race.standings(G.race) : null;
       const worn = sd ? CV.holders(sd, true) : new Map();
       const ptsOf = (list, id) => { const x = list.find((y) => y.id === id); return x ? String(x.pts) : '–'; };
       const tb = h('tbody');
       res.forEach((r, i) => {
-        tb.appendChild(h('tr', { class: r === G.me ? 'me' : '' },
+        tb.appendChild(h('tr', { class: r === G.me ? 'me' : r.own ? 'mate' : '' },
           h('td', null, String(i + 1)),
-          h('td', null, (r === G.me && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { background: r.color } }), r === G.me ? `${r.name} (toi)` : r.name, ' ', ...CV.jerseysOf(worn, r.id)),
+          h('td', null, (r === G.me && !G.team && PYR.avatar.span(20, r.color)) || h('span', { class: 'dot', style: { background: r.color } }), r === G.me && !G.team ? `${r.name} (toi)` : r.teamId ? `${r.name} · ${r.teamId}` : r.name, ' ', ...CV.jerseysOf(worn, r.id)),
           h('td', null, r.finished ? U.fmtClock(r.time) : 'abandon'),
           h('td', null, r.finished && i > 0 ? U.fmtDelta(r.time - best) : '–'),
           act ? h('td', null, ptsOf(sd.points, r.id)) : null,
@@ -2045,6 +2081,60 @@
       box.appendChild(CV.scrollable(h('div', { class: 'table-wrap' }, h('table', { class: 'simple num leaderboard race-results' },
         h('thead', null, h('tr', null, ...head.map((x) => h('th', null, x)))), tb)), res.length));
       T.render(1);
+    },
+
+    /* ---------- mode équipe : basculer d'un coureur de l'équipe à l'autre ---------- */
+
+    /** Passe le pilotage au coureur d'identifiant id (de ton équipe, encore en course) ; le précédent reprend son plan. Renvoie vrai si on a basculé. */
+    switchRider(id) {
+      const race = G.race;
+      if (!G.team || !race || !G.ready) return false;
+      const r = race.riders.find((x) => x.id === id && x.own);
+      if (!r || r === G.me) return false;
+      if (r.finished) { D.toast(`${r.name} est déjà arrivé.`); return false; }
+      // ce qu'on affichait pour celui qu'on quitte (courbe de puissance, moyennes lissées) est gardé pour son retour
+      G.saved[G.me.id] = { pHist: G.pHist, savedHist: G.savedHist, best: G.best, cmd: G.cmd };
+      PYR.teamGame.switchTo(race, id);
+      G.me = r; G.ctx = r.ctx; G.st = r.st;
+      const sv = G.saved[id];
+      G.pHist = sv ? sv.pHist : []; G.savedHist = sv ? sv.savedHist : [];
+      G.best = sv ? sv.best : new Float64Array(CURVE_MAX); G.lastCurve = 0;
+      G.cmd = Math.round(r.lastP || r.athlete.ftp * 0.75);
+      r.tac.cmd = G.cmd;
+      G.tteKey = null; G.tteVal = null; G.surfKey = undefined; G.boostT = 0;
+      G.lastP = r.lastP; G.lastPcmd = r.lastPcmd;
+      G.gaugeMax = Math.max(600, Math.ceil(r.athlete.pmax / 100) * 100);
+      G.auto = false; $('#g-auto').checked = false;
+      T.applyFollowLimits();
+      T.renderZones();
+      T.renderTactics();
+      G.boardDirty = true;
+      T.focus(true);
+      T.render(1);
+      T.renderHud(true);
+      mobile('sync');
+      return true;
+    },
+
+    /** Coureur suivant (dir = 1) ou précédent (−1) de ton équipe encore en course. */
+    nextRider(dir) {
+      if (!G.team || !G.me) return false;
+      const own = G.team.own, n = own.length, i = own.indexOf(G.me);
+      for (let k = 1; k <= n; k++) {
+        const r = own[(i + (dir < 0 ? -k : k) + 2 * n) % n];
+        if (r !== G.me && !r.finished) return T.switchRider(r.id);
+      }
+      return false;
+    },
+
+    /** Le coureur piloté est arrivé : on prend la main sur l'équipier encore en course qui est le plus près de l'arrivée (aucun : la course d'équipe est finie). */
+    teamAdvance() {
+      const left = G.team.own.filter((r) => !r.finished);
+      if (!left.length) return false;
+      left.sort((a, b) => b.st.s - a.st.s);
+      const done = G.me;
+      if (T.switchRider(left[0].id)) D.toast(`${done.name} est arrivé : tu prends la main sur ${left[0].name}.`);
+      return true;
     },
 
     get state() { return G; },

@@ -38,7 +38,7 @@
     { id: 'relay', key: '9', label: 'Relayer' },
     { id: 'cover', key: 's', label: 'Suivre les attaques' },
   ];
-  const LABELS = Object.assign({ manual: 'Manuel' }, ...MODES.map((m) => ({ [m.id]: m.label })));
+  const LABELS = Object.assign({ manual: 'Manuel', strat: 'Stratégie' }, ...MODES.map((m) => ({ [m.id]: m.label })));
 
   const FOLLOW_GAP = 0.6;    // m entre les roues, dans les roues
   // m/s² : accélération maximale pour tenir ou reprendre une roue (plus franche au démarrage)
@@ -63,6 +63,7 @@
   const CHASE_RANGE = 150;   // m : on revient sur une roue jusque-là (coureur virtuel, ou joueur seul)
   const EASE_MAX = 10;       // s : on laisse passer (en se relevant) au plus 10 s de suite
   const FINALE = 400;        // m : dans les 400 derniers mètres, on suit tout le monde, à fond
+  const STRAT_FINALE = 6500;  // m : avec les stratégies, on court après les attaques dans les 6,5 derniers km (strategy.FINALE_KM)
   const ATTACK_SURGE = 12, ATTACK_HOLD = 48, ATTACK_MAX = 300, SPRINT_MAX = 35, SWING_MAX = 25; // s
   const SWING_DEFICIT = 1.3; // m/s : écart maximal sous l'allure du groupe pendant qu'on se laisse glisser
   const COVER_EFFORT = 1.6;  // × PMA : effort maximal pour sauter dans la roue d'un attaquant
@@ -683,8 +684,10 @@
           const P = movePower(r, view, view.info.get(r.id));
           if (P !== null) return P;
         }
-        // coureur virtuel : poursuit une roue jusqu'à 150 m, à 1,1 × PMA au plus
-        const w = wheelToFollow(view.field, r, CHASE_RANGE, (o) => o.phase !== 'swing');
+        // coureur virtuel : poursuit une roue jusqu'à 150 m, à 1,1 × PMA au plus ; avec les stratégies (tac.chase, strategy.js), jusqu'à la portée
+        // fixée par la stratégie, sans courir après les attaquants et les sprinteurs avant le final (ce sont les équipes concernées qui chassent)
+        const range = r.tac.chase > 0 ? r.tac.chase : CHASE_RANGE, letGo = r.tac.chase > 0 && r.ctx.course.length - r.st.s > STRAT_FINALE;
+        const w = wheelToFollow(view.field, r, range, (o) => o.phase !== 'swing' && !(letGo && isAttack(o)));
         if (w) {
           tac.phase = 'wheel';
           tac.wheel = w.id;
@@ -698,6 +701,8 @@
         return relayPower(r, view, rules);
       case 'cover':
         return coverPower(r, view);
+      case 'strat': // stratégie d'un coureur virtuel (strategy.js) : placement, escorte, allure imposée
+        return PYR.strategy ? PYR.strategy.command(r, view, rules) : steadyPower(r, 'tempo');
       default:
         return tac.cmd || 0;
     }
@@ -796,6 +801,7 @@
       if (tac.phase === 'lead') return `${label} : personne ne relaie, tu roules au tempo`;
       return `${label} : aucune roue à moins de ${CHASE_RANGE} m`;
     }
+    if (tac.mode === 'strat' && PYR.strategy) return PYR.strategy.describe(r);
     const toLine = tac.target !== null && tac.target !== undefined ? Math.max(0, tac.target - r.st.s) : null;
     if (tac.mode === 'attack') {
       if (toLine !== null) return `${label} : ${tac.phase === 'surge' ? 'démarrage !' : 'tiens bon'} (sommet dans ${Math.round(toLine)} m)`;
@@ -810,5 +816,7 @@
     levels, steadyPower, powerForSpeed, powerForSpeedRaw, followPower, nearestAhead, nearestBehind,
     setMode, setLayers, toggleLayer, layersOf, afterLine, lineFor, passRelay, command, think, describe,
     BOOST_STEP, BOOST_GRACE, BOOST_RELEASE, boostRange, boostPower, sprintTap, decayBoost,
+    // aides pour strategy.js
+    FINALE, KOM_LEAD, slopeChange, powerForSpeedRaw, aimSpeed, movePower, followEffort, wFrac, accelMax, wheelToFollow, isAttack,
   };
 })(globalThis.PYR = globalThis.PYR || {});

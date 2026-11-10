@@ -2,7 +2,7 @@
 /* PaceYourRide — bibliothèque de l'accueil : parcours, athlètes, vélos et tenues mis de côté pour être recombinés.
  * Le projet de l'application (store.js) ne contient qu'un parcours, un cycliste, un vélo et une tenue ; la bibliothèque en garde
  * plusieurs et sait en recopier un dans le projet (« appliquer »). Fonctions pures sur des objets simples : aucun accès au DOM.
- * Le stockage (localStorage) est fait par la page d'accueil (PaceYourRide/js/home.js). */
+ * Le stockage (IndexedDB, par Commun/js/core/kv.js) est fait par la page d'accueil (PaceYourRide/js/home.js) et par le nuage (cloud.js, lib-cache.js). */
 (function (PYR) {
   'use strict';
 
@@ -52,7 +52,12 @@
   function extract(kind, state) {
     const s = state || {};
     const shop = isObj(s.shop) ? s.shop : {};
-    if (kind === 'route') return pick(s, ROUTE_KEYS);
+    if (kind === 'route') {
+      const d = pick(s, ROUTE_KEYS);
+      // tracé allégé (un point tous les 10 m au plus) : la bibliothèque, le projet et Dropbox en gardent chacun une copie, et le stockage du navigateur est limité
+      if (d.route && Array.isArray(d.route.legs)) for (const leg of d.route.legs) if (leg && Array.isArray(leg.coords)) leg.coords = PYR.util.thinCoords(leg.coords);
+      return d;
+    }
     if (kind === 'athlete') return { rider: omit(s.rider, OUTFIT_RIDER) };
     if (kind === 'bike') return { bike: omit(s.bike, ['shoes']), shop: pick(shop, BIKE_SHOP) };
     if (kind === 'outfit') {
@@ -69,6 +74,8 @@
     const d = clone(data);
     if (kind === 'route') {
       for (const k of ROUTE_KEYS) if (d[k] !== undefined) state[k] = d[k];
+      // un ancien parcours de la bibliothèque, enregistré avant l'allègement, est allégé en entrant dans le projet
+      if (state.route && Array.isArray(state.route.legs)) for (const leg of state.route.legs) if (leg && Array.isArray(leg.coords)) leg.coords = PYR.util.thinCoords(leg.coords);
     } else if (kind === 'athlete') {
       state.rider = Object.assign({}, omit(d.rider, OUTFIT_RIDER), pick(state.rider, OUTFIT_RIDER));
       const born = PYR.util.ageFrom(state.rider.birthDate);      // l'âge enregistré date d'alors : on le recalcule d'après la date de naissance
@@ -209,11 +216,12 @@
   }
 
   /** Longueur du parcours (m) d'après le tracé du projet, ou 0. */
-  function routeLength(state) {
+  function routeLength(state, thin) {
     const hav = PYR.util && PYR.util.haversine;
     if (!hav) return 0;
     let m = 0;
-    for (const c of routeChains(state)) {
+    for (let c of routeChains(state)) {
+      if (thin) c = PYR.util.thinCoords(c);       // comparer à un tracé allégé (extract) : un ancien parcours dense a quelques mètres de plus par virage
       for (let i = 1; i < c.length; i++) m += hav(c[i - 1][0], c[i - 1][1], c[i][0], c[i][1]);
     }
     return m;
@@ -270,9 +278,13 @@
     const known = eleIn.map((e, i) => (Number.isFinite(e) ? i : -1)).filter((i) => i >= 0);
     const hasEle = known.length > 0;
     if (hasEle) {
-      for (let i = 0; i < eleIn.length; i++) {
+      // point connu précédent et suivant de chaque point manquant : un seul passage (le calcul d'avant refaisait deux tableaux par point manquant, en O(n²))
+      const m = eleIn.length, prevK = new Int32Array(m), nextK = new Int32Array(m);
+      for (let i = 0, a = -1; i < m; i++) { if (Number.isFinite(eleIn[i])) a = i; prevK[i] = a; }
+      for (let i = m - 1, b = -1; i >= 0; i--) { if (Number.isFinite(eleIn[i])) b = i; nextK[i] = b; }
+      for (let i = 0; i < m; i++) {
         if (Number.isFinite(eleIn[i])) continue;
-        const a = known.filter((j) => j < i).pop(), b = known.find((j) => j > i);
+        const a = prevK[i] < 0 ? undefined : prevK[i], b = nextK[i] < 0 ? undefined : nextK[i];
         eleIn[i] = a === undefined ? eleIn[b] : b === undefined ? eleIn[a] : eleIn[a] + (eleIn[b] - eleIn[a]) * (dist[i] - dist[a]) / Math.max(1e-9, dist[b] - dist[a]);
       }
     }
