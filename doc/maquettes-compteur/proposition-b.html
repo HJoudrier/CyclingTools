@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Compteur — proposition B « Immersif »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition B : vues plein écran, thème sombre, la couleur de fond dit si l'on est dans la consigne ---------- */
+  .B { color: #fff; }
+  .B .sb { color: #fff; }
+  .B .home { background: #fff; }
+  .B .dots { position: absolute; left: 0; right: 0; bottom: 24px; display: flex; justify-content: center; gap: 8px; z-index: 20; }
+  .B .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.4); }
+  .B .dots i.on { width: 22px; border-radius: 4px; background: #fff; }
+  .glass { background: rgba(20, 22, 25, 0.72); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 4px 18px rgba(0,0,0,0.45); }
+  /* vue 1 : carte bord à bord */
+  .B .mapfull { position: absolute; inset: 0; }
+  .B .turn { position: absolute; left: 12px; right: 12px; top: 52px; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 20px; z-index: 6; }
+  .B .turn .a { font-size: 44px; line-height: 1; font-weight: 800; color: #fff; }
+  .B .turn .d { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; }
+  .B .turn .r { font-size: 14px; line-height: 1.25; color: #c9c9c4; }
+  .B .gap { position: absolute; right: 12px; top: 134px; z-index: 6; padding: 6px 12px; border-radius: 999px; font-weight: 800; font-size: 15px; color: #2fc42f; }
+  .B .gap small { color: #c3c2b7; font-weight: 600; font-size: 12px; margin-right: 4px; }
+  .B .sens { position: absolute; left: 12px; top: 134px; z-index: 6; display: flex; gap: 5px; }
+  .B .sens .chip { background: rgba(20,22,25,0.72); border: 1px solid rgba(255,255,255,0.14); }
+  .B .pills { position: absolute; left: 10px; right: 10px; bottom: 50px; z-index: 6; display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 8px; }
+  .B .pill { border-radius: 22px; padding: 8px 10px 10px; text-align: center; }
+  .B .pill .v { font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+  .B .pill .u { font-size: 12px; font-weight: 700; color: #c3c2b7; letter-spacing: 0.4px; }
+  .B .pill.pw { border: 2px solid #2fc42f; }
+  .B .pill.pw .u b { color: #2fc42f; }
+  .B .progress { position: absolute; left: 10px; right: 10px; bottom: 166px; z-index: 6; border-radius: 14px; padding: 6px 12px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
+  .B .progress .tr { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.18); overflow: hidden; }
+  .B .progress .tr i { display: block; height: 100%; width: 42.3%; background: #eb6834; }
+  /* vue 2 : fond coloré et cadran */
+  .ecran.B.flood { background: radial-gradient(120% 70% at 50% 35%, #1aa244 0%, #0d7a2f 55%, #075a20 100%); }
+  .B .p-head { padding: 6px 22px 0; display: flex; justify-content: space-between; align-items: baseline; white-space: nowrap; }
+  .B .p-head .st { font-size: 15px; font-weight: 900; letter-spacing: 2px; }
+  .B .p-head .sg { font-size: 12px; color: rgba(255,255,255,0.85); font-weight: 600; }
+  .B .bfrise { margin: 12px 18px 0; padding: 8px 10px 4px; border-radius: 18px; background: rgba(0,0,0,0.26);
+    --ink: #ffffff; --ink-2: rgba(255,255,255,0.78); --surface: #0b5a22; --surface-2: transparent; }
+  .B .bfrise .l { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.8); }
+  .B .dial { position: relative; width: 340px; height: 340px; margin: 4px auto 0; }
+  .B .dial .ctr { position: absolute; left: 0; right: 0; top: 92px; text-align: center; }
+  .B .dial .ctr .t { font-size: 108px; line-height: 0.95; font-weight: 800; letter-spacing: -5px; font-variant-numeric: tabular-nums; }
+  .B .dial .ctr .tl { font-size: 13px; font-weight: 800; letter-spacing: 2px; color: rgba(255,255,255,0.85); }
+  .B .dial .ctr .c { margin-top: 10px; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .B .dial .ctr .c small { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.8); margin-left: 4px; }
+  .B .count { margin: -18px 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .B .count > div { border-radius: 20px; padding: 8px 14px 10px; background: rgba(0,0,0,0.22); }
+  .B .count .l { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.8); }
+  .B .count .v { font-size: 46px; line-height: 1.05; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .B .count .v small { font-size: 16px; margin-left: 3px; }
+  .B .count .s { font-size: 12px; color: rgba(255,255,255,0.8); }
+  .B .count .nx { background: rgba(0,0,0,0.38); box-shadow: inset 0 0 0 2px #ee6a5a; }
+  .B .row3 { margin: 12px 18px 0; display: flex; justify-content: space-between; padding: 10px 16px; border-radius: 18px; background: rgba(0,0,0,0.22); font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .B .row3 small { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.8); margin-left: 2px; }
+  /* vue 3 : anneaux */
+  .ecran.B.dark-bg { background: #0d0d0d; }
+  .B .h3 { padding: 2px 20px 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .B .h3 small { display: block; font-size: 13px; font-weight: 600; color: #a9a79f; letter-spacing: 0; }
+  .B .rings { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 4px; padding: 8px 16px 0; }
+  .B .ring { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .B .ring .in { position: absolute; top: 0; left: 0; right: 0; height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .B .ring .in b { font-size: 34px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .B .ring .in span { font-size: 11px; font-weight: 700; color: #a9a79f; margin-top: -2px; }
+  .B .ring .nm { margin-top: 2px; font-size: 14px; font-weight: 800; }
+  .B .card { margin: 10px 14px 0; padding: 10px 14px; border-radius: 20px; background: #1a1a19; border: 1px solid rgba(255,255,255,0.1); }
+  .B .card .l0 { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #a9a79f; margin-bottom: 4px; }
+  .B .ath { display: flex; flex-wrap: wrap; gap: 6px; }
+  .B .ath span { padding: 4px 10px; border-radius: 999px; background: #2a2a28; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .B .ath span small { font-weight: 600; color: #a9a79f; font-size: 11px; margin-right: 4px; }
+  .B .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; }
+  .B .g3 .l { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #a9a79f; }
+  .B .g3 .v { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .B .g3 .v small { font-size: 11px; font-weight: 600; color: #a9a79f; margin-left: 2px; letter-spacing: 0; }
+  .B .eat { margin: 10px 14px 0; padding: 10px 14px; border-radius: 18px; background: rgba(242,179,39,0.18); border: 2px solid #f2b327; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+  .B .eat b { color: #f2b327; }
+  /* états de couleur de la vue Puissance (vignettes sous la planche) */
+  .etats { display: flex; gap: 10px; margin: 14px 4px 0; }
+  .etat { flex: 1; border-radius: 14px; padding: 10px 10px 12px; color: #fff; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.3; }
+  .etat b { display: block; font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .etat.bleu { background: radial-gradient(120% 90% at 50% 30%, #2f7fe0, #164f9e); }
+  .etat.vert { background: radial-gradient(120% 90% at 50% 30%, #1aa244, #075a20); }
+  .etat.orange { background: radial-gradient(120% 90% at 50% 30%, #f0a01e, #b86200); }
+  .etat.rouge { background: radial-gradient(120% 90% at 50% 30%, #e44848, #9a1f1f); }
+</style>
+</head>
+<body>
+<div class="planche">
+  <header><span class="lettre">B</span><h1>Immersif<small>plein écran, la couleur dit tout</small></h1></header>
+  <p class="intro">Chaque vue occupe <b>tout l'écran</b>, en thème sombre ; on passe de l'une à l'autre en <b>balayant</b> (les points en bas indiquent la vue).
+    La carte va d'un bord à l'autre avec quelques pastilles flottantes ; la vue Puissance <b>change la couleur de tout l'écran</b> selon la consigne,
+    pour qu'on sache d'un coup d'œil, même de loin ou en plein effort, s'il faut appuyer ou relâcher.</p>
+
+  <div class="ecrans">
+    <!-- ================= Vue 1 : carte bord à bord ================= -->
+    <div class="colonne">
+      <h2><span class="n">1</span>Carte et guidage</h2>
+      <div class="tel"><div class="ecran B dark">
+        <div class="mapfull" id="b-map"></div>
+        <div class="sb flottante"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="turn glass"><span class="a">↱</span><span class="d">300 m</span><span class="r">à droite<br>D12 · Velars</span></div>
+        <div class="sens"><span class="chip">GPS</span><span class="chip">PUISS.</span><span class="chip">FC</span></div>
+        <div class="gap glass"><small>en avance</small>+0:42</div>
+        <div class="progress glass"><span>42,3 km</span><span class="tr"><i></i></span><span style="color:#c3c2b7">100</span></div>
+        <div class="pills">
+          <div class="pill pw glass"><div class="v">248</div><div class="u">W · <b>cible 250</b></div></div>
+          <div class="pill glass"><div class="v">152</div><div class="u">BPM</div></div>
+          <div class="pill glass"><div class="v">32,4</div><div class="u">KM/H</div></div>
+        </div>
+        <div class="dots"><i class="on"></i><i></i><i></i></div>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li><b>Carte bord à bord</b>, orientée dans le sens de la marche, sans cadre ni barre : le plus de route visible possible.</li>
+        <li><b>Trois pastilles</b> en bas (puissance, cardio, vitesse) ; la pastille de puissance prend la couleur de la consigne.</li>
+        <li>Virage annoncé en haut, écart au plan et avancement sur le parcours.</li>
+      </ul>
+    </div>
+
+    <!-- ================= Vue 2 : puissance (fond coloré) ================= -->
+    <div class="colonne">
+      <h2><span class="n">2</span>Puissance cible</h2>
+      <div class="tel"><div class="ecran B flood">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="p-head"><span class="st">DANS LA CIBLE</span><span class="sg">tronçon 14/38 · 92 % dans la cible</span></div>
+        <div class="dial"><div id="b-dial"></div>
+          <div class="ctr"><div class="tl">CIBLE</div><div class="t">250</div><div class="tl">WATTS</div><div class="c">248<small>W · 88 tr/min</small></div></div>
+        </div>
+        <div class="count">
+          <div><div class="l">Fin du tronçon</div><div class="v">2:15</div><div class="s">1,2 km · faux plat</div></div>
+          <div class="nx"><div class="l">Ensuite · 3:00</div><div class="v">310<small>W ▲</small></div><div class="s">côte de 6 %</div></div>
+        </div>
+        <div class="row3"><span>152<small>bpm</small></span><span>32,4<small>km/h</small></span><span>+0:42</span><span>3,2<small>%</small></span></div>
+        <div class="bfrise"><div class="l">Les 25 prochaines minutes</div><div id="b-frise" style="height:112px"></div></div>
+        <div class="dots"><i></i><i class="on"></i><i></i></div>
+        <div class="home"></div>
+      </div></div>
+      <div class="etats">
+        <div class="etat bleu"><b>205</b>trop faible<br>appuie</div>
+        <div class="etat vert"><b>248</b>dans la cible</div>
+        <div class="etat orange"><b>280</b>trop fort<br>relâche</div>
+        <div class="etat rouge"><b>340</b>bien trop fort<br>W′ fond</div>
+      </div>
+      <ul class="legende">
+        <li>Le <b>fond de l'écran</b> passe du bleu (trop faible) au vert (dans la cible), à l'orange puis au rouge (trop fort) : lisible même en vision périphérique.</li>
+        <li>Un <b>cadran</b> : la bande blanche est la cible ± 5 %, le rond noir la puissance des 3 dernières secondes.</li>
+        <li>Compte à rebours du tronçon, consigne suivante en grand et frise des 25 prochaines minutes.</li>
+      </ul>
+    </div>
+
+    <!-- ================= Vue 3 : corps et sortie ================= -->
+    <div class="colonne">
+      <h2><span class="n">3</span>Athlète et sortie en cours</h2>
+      <div class="tel"><div class="ecran B dark-bg">
+        <div class="sb"><span>10:24</span><span class="ic">5G <span class="bat"><i></i></span></span></div>
+        <div class="h3">Ton corps, maintenant<small>modèle physiologique recalé sur ta FC depuis 1:12</small></div>
+        <div class="rings">
+          <div class="ring"><div id="r-w"></div><div class="in"><b>78 %</b><span>plan 74 %</span></div><div class="nm">W′</div></div>
+          <div class="ring"><div id="r-g"></div><div class="in"><b>62 %</b><span>−18 %/h</span></div><div class="nm">Glycogène</div></div>
+          <div class="ring"><div id="r-h"></div><div class="in"><b>85 %</b><span>−1,2 % poids</span></div><div class="nm">Hydratation</div></div>
+          <div class="ring"><div id="r-t"></div><div class="in"><b>38,3°</b><span>0,9 L/h</span></div><div class="nm">Chaleur</div></div>
+        </div>
+        <div class="card"><div class="l0">Athlète</div>
+          <div class="ath"><span><small>PC</small>285 W</span><span><small>W′</small>20,4 kJ</span><span><small>FTP</small>280 W</span><span><small>poids</small>70 kg</span><span><small>FTP</small>4,0 W/kg</span><span><small>FC max</small>188</span></div></div>
+        <div class="card"><div class="l0">Sortie en cours</div>
+          <div class="g3">
+            <div><div class="l">Temps</div><div class="v">1:24:37</div></div><div><div class="l">Distance</div><div class="v">42,3<small>km</small></div></div><div><div class="l">D+</div><div class="v">640<small>m</small></div></div>
+            <div><div class="l">Moyenne</div><div class="v">212<small>W</small></div></div><div><div class="l">Normalisée</div><div class="v">231<small>W</small></div></div><div><div class="l">Travail</div><div class="v">1 076<small>kJ</small></div></div>
+          </div></div>
+        <div class="eat">🍌 <span>Un gel <b>dans 6 min</b> · boire dans 2 min</span></div>
+        <div class="dots"><i></i><i></i><i class="on"></i></div>
+        <div class="home"></div>
+      </div></div>
+      <ul class="legende">
+        <li>Quatre <b>anneaux</b> façon montre : W′ (avec le repère du plan), glycogène (muscles en vert, foie en jaune), hydratation, chaleur.</li>
+        <li>L'athlète en pastilles et le <b>résumé de la sortie</b> en dessous ; la prochaine prise s'allume en jaune.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bas">
+    <div class="plus"><h3>Points forts</h3><ul><li>Carte la plus grande des trois propositions.</li><li>La consigne se lit à la couleur, sans lire de chiffre.</li><li>Moderne, sobre la nuit, économise la batterie des écrans OLED.</li></ul></div>
+    <div class="moins"><h3>Limites</h3><ul><li>Les pastilles flottantes masquent un peu la carte.</li><li>Le thème sombre se lit moins bien en plein soleil : prévoir aussi un thème clair.</li><li>Les anneaux montrent l'état présent, pas l'évolution jusqu'à l'arrivée.</li></ul></div>
+  </div>
+</div>
+<script src="maquettes.js"></script>
+<script>
+  MQ.carte('#b-map', { dark: true, align: 'xMidYMid' });
+  MQ.cadran('#b-dial', { size: 340, value: 248 });
+  MQ.frise('#b-frise', { minutes: 25, labels: true, dark: true });
+  MQ.anneau('#r-w', { size: 150, frac: 0.78, plan: 0.74, color: '#2fc42f' });
+  MQ.anneau('#r-g', { size: 150, frac: 0.48, frac2: 0.14, color: '#34c05a', color2: '#f3e08a' });
+  MQ.anneau('#r-h', { size: 150, frac: 0.85, color: '#4a96f0' });
+  MQ.anneau('#r-t', { size: 150, frac: 0.43, color: '#f2b327' });
+</script>
+</body>
+</html>

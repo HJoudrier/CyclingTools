@@ -1,6 +1,7 @@
 /* author : Hugo Joudrier-Faure */
 /* PaceYourRide — page « Sortie » (Compteur/js/tab-ride.js) : plein écran par-dessus le reste, pensée pour un téléphone au guidon.
- * Gros chiffres lisibles d'un coup d'œil, boutons de 44 px au moins, thème clair ou sombre comme le reste de l'application. */
+ * Gros chiffres lisibles d'un coup d'œil, boutons de 44 px au moins. Préparation et bilan : thème clair ou sombre comme le reste de
+ * l'application ; sortie en cours : thème sombre, un en-tête fixe et des vues entre lesquelles on balaie (carte, puissance, corps). */
 
 :root {
   --rd-good: #0ca30c; --rd-good-bg: rgba(12, 163, 12, 0.14);
@@ -93,34 +94,92 @@ body[data-ride="live"] .rd-scroll { padding-top: 0; }
 .rd-nutsum .rd-line { font-size: 13px; }
 .rd-resume { border-color: var(--accent); }
 
-/* ---------- sortie en cours ---------- */
-.rd-live { display: flex; flex-direction: column; gap: 10px; position: relative; }
-.rd-live-a, .rd-live-b { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-/* en-tête collé en haut pendant le défilement : capteurs, menu, puis vitesse / puissance / cardio / distance / temps */
-.rd-head { position: sticky; top: 0; z-index: 6; display: flex; flex-direction: column; gap: 6px; background: var(--page); padding: calc(6px + env(safe-area-inset-top)) 0 6px; }
-.rd-status { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
-.rd-status .rd-icon { width: 40px; height: 40px; }
-.rd-hud { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-.rd-tile { grid-column: span 2; min-width: 0; padding: 3px 6px 4px; text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
-.rd-tile .l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-2); }
-.rd-tile .v { font-size: 26px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
-.rd-tile .s { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (min-width: 560px) {
-  .rd-hud { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .rd-tile { grid-column: span 1; }
-  .rd-tile .v { font-size: 30px; }
+/* ======================================================================
+ * Sortie en cours : plein écran sombre ; en-tête fixe (écart au plan, capteurs, vitesse · puissance · FC), vues côte à côte qu'on
+ * fait défiler à l'horizontale (carte, puissance, corps et sortie, classement), points de navigation en bas.
+ * ====================================================================== */
+.rd-live.rd-dark {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+  --border: rgba(255, 255, 255, 0.12); --border-strong: rgba(255, 255, 255, 0.24);
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --accent: #3987e5; --accent-soft: #184f95;
+  --gly-muscle: #34c05a; --gly-liver: #f3e08a; --gly-intestine: #34c05a; --gly-stomach: #b9824f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.45);
+  --rd-good: #2fc42f; --rd-good-bg: rgba(47, 196, 47, 0.18);
+  --rd-warn: #f2b327; --rd-warn-bg: rgba(242, 179, 39, 0.22);
+  --rd-bad: #ee5a5a; --rd-bad-bg: rgba(238, 90, 90, 0.22);
+  --rd-low: #4a96f0; --rd-low-bg: rgba(74, 150, 240, 0.22);
+  --cue-ok: #14913a; --cue-over: #d98a00; --cue-way: #c93636; --cue-under: #2a6fd0; --cue-coast: #3a3a38;
 }
-.rd-chips { margin-left: auto; display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
-.rd-chip { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+body[data-ride="live"] .rd-live { position: fixed; inset: 0; z-index: 5; --head-h: 132px; background: var(--page); color: var(--ink); overflow: hidden; }
+.rd-live [hidden] { display: none !important; }
+.rd-live .num { font-variant-numeric: tabular-nums; }
+
+/* ---------- en-tête ---------- */
+.rd-head {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 6px;
+  padding: calc(6px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  background: var(--page); border-bottom: 1px solid var(--border);
+}
+/* sur la carte, l'en-tête est translucide : la carte passe dessous */
+.rd-live[data-view="map"] .rd-head { background: linear-gradient(to bottom, rgba(13, 13, 13, 0.92), rgba(13, 13, 13, 0.72)); border-bottom-color: transparent; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.rd-status { display: flex; align-items: center; gap: 6px; min-height: 36px; }
+.rd-gap { flex: none; display: inline-flex; align-items: baseline; gap: 5px; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border-strong); white-space: nowrap; }
+.rd-gap .l { font-size: 10px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-2); }
+.rd-gap b { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.rd-gap[data-state="ahead"] { background: var(--rd-good-bg); border-color: var(--rd-good); }
+.rd-gap[data-state="ahead"] b, .rd-gap[data-state="ahead"] .l { color: var(--rd-good); }
+.rd-gap[data-state="behind"] { background: var(--rd-bad-bg); border-color: var(--rd-bad); }
+.rd-gap[data-state="behind"] b, .rd-gap[data-state="behind"] .l { color: var(--rd-bad); }
+.rd-nutpill { flex: none; min-height: 32px; padding: 3px 10px; border-radius: 999px; border: 2px solid var(--rd-warn); background: var(--rd-warn-bg); color: var(--ink); font-size: 13px; font-weight: 800; cursor: pointer; animation: rdpulse 1.2s ease-in-out infinite; }
+.rd-nutpill[data-urgent="1"] { border-color: var(--rd-bad); background: var(--rd-bad-bg); animation-duration: 0.8s; }
+.rd-chips { margin-left: auto; display: flex; gap: 3px; flex-wrap: nowrap; justify-content: flex-end; min-width: 0; overflow: hidden; }
+.rd-chip { flex: none; font-size: 10px; font-weight: 800; padding: 3px 6px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
 .rd-chip[data-ok="yes"] { background: var(--rd-good-bg); color: var(--rd-good); }
 .rd-chip[data-ok="est"] { background: var(--rd-warn-bg); color: var(--rd-warn); }
 .rd-chip[data-ok="no"], .rd-chip[data-ok="off"] { background: var(--rd-bad-bg); color: var(--rd-bad); }
+.rd-chip[data-ok="none"] { opacity: 0.55; }
 .rd-chip.plan { background: var(--rd-low-bg); color: var(--rd-low); animation: rdpulse 1s ease-in-out infinite; }
+.rd-chip.rank { background: var(--accent); color: #fff; }
 @keyframes rdpulse { 50% { opacity: 0.45; } }
-.rd-icon { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface); font-size: 22px; line-height: 1; cursor: pointer; }
+.rd-icon { flex: none; width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+/* vitesse · puissance · FC */
+.rd-hud { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 6px; }
+.rd-tile { min-width: 0; padding: 3px 6px 5px; text-align: center; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px; }
+.rd-tile .l { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.9px; color: var(--ink-2); }
+.rd-tile .v { font-size: 42px; line-height: 1.02; font-weight: 800; letter-spacing: -1.5px; white-space: nowrap; }
+.rd-tile .s { font-size: 11px; font-weight: 700; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* la vignette de la puissance prend la couleur de la consigne : bleu trop faible, vert dans la cible, orange puis rouge trop fort */
+.rd-tile.pow { border-width: 2px; }
+.rd-tile.pow[data-cue] .l, .rd-tile.pow[data-cue] .s { color: rgba(255, 255, 255, 0.88); }
+.rd-tile.pow[data-cue="ok"] { background: var(--cue-ok); border-color: var(--cue-ok); }
+.rd-tile.pow[data-cue="over"] { background: var(--cue-over); border-color: var(--cue-over); }
+.rd-tile.pow[data-cue="way_over"] { background: var(--cue-way); border-color: var(--cue-way); }
+.rd-tile.pow[data-cue="under"], .rd-tile.pow[data-cue="way_under"] { background: var(--cue-under); border-color: var(--cue-under); }
+.rd-tile.pow[data-cue="way_under"] { box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35); }
+.rd-tile.pow[data-cue="coast"] { background: var(--cue-coast); border-color: var(--border-strong); }
+.rd-live.paused .rd-hud, .rd-live.paused .rd-gap { opacity: 0.5; }
+.rd-livebar { margin: 0; padding: 4px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 13px; font-weight: 600; text-align: center; }
+
+/* ---------- vues et points ---------- */
+.rd-pager { position: absolute; inset: 0; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.rd-pager::-webkit-scrollbar { display: none; }
+.rd-view { position: relative; flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden; }
+.rd-view.pow, .rd-view.body, .rd-view.mixv {
+  overflow-y: auto; overscroll-behavior-y: contain; display: flex; flex-direction: column; gap: 10px;
+  padding: calc(var(--head-h) + 10px) max(10px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+.rd-view > * { flex: none; }
+.rd-dots { position: absolute; left: 50%; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 25; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px 8px; border-radius: 999px; background: rgba(13, 13, 13, 0.55); }
+.rd-dots .dot { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.rd-dots .dot::before { content: ''; display: block; width: 9px; height: 9px; border-radius: 5px; background: rgba(255, 255, 255, 0.45); transition: width 0.2s, background 0.2s; }
+.rd-dots .dot[aria-current="page"]::before { width: 24px; background: #fff; }
+.rd-dots .dot[aria-current="page"] { width: 36px; }
+.rd-lbl0 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); margin-bottom: 4px; }
+.rd-live .rd-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 10px 12px; }
 .rd-banner {
-  position: fixed; z-index: 20; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); top: calc(6px + env(safe-area-inset-top));
-  max-width: 600px; margin: 0 auto; padding: 10px 12px; border-radius: 12px; font-weight: 700; text-align: center; font-size: 15px;
+  position: absolute; z-index: 30; left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); top: calc(var(--head-h) + 8px);
+  max-width: 600px; margin: 0 auto; padding: 10px 12px; border-radius: 12px; font-weight: 700; text-align: center; font-size: 16px;
   background: var(--accent); color: #fff; box-shadow: var(--shadow); pointer-events: none;
 }
 .rd-banner[data-kind="up"] { background: var(--rd-bad); }
@@ -128,111 +187,150 @@ body[data-ride="live"] .rd-scroll { padding-top: 0; }
 .rd-banner[data-kind="eat"] { background: var(--rd-warn); color: #000; }
 .rd-banner[data-kind="warn"] { background: var(--rd-bad); }
 
-/* écart au plan */
-.rd-gap { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; border-width: 2px; }
-.rd-gap-l { min-width: 0; flex: 1 1 auto; }
-.rd-gap-lbl { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-2); }
-.rd-gap-val { flex: none; font-size: 60px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
-.rd-gap-sub { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; line-height: 1.3; }
-.rd-gap[data-state="ahead"] { background: var(--rd-good-bg); border-color: var(--rd-good); }
-.rd-gap[data-state="ahead"] .rd-gap-val, .rd-gap[data-state="ahead"] .rd-gap-lbl { color: var(--rd-good); }
-.rd-gap[data-state="behind"] { background: var(--rd-bad-bg); border-color: var(--rd-bad); }
-.rd-gap[data-state="behind"] .rd-gap-val, .rd-gap[data-state="behind"] .rd-gap-lbl { color: var(--rd-bad); }
-
-/* carte de la sortie : l'élément #map de la page y est déplacé pendant la sortie (tab-ride.js, attachMap) */
-/* la carte occupe tout l'écran sous la barre des capteurs (52 px + 10 px d'écart + 4 px) ; mesures, consigne, écart au plan, réserves et boutons sont posés dessus */
-.rd-map { position: relative; isolation: isolate; height: calc(100vh - 66px - env(safe-area-inset-top)); min-height: 360px; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
-@supports (height: 1dvh) {
-  .rd-map { height: calc(100dvh - 66px - env(safe-area-inset-top)); }
-}
-.rd-map .leaflet-control-zoom, .rd-map .leaflet-control-layers { display: none; }
-.rd-map .leaflet-control-scale, .rd-map .map-legend { display: none; }
+/* ---------- vue Carte : fond sombre bord à bord, pastilles par-dessus ---------- */
+/* l'élément #map de la page y est déplacé pendant la sortie (tab-ride.js, attachMap) */
+.rd-map { position: absolute; inset: 0; isolation: isolate; overflow: hidden; background: #191a1a; --ov-bot: calc(44px + env(safe-area-inset-bottom)); }
+.rd-map.has-prof { --ov-bot: calc(128px + env(safe-area-inset-bottom)); }
+.rd-map .leaflet-container { background: #191a1a; touch-action: pan-x pan-y !important; }      /* carte verrouillée : le geste horizontal change de vue */
+.rd-map .leaflet-control-zoom, .rd-map .leaflet-control-layers, .rd-map .leaflet-control-scale, .rd-map .map-legend { display: none; }
+.rd-map .leaflet-control-attribution { background: rgba(0, 0, 0, 0.5); color: #aaa; }
+.rd-map .leaflet-control-attribution a { color: #8cc4ff; }
 /* carte orientée : l'élément tourne (agrandi à sa diagonale par layoutMap) ; l'attribution de Leaflet, hors de la vue, est reprise en bas */
 .rd-map.rot .leaflet-control-attribution { display: none; }
-.rd-map-attr { position: absolute; left: 0; bottom: 0; z-index: 900; display: none; padding: 1px 6px; font-size: 10px; background: rgba(255, 255, 255, 0.75); color: #333; }
-.rd-map-attr a { color: #0078a8; text-decoration: none; }
+.rd-map-attr { position: absolute; left: 0; bottom: 0; z-index: 900; display: none; padding: 1px 6px; font-size: 10px; background: rgba(0, 0, 0, 0.5); color: #aaa; }
+.rd-map-attr a { color: #8cc4ff; text-decoration: none; }
 .rd-map.rot .rd-map-attr { display: block; }
 .rd-map.rot.has-prof .rd-map-attr { bottom: 84px; }
-.rd-map-north { position: absolute; left: 8px; top: 8px; z-index: 900; width: 34px; height: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.88); color: #222; font-size: 11px; font-weight: 800; line-height: 1; pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
-.rd-map-north[hidden] { display: none; }
-.rd-map-north .ar { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #d03b3b; }
-.rd-map { --ov-btn: 8px; }                         /* bas des boutons ; le profil, quand il est affiché, les remonte */
-.rd-map.has-prof { --ov-btn: 92px; }
-.rd-mbtn { min-width: 44px; height: 40px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; opacity: 0.94; }
+.rd-map-north { position: absolute; right: 10px; bottom: calc(var(--ov-bot) + 52px); z-index: 900; width: 34px; height: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: rgba(26, 26, 25, 0.9); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; pointer-events: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.rd-map-north .ar { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid #ee5a5a; }
+.rd-map-turn {
+  position: absolute; left: 50%; top: calc(var(--head-h) + 8px); z-index: 900; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+  max-width: calc(100% - 20px); padding: 6px 16px; border-radius: 18px; background: rgba(20, 22, 25, 0.86); border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff; font-size: 20px; font-weight: 800; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow);
+}
+.rd-map-turn .a { font-size: 32px; line-height: 1; }
+.rd-segpill {
+  position: absolute; left: 10px; right: 64px; bottom: var(--ov-bot); z-index: 900; display: flex; flex-direction: column; padding: 5px 12px 6px; border-radius: 14px;
+  pointer-events: none; background: rgba(20, 22, 25, 0.86); border: 1px solid rgba(255, 255, 255, 0.16); color: #fff; line-height: 1.15; box-shadow: var(--shadow);
+}
+.rd-segpill b { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+.rd-segpill span { font-size: 12px; font-weight: 700; color: #c3c2b7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-mbtn { min-width: 44px; height: 40px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; }
 .rd-mbtn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.rd-map-turn { position: absolute; left: 50%; top: 8px; z-index: 900; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 16px); padding: 5px 14px; border-radius: 999px; background: rgba(20, 20, 20, 0.88); color: #fff; font-size: 16px; font-weight: 700; white-space: nowrap; pointer-events: none; }
-.rd-map-turn[hidden] { display: none; }
-.rd-map-turn .a { font-size: 26px; line-height: 1; }
-.rd-map-prof { position: absolute; left: 0; right: 0; bottom: 0; z-index: 800; display: block; width: 100%; height: 84px; background: color-mix(in srgb, var(--surface) 82%, transparent); border-top: 1px solid var(--border); touch-action: manipulation; }
-.rd-map-prof[hidden] { display: none; }
+.rd-mbtn.small { min-width: 0; height: 32px; padding: 0 12px; font-size: 12px; }
+.rd-prof-btn { position: absolute; right: 10px; bottom: var(--ov-bot); z-index: 900; width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center; background: rgba(20, 22, 25, 0.86); }
+.rd-prof-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.rd-map-prof { position: absolute; left: 0; right: 0; bottom: calc(36px + env(safe-area-inset-bottom)); z-index: 800; display: block; width: 100%; height: 84px; background: rgba(13, 13, 13, 0.72); border-top: 1px solid var(--border); touch-action: manipulation; }
+/* tronçons du plan sur la carte : la consigne au début de chacun, contre-tournée quand la carte tourne (--rot posée par layoutMap) */
+.rd-map .seg-icon b {
+  position: absolute; left: 7px; top: -24px; padding: 1px 6px; border-radius: 8px; background: rgba(13, 13, 13, 0.82); color: #fff;
+  font-size: 11px; font-weight: 800; white-space: nowrap; transform-origin: -7px 24px; transform: rotate(var(--rot, 0deg)); pointer-events: none;
+}
 
-/* mesures par-dessus la carte (placeHud) : une rangée de tuiles translucides, comme le HUD du mode jeu ; les gestes passent à travers jusqu'à la carte */
-.rd-map .rd-hud {
-  position: absolute; left: 6px; right: 6px; top: 6px; z-index: 900; pointer-events: none;
-  grid-template-columns: 0.95fr 1fr 1.1fr 0.85fr 1.15fr 1.4fr; gap: 4px;
-}
-.rd-map .rd-tile {
-  grid-column: span 1; padding: 2px 3px 3px; border-radius: 10px; border: 0.5px solid var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow);
-}
-.rd-map .rd-tile .l { font-size: 8.5px; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rd-map .rd-tile .v { font-size: 18px; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: clip; }
-.rd-map .rd-tile .s { display: none; }
-@media (min-width: 560px) {
-  .rd-map .rd-hud { left: 10px; right: 10px; top: 10px; gap: 6px; }
-  .rd-map .rd-tile .l { font-size: 10px; letter-spacing: 0.6px; }
-  .rd-map .rd-tile .v { font-size: 28px; }
-}
-/* bloc consigne par-dessus la carte, sous les mesures : la valeur et la part du temps dans la cible à gauche, la courbe qui défile à droite.
-   Variables : hauteur des mesures (--ov-hud), du bloc (--ov-pw) et taille de la consigne (--ov-tgt) ; --ov-low est le bas du bloc, sous lequel
-   se placent l'indication de virage et les commandes de zoom (carte libre). La boussole passe en bas à gauche. */
-.rd-map { --ov-hud: 40px; --ov-pw: 96px; --ov-tgt: 38px; --ov-low: calc(6px + var(--ov-hud) + 4px + var(--ov-pw) + 6px); }
-.rd-map .rd-power {
-  position: absolute; left: 6px; right: 6px; top: calc(6px + var(--ov-hud) + 4px); z-index: 900; margin: 0; padding: 4px 8px; border-width: 2px; pointer-events: none;
-  box-sizing: border-box; height: var(--ov-pw);
-  display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: center; gap: 6px; text-align: left; box-shadow: var(--shadow);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-}
-.rd-map .rd-power[data-cue] { background: color-mix(in srgb, var(--surface) 88%, transparent); }
-.rd-map .rd-pw-l { text-align: center; min-width: 0; }
-.rd-map .rd-tgt-lbl { font-size: 10px; letter-spacing: 0.6px; }
-.rd-map .rd-tgt { font-size: var(--ov-tgt); letter-spacing: -1px; margin: 0; white-space: nowrap; }
-.rd-map .rd-tgt.word { font-size: calc(var(--ov-tgt) * 0.55); line-height: 1.5; }
-.rd-map .rd-gauge-lbl { flex-direction: column; align-items: center; gap: 0; margin: 0; line-height: 1.1; }
-.rd-map .rd-cue { font-size: 18px; }
-.rd-map .rd-cue-sub { font-size: 10px; }
-.rd-map .rd-traj { height: calc(var(--ov-pw) - 12px); margin: 0; background: transparent; border-radius: 8px; min-width: 0; }
-/* « Dans le plan » et tronçon suivant : deux pastilles sous le bloc consigne ; l'indication de virage passe dessous */
-.rd-map .rd-ov-chips { position: absolute; left: 6px; right: 6px; top: var(--ov-low); z-index: 900; display: flex; gap: 6px; pointer-events: none; }
-.rd-status .rd-gap { flex: none; min-width: 0; gap: 8px; padding: 2px 9px; border-width: 2px; border-radius: 10px; }
-.rd-status .rd-gap-lbl { font-size: 10px; letter-spacing: 0.5px; }
-.rd-status .rd-gap-val { font-size: 24px; letter-spacing: -0.5px; }
-.rd-status .rd-gap-sub { display: none; }
-.rd-map .rd-ov-chips .rd-next {
-  margin: 0; min-width: 0; display: flex; align-items: center; padding: 2px 9px; border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow);
-  background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; line-height: 1.2; overflow: hidden;
-}
-.rd-map .rd-ov-chips .rd-next:empty { display: none; }
-/* réserves (W′, glycogène, hydratation) : sur toute la largeur de la carte, en bas ; un clic ouvre les poches (manger, boire) */
-.rd-map { --ov-res-h: 86px; --ov-top-btn: calc(var(--ov-btn) + 20px + var(--ov-res-h) + 6px); }
-.rd-map > .rd-res {
-  position: absolute; left: 6px; right: 6px; bottom: calc(var(--ov-btn) + 20px); z-index: 900; box-sizing: border-box; height: var(--ov-res-h); padding: 6px 12px; gap: 5px;
-  justify-content: center; border-radius: 12px; box-shadow: var(--shadow); cursor: pointer; background: color-mix(in srgb, var(--surface) 90%, transparent);
-}
-.rd-map .rd-res-row { grid-template-columns: 78px minmax(0, 1fr) 40px 96px; gap: 8px; font-size: 13px; }
-.rd-map .rd-res-row .track { height: 12px; }
-.rd-map .rd-res-row .sub { font-size: 11px; }
-.rd-map .rd-tenable { display: none; }
-.rd-map > .rd-res[data-nut="due"] { border: 2px solid var(--rd-warn); animation: rdpulse 1.2s ease-in-out infinite; }
-.rd-map > .rd-res[data-nut="urgent"] { border: 2px solid var(--rd-bad); animation: rdpulse 0.8s ease-in-out infinite; }
-.rd-map > .rd-res:focus-visible { outline: 3px solid var(--accent); }
-/* poches : vignette au-dessus du bloc des réserves, avec la liste de ce qu'on peut manger ou boire (un clic = une prise) */
+/* manche à air : à droite du point du cycliste (--rot annule la rotation de la carte), pointe vers où le vent va (--wsa, repère de l'écran) */
+.rd-map .wsock { position: absolute; left: 0; top: 0; width: 0; height: 0; transform: rotate(var(--rot, 0deg)) translate(50px, -14px); pointer-events: none; }
+.wsock-sv { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; overflow: visible; transform: rotate(var(--wsa, 0deg)); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45)); }
+.wsock-t { position: absolute; left: 0; top: 28px; transform: translateX(-50%); padding: 1px 7px 2px; white-space: nowrap; text-align: center; line-height: 1.1; border-radius: 8px; color: #111; background: rgba(255, 255, 255, 0.88); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+.wsock-t b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wsock-t span { margin-left: 3px; font-size: 10px; font-weight: 700; }
+/* marqueurs de la carte (coureurs virtuels, sprints, sommets) : la carte tourne, leurs textes se contre-tournent */
+.rd-map .opp-icon b { transform-origin: -12px 11px; transform: rotate(var(--rot, 0deg)); }
+.rd-map .cp-icon { transform: rotate(var(--rot, 0deg)); }
+
+/* ---------- vue Puissance ---------- */
+.rd-segline { font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: center; font-variant-numeric: tabular-nums; }
+.rd-pw-center { cursor: pointer; text-align: center; border-width: 2px !important; padding: 8px 14px 10px !important; }
+.rd-pw-center:focus-visible { outline: 3px solid var(--accent); }
+.rd-tgt-lbl { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink-2); }
+.rd-tgt { font-size: 104px; line-height: 0.98; font-weight: 800; letter-spacing: -4px; }
+.rd-tgt.word, .rd-dialbox .t.word { font-size: 44px; line-height: 1.6; letter-spacing: 0; }
+.rd-cur-row { display: flex; justify-content: center; align-items: baseline; gap: 12px; margin: 2px 0 8px; flex-wrap: wrap; }
+.rd-cur { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.rd-zone { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.rd-pw-center[data-cue="ok"] .rd-cur, .rd-pw-center[data-cue="ok"] .rd-dialbox .c { color: var(--rd-good); }
+.rd-pw-center[data-cue="over"] .rd-cur, .rd-pw-center[data-cue="over"] .rd-dialbox .c { color: var(--rd-warn); }
+.rd-pw-center[data-cue="way_over"] .rd-cur, .rd-pw-center[data-cue="way_over"] .rd-dialbox .c { color: var(--rd-bad); }
+.rd-pw-center[data-cue="under"] .rd-cur, .rd-pw-center[data-cue="way_under"] .rd-cur,
+.rd-pw-center[data-cue="under"] .rd-dialbox .c, .rd-pw-center[data-cue="way_under"] .rd-dialbox .c { color: var(--rd-low); }
+/* jauge : plage cible ± 30 %, bande verte du tube de la consigne, trait de la puissance des 3 dernières secondes */
+.rd-gauge { position: relative; height: 38px; margin: 4px 4px 0; border-radius: 10px; background: linear-gradient(90deg, var(--rd-low-bg), var(--surface-2) 50%, var(--rd-warn-bg)); border: 1px solid var(--border-strong); }
+.rd-gauge .band { position: absolute; top: 0; bottom: 0; background: var(--rd-good); opacity: 0.9; }
+.rd-gauge .mk { position: absolute; top: -8px; bottom: -8px; width: 8px; margin-left: -4px; border-radius: 4px; background: #fff; box-shadow: 0 0 0 2px #000; transition: left 0.25s linear; }
+.rd-gauge-l { display: flex; justify-content: space-between; gap: 4px; margin: 10px 4px 0; font-size: 11px; font-weight: 600; color: var(--ink-2); }
+.rd-gauge-l .b { color: var(--rd-good); font-weight: 800; }
+.rd-dialbox { display: none; position: relative; }
+.rd-pw-center.dial .rd-gaugebox { display: none; }
+.rd-pw-center.dial .rd-dialbox { display: block; }
+.rd-dial { display: block; width: min(300px, 82vw); height: auto; margin: 0 auto -28px; }
+.rd-dial path { fill: none; stroke-width: 24; }
+.rd-dial .trk { stroke: rgba(255, 255, 255, 0.1); stroke-linecap: round; }
+.rd-dial .lo { stroke: var(--rd-low); opacity: 0.55; }
+.rd-dial .hi { stroke: var(--rd-warn); opacity: 0.55; }
+.rd-dial .band { stroke: #fff; stroke-width: 32; }
+.rd-dial .ticks line { stroke: rgba(255, 255, 255, 0.55); stroke-width: 2; }
+.rd-dial .ticks text { fill: var(--ink-2); font-size: 13px; font-weight: 700; text-anchor: middle; font-family: system-ui, sans-serif; }
+.rd-dial .mk { fill: #000; stroke: #fff; stroke-width: 4; transition: cx 0.25s linear, cy 0.25s linear; }
+.rd-dial .mk2 { fill: var(--rd-good); transition: cx 0.25s linear, cy 0.25s linear; }
+.rd-pw-center[data-cue="over"] .rd-dial .mk2 { fill: var(--rd-warn); }
+.rd-pw-center[data-cue="way_over"] .rd-dial .mk2 { fill: var(--rd-bad); }
+.rd-pw-center[data-cue="under"] .rd-dial .mk2, .rd-pw-center[data-cue="way_under"] .rd-dial .mk2 { fill: var(--rd-low); }
+.rd-dialbox .ctr { position: absolute; left: 0; right: 0; top: 26%; text-align: center; pointer-events: none; }
+.rd-dialbox .t { font-size: 84px; line-height: 0.95; font-weight: 800; letter-spacing: -3px; }
+.rd-dialbox .c { margin-top: 6px; font-size: 26px; font-weight: 800; }
+.rd-dialbox .rd-zone { display: block; margin-top: 4px; }
+/* fin du tronçon et consigne suivante */
+.rd-cd { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rd-cd .c { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 6px 12px 8px; min-width: 0; }
+.rd-cd .l { font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-cd .v { font-size: 44px; line-height: 1.05; font-weight: 800; letter-spacing: -1.5px; white-space: nowrap; }
+.rd-cd .s { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.rd-cd .nx { box-shadow: inset 6px 0 0 var(--zc, transparent); }
+.rd-cd .ar { margin-left: 4px; font-size: 22px; vertical-align: 6px; letter-spacing: 0; }
+.rd-est { font-size: 13px; color: var(--ink-2); text-align: center; font-variant-numeric: tabular-nums; }
+.rd-frise { display: block; width: 100%; height: 132px; }
+
+/* ---------- vue Corps et sortie ---------- */
+.rd-cpnow { font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--ink); cursor: help; }
+.rd-cpnow[data-warn="1"] { color: var(--rd-bad); }
+.rd-res-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 54px minmax(0, 92px); align-items: center; gap: 8px; font-size: 13px; }
+.rd-res-row .nm { font-weight: 800; }
+.rd-res-row .track { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.rd-res-row .fill { height: 100%; background: var(--rd-good); border-radius: 6px; transition: width 0.4s linear, background 0.3s; }
+.rd-res-row[data-lvl="mid"] .fill { background: var(--rd-warn); }
+.rd-res-row[data-lvl="low"] .fill { background: var(--rd-bad); }
+.rd-res-row[data-lvl="neg"] .fill { background: #000; }
+.rd-res-row[data-lvl="neg"] .val { color: var(--rd-bad); }
+.rd-res-row .tick { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--ink); opacity: 0.85; }
+.rd-res-row .val { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.rd-res-row .sub { font-size: 11px; color: var(--ink-2); line-height: 1.2; }
+/* W′ : la barre la plus visible de la vue */
+.rd-res-row.big { grid-template-columns: 32px minmax(0, 1fr) 70px; font-size: 16px; }
+.rd-res-row.big .nm { font-size: 20px; }
+.rd-res-row.big .track { height: 26px; border-radius: 9px; }
+.rd-res-row.big .fill { border-radius: 9px; }
+.rd-res-row.big .val { font-size: 24px; }
+.rd-res-row.big .sub { grid-column: 2 / 4; margin-top: -4px; }
+/* chaleur interne : barre plus fine */
+.rd-res-row.thin { grid-template-columns: 110px minmax(0, 1fr) 62px minmax(0, 92px); }
+.rd-res-row.thin .track { height: 7px; border-radius: 4px; }
+.rd-tenable { font-size: 12px; color: var(--ink-2); text-align: center; min-height: 15px; margin-top: 6px; }
+.rd-rescv { display: block; width: 100%; height: 190px; }
+.rd-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rd-legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.rd-legend .gly i { background: var(--gly-muscle); }
+.rd-legend .hyd i { background: var(--rd-low); }
+.rd-legend .key { color: var(--ink-2); font-weight: 600; }
+.rd-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
+.rd-stat .l { font-size: 10px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: var(--ink-2); }
+.rd-stat .v { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; white-space: nowrap; }
+.rd-stat .s { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* poches : feuille au-dessus des points, avec ce qu'on peut manger ou boire (un clic = une prise) */
 .rd-pockets {
-  position: absolute; left: 6px; right: 6px; bottom: calc(var(--ov-btn) + 20px + var(--ov-res-h) + 6px); z-index: 950; max-height: calc(100% - var(--ov-low) - var(--ov-btn) - var(--ov-res-h) - 40px);
-  min-height: 120px; overflow-y: auto; padding: 8px 10px 10px; border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  position: absolute; left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); bottom: calc(46px + env(safe-area-inset-bottom)); z-index: 28;
+  max-width: 600px; margin: 0 auto; max-height: calc(100% - var(--head-h) - 70px); min-height: 120px; overflow-y: auto; padding: 8px 10px 10px;
+  border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow); background: var(--surface);
 }
-.rd-pockets[hidden] { display: none; }
 .rd-pk-sec.first { margin-top: 0; }
 .rd-pk-sec { margin: 8px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink-2); }
 .rd-pk-none { padding: 6px 2px; font-size: 13px; color: var(--ink-2); }
@@ -245,100 +343,8 @@ body[data-ride="live"] .rd-scroll { padding-top: 0; }
 .rd-pk-item:active { transform: scale(0.98); }
 .rd-pk-item:disabled { opacity: 0.45; cursor: default; }
 .rd-pk-item.rec { border-color: var(--rd-warn); border-width: 2px; background: var(--rd-warn-bg); }
-/* les poches ouvertes : la boussole s'efface */
-.rd-map.pk-on .rd-map-north { display: none; }
-.rd-map.hud-on .rd-map-turn { top: calc(var(--ov-low) + 40px); }
-.rd-map.hud-on .rd-map-north { top: auto; left: auto; right: 8px; bottom: var(--ov-top-btn); }
-@media (min-width: 560px) {
-  .rd-map { --ov-hud: 62px; --ov-pw: 112px; --ov-tgt: 48px; }
-  .rd-map .rd-power { grid-template-columns: 150px minmax(0, 1fr); left: 10px; right: 10px; top: calc(10px + var(--ov-hud) + 4px); }
-  .rd-map .rd-cue { font-size: 22px; }
-  .rd-map .rd-cue-sub { font-size: 11px; }
-  .rd-map { --ov-low: calc(10px + var(--ov-hud) + 4px + var(--ov-pw) + 6px); }
-  .rd-map .rd-ov-chips { left: 10px; right: 10px; }
-  .rd-map > .rd-res { left: 10px; right: 10px; }
-}
 
-/* manche à air : à droite du point du cycliste (--rot annule la rotation de la carte), pointe vers où le vent va (--wsa, repère de l'écran) */
-.rd-map .wsock { position: absolute; left: 0; top: 0; width: 0; height: 0; transform: rotate(var(--rot, 0deg)) translate(50px, -14px); pointer-events: none; }
-.rd-map .wsock[hidden] { display: none; }
-.wsock-sv { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; overflow: visible; transform: rotate(var(--wsa, 0deg)); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45)); }
-.wsock-t { position: absolute; left: 0; top: 28px; transform: translateX(-50%); padding: 1px 7px 2px; white-space: nowrap; text-align: center; line-height: 1.1; border-radius: 8px; color: #111; background: rgba(255, 255, 255, 0.88); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
-.wsock-t b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.wsock-t span { margin-left: 3px; font-size: 10px; font-weight: 700; }
-
-/* marqueurs de la carte (coureurs virtuels, sprints, sommets) : la carte tourne, leurs textes se contre-tournent (--rot posée par layoutMap) */
-.rd-map .opp-icon b { transform-origin: -12px 11px; transform: rotate(var(--rot, 0deg)); }
-.rd-map .cp-icon { transform: rotate(var(--rot, 0deg)); }
-
-/* défi contre des coureurs virtuels : classement en course */
-.rd-chip.rank { background: var(--accent); color: #fff; }
-.rd-mix-head { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
-.rd-mix-tabs { display: flex; gap: 6px; margin: 4px 0 6px; }
-.rd-mbtn.small { min-width: 0; height: 32px; padding: 0 12px; font-size: 12px; }
-.rd-mix-table, .rd-done-mix table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
-.rd-mix-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.rd-mix-table td:first-child { width: 28px; color: var(--ink-2); }
-.rd-mix-table td.g, .rd-mix-table td.d { text-align: right; color: var(--ink-2); }
-.rd-mix-table td.g.ahead { color: var(--rd-bad); font-weight: 700; }
-.rd-mix-table td.g.behind { color: var(--rd-good); font-weight: 700; }
-.rd-mix-table tr.me td { background: var(--rd-warn-bg); font-weight: 800; color: var(--ink); }
-.rd-mix-table .dot, .rd-done-mix .dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; }
-.rd-mix-body .table-wrap.scroll { max-height: 260px; overflow-y: auto; }
-
-/* bilan : formats d'enregistrement de l'activité */
-.rd-export-hints { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
-.rd-export-hints li { margin: 2px 0; }
-
-/* consigne de puissance */
-.rd-power { text-align: center; border-width: 2px; padding-bottom: 10px; }
-.rd-tgt-lbl { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-2); }
-.rd-tgt { font-size: 64px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1.5px; margin: 2px 0 4px; }
-.rd-tgt.word { font-size: 34px; line-height: 1.5; letter-spacing: 0; }
-.rd-traj { display: block; width: 100%; height: 112px; margin: 8px 0 2px; border-radius: 12px; background: var(--surface-2); }
-.rd-est { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-top: 2px; }
-.rd-gauge-lbl { display: flex; justify-content: center; align-items: baseline; gap: 6px; margin: 0 6px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.rd-cue { font-weight: 800; font-size: 20px; }
-.rd-cue-sub { font-size: 12px; color: var(--ink-2); }
-.rd-info { padding: 8px 14px 10px; }
-.rd-info .rd-seg:first-child, .rd-info .rd-est:first-child { margin-top: 0; }
-.rd-seg { font-size: 13px; margin-top: 8px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.rd-next { font-size: 15px; font-weight: 700; margin-top: 2px; }
-.rd-power[data-cue="ok"] { border-color: var(--rd-good); } .rd-power[data-cue="ok"] .rd-cue { color: var(--rd-good); }
-.rd-power[data-cue="over"] { border-color: var(--rd-warn); } .rd-power[data-cue="over"] .rd-cue { color: var(--rd-warn); }
-.rd-power[data-cue="way_over"] { border-color: var(--rd-bad); background: var(--rd-bad-bg); } .rd-power[data-cue="way_over"] .rd-cue { color: var(--rd-bad); }
-.rd-power[data-cue="under"] { border-color: var(--rd-low); } .rd-power[data-cue="under"] .rd-cue { color: var(--rd-low); }
-.rd-power[data-cue="way_under"] { border-color: var(--rd-low); background: var(--rd-low-bg); } .rd-power[data-cue="way_under"] .rd-cue { color: var(--rd-low); }
-.rd-power[data-cue="coast"] { border-color: var(--border-strong); }
-
-/* réserves */
-.rd-res { display: flex; flex-direction: column; gap: 9px; }
-.rd-res-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 42px minmax(0, 104px); align-items: center; gap: 8px; font-size: 13px; }
-.rd-res-row .nm { font-weight: 700; }
-.rd-res-row .track { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
-.rd-res-row .fill { height: 100%; background: var(--rd-good); border-radius: 6px; transition: width 0.4s linear, background 0.3s; }
-.rd-res-row[data-lvl="mid"] .fill { background: var(--rd-warn); }
-.rd-res-row[data-lvl="low"] .fill { background: var(--rd-bad); }
-.rd-res-row[data-lvl="neg"] .fill { background: #000; }
-/* glycogène (modèle physiologique) : muscles (vert) puis foie (jaune pâle), de couleurs différentes du niveau ; hachuré : glucides avalés, dans l'intestin (vert) et dans l'estomac (marron) */
-.rd-res-row .track.stacked { display: flex; }
-.rd-res-row .track.stacked .fill { flex: none; border-radius: 0; }
-.rd-res-row .fill.liver { width: 0; background: var(--gly-liver); }
-.rd-res-row.split .fill:not(.liver) { background: var(--gly-muscle); }
-.rd-res-row .gut { flex: none; height: 100%; width: 0; background: repeating-linear-gradient(135deg, var(--gly-intestine) 0 3px, transparent 3px 6px); transition: width 0.4s linear; }
-.rd-res-row .gut.stomach { background: repeating-linear-gradient(135deg, var(--gly-stomach) 0 3px, transparent 3px 6px); }
-.rd-res-row.split[data-lvl="low"] .val { color: var(--rd-bad); }
-.rd-res-row[data-lvl="neg"] .val { color: var(--rd-bad); }
-.rd-res-row .tick { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--ink); opacity: 0.8; }
-.rd-res-row .val { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
-.rd-res-row .sub { font-size: 11px; color: var(--ink-2); line-height: 1.2; }
-.rd-tenable { font-size: 12px; color: var(--ink-2); text-align: center; min-height: 15px; }
-/* modèle physiologique : l'état du corps sur une ligne (sous les réserves) */
-.rd-phys { font-size: 12px; color: var(--ink-2); text-align: center; line-height: 1.35; font-variant-numeric: tabular-nums; }
-.rd-phys[data-warn="1"] { color: var(--rd-bad); font-weight: 600; }
-.rd-map .rd-phys { display: none; }
-
-/* alimentation */
+/* alimentation (vue Corps) */
 .rd-nut { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rd-nut-item { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "ic nm" "txt txt" "btn btn"; gap: 2px 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); border: 2px solid transparent; }
 .rd-nut-item .ic { grid-area: ic; font-size: 20px; }
@@ -354,55 +360,54 @@ body[data-ride="live"] .rd-scroll { padding-top: 0; }
 .rd-quick .btn { flex: 1 1 0; min-height: 40px; padding-left: 4px; padding-right: 4px; }
 .rd-stock { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); text-align: center; }
 
-/* profil */
-.rd-profile { padding: 8px 10px 6px; }
-.rd-prof { display: block; width: 100%; height: 132px; cursor: pointer; touch-action: manipulation; }
-.rd-prof-cap { font-size: 11px; color: var(--ink-2); text-align: center; margin-top: 2px; }
+/* défi contre des coureurs virtuels : classement en course (sa vue) */
+.rd-mix-head { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+.rd-mix-tabs { display: flex; gap: 6px; margin: 4px 0 6px; }
+.rd-mix-table, .rd-done-mix table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rd-mix-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.rd-mix-table td:first-child { width: 28px; color: var(--ink-2); }
+.rd-mix-table td.g, .rd-mix-table td.d { text-align: right; color: var(--ink-2); }
+.rd-mix-table td.g.ahead { color: var(--rd-bad); font-weight: 700; }
+.rd-mix-table td.g.behind { color: var(--rd-good); font-weight: 700; }
+.rd-mix-table tr.me td { background: var(--rd-warn-bg); font-weight: 800; color: var(--ink); }
+.rd-mix-table .dot, .rd-done-mix .dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; }
 
-.rd-live.paused .rd-gap, .rd-live.paused .rd-power { opacity: 0.5; }
+/* bilan : formats d'enregistrement de l'activité */
+.rd-export-hints { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
+.rd-export-hints li { margin: 2px 0; }
 
+/* écrans larges : les vues Puissance et Corps restent en colonne lisible */
+@media (min-width: 700px) {
+  .rd-view.pow > *, .rd-view.body > *, .rd-view.mixv > * { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
+  .rd-hud { max-width: 760px; width: 100%; margin: 0 auto; }
+  .rd-tile .v { font-size: 50px; }
+}
 /* petit écran en hauteur : on resserre */
 @media (max-height: 700px) and (orientation: portrait) {
-  .rd-gap-val { font-size: 48px; }
-  .rd-tgt { font-size: 52px; }
-  .rd-traj { height: 96px; }
-  .rd-prof { height: 100px; }
+  .rd-tile .v { font-size: 36px; }
+  .rd-tgt { font-size: 84px; }
+  .rd-cd .v { font-size: 36px; }
+  .rd-frise { height: 108px; }
+  .rd-rescv { height: 160px; }
 }
-
-/* téléphone en paysage : deux colonnes */
+/* téléphone en paysage : l'en-tête sur une ligne (écart et capteurs, puis les trois vignettes) */
 @media (orientation: landscape) and (max-height: 520px) {
-  .rd-col { max-width: none; }
-  .rd-live { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; align-items: start; }
-  .rd-head { grid-column: 1 / -1; flex-direction: row; align-items: center; }
-  .rd-hud { flex: 1 1 auto; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .rd-tile { grid-column: span 1; }
-  .rd-tile .v { font-size: 22px; }
-  .rd-map { grid-column: 1 / -1; }
-  .rd-map .rd-tile .v { font-size: 19px; }
-  .rd-map { --ov-hud: 40px; --ov-pw: 96px; --ov-tgt: 38px; --ov-low: calc(6px + var(--ov-hud) + 4px + var(--ov-pw) + 6px); }
-  .rd-map .rd-power { grid-template-columns: 104px minmax(0, 1fr); left: 6px; right: auto; width: min(460px, 62%); top: calc(6px + var(--ov-hud) + 4px); }
-  .rd-map .rd-cue { font-size: 18px; }
-  .rd-map .rd-cue-sub { font-size: 10px; }
-  .rd-map .rd-ov-chips { left: 6px; right: auto; }
-  .rd-map { --ov-res-h: 70px; }
-  .rd-map > .rd-res { padding: 4px 12px; gap: 3px; }
-  .rd-map .rd-res-row { font-size: 12px; }
-  .rd-map .rd-res-row .track { height: 9px; }
-  .rd-map { min-height: 280px; }
-  .rd-gap-val { font-size: 40px; }
-  .rd-tgt { font-size: 46px; }
-  .rd-traj { height: 84px; }
-  .rd-gap, .rd-power { padding-top: 6px; padding-bottom: 6px; }
-  .rd-prof { height: 84px; }
-}
-
-@media (min-width: 900px) {
-  .rd-col { max-width: 640px; }
-  body[data-ride="live"] .rd-col { max-width: 760px; }
+  .rd-head { flex-direction: row; align-items: center; gap: 8px; padding-top: 6px; padding-bottom: 6px; }
+  .rd-status { flex: 0 1 auto; flex-wrap: wrap; max-width: 40%; }
+  .rd-status .rd-chips { flex-wrap: wrap; }
+  .rd-hud { flex: 1 1 auto; }
+  .rd-tile .v { font-size: 30px; }
+  .rd-tile .s { display: none; }
+  .rd-tgt { font-size: 64px; }
+  .rd-cd .v { font-size: 32px; }
+  .rd-frise { height: 96px; }
+  .rd-rescv { height: 140px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .rd-chip.plan, .rd-nut-item[data-state="due"], .rd-nut-item[data-state="urgent"] { animation: none; }
-  .rd-res-row .fill { transition: none; }
+  .rd-chip.plan, .rd-nut-item[data-state="due"], .rd-nut-item[data-state="urgent"], .rd-nutpill { animation: none; }
+  .rd-res-row .fill, .rd-gauge .mk, .rd-dial .mk, .rd-dial .mk2, .rd-dots .dot::before { transition: none; }
+  .rd-pager { scroll-behavior: auto; }
 }
-/* partie Virtual Ride rejointe : mon rang, le joueur devant et derrière */
-.rd-livebar { margin: 6px 0 0; padding: 4px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 13px; font-weight: 600; text-align: center; }
+@media (min-width: 900px) {
+  .rd-col { max-width: 640px; }
+}

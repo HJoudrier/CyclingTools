@@ -21,6 +21,7 @@
   const SLOT_LABEL = ['Bidon 1', 'Bidon 2', 'Bidon 3', 'Camelback'];
   const FOOD_LABEL = { gel: 'Gel double source', gelglu: 'Gel glucose', gelplus: 'Gel haute dose', gelcaf: 'Gel caféiné', bar: 'Barre', barmini: 'Mini-barre' };
   const SENS_LABEL = { low: 'Faible', normal: 'Normale', high: 'Forte' };
+  const POWER_VIEWS = [['gauge', 'Jauge (ligne et intervalle)'], ['dial', 'Cadran']];
 
   const V = {};                             // éléments du DOM
   const run = {
@@ -44,7 +45,6 @@
   const setAttr = (el, k, v) => { if (el && el.getAttribute(k) !== String(v)) el.setAttribute(k, v); };
   const cfg = () => store.state.ride.cfg;
   const hmm = (sec) => U.fmtClock(sec);
-  const mmss = (sec) => { const t = Math.max(0, Math.round(sec)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
   const km = (m, d = 1) => U.fmt(m / 1000, d);
   const gapText = (sec) => (Math.abs(sec) < 1 ? '0:00' : hmm(Math.abs(sec)));
 
@@ -286,6 +286,7 @@
       rowEl('Lissage de l\'écart', selectEl([[5, '5 s'], [8, '8 s'], [12, '12 s'], [20, '20 s']], c.gapTau, (v) => store.set('ride.cfg.gapTau', Number(v)))),
       rowEl('Annoncer un changement de consigne', selectEl([[0, 'jamais'], [5, '5 s avant'], [10, '10 s avant'], [15, '15 s avant'], [20, '20 s avant']], c.lookahead, (v) => store.set('ride.cfg.lookahead', Number(v)))),
       rowEl('Mises à jour météo', selectEl([[5, 'toutes les 5 min'], [15, 'toutes les 15 min'], [30, 'toutes les 30 min'], [60, 'toutes les 60 min']], c.weatherMin, (v) => { store.set('ride.cfg.weatherMin', Number(v)); }), h('span', { class: 'rd-st' }, 'si la météo est activée')),
+      rowEl('Consigne (vue Puissance)', selectEl(POWER_VIEWS, c.powerView === 'dial' ? 'dial' : 'gauge', (v) => store.set('ride.cfg.powerView', v))),
       h('div', { class: 'rd-checks' },
         checkEl('Bips', c.sound, (v) => { store.set('ride.cfg.sound', v); if (v) Sx.alerts.unlock(); }),
         checkEl('Vibrations', c.vibrate, (v) => store.set('ride.cfg.vibrate', v)),
@@ -949,6 +950,7 @@
     run.power.length = 0; run.hrs.length = 0; run.cads.length = 0;
     run.mix = cfg().mixed && store.profile ? createMix(base, (Math.random() * 4294967296) >>> 0) : null;
     if (run.mix && !run.mix.n) run.mix = null;                   // aucun coureur virtuel : pas de défi
+    run.fc0 = null;
     enterLive();
   }
 
@@ -1035,7 +1037,11 @@
     run.al = { seg: -1, over: null, under: null, last: 0, eat: null, drink: null, wbal: false, gps: false, pwr: false };
     run.profPts = null;
     run.wxBusy = false; run.wxNextT = run.sess.t + cfg().weatherMin * 60;      // prochaine mise à jour de la météo (instant de la sortie, s)
+    run.stats = null; buildUpCum();
+    run.fc = null; run.fcJob = null; run.fcMarks = null; run.fcT = -1e9; run.fcDirty = false;
     setMode('live');
+    run.view = -1; run.dotSig = ''; run.headH = 0;
+    setView(Math.max(0, viewList().indexOf(cfg().view)), true);        // la dernière vue regardée
     Sx.wake.request();
     if (!run.demo && !run.gpsOn) toggleGps();
     clearInterval(run.timer);
@@ -1086,6 +1092,7 @@
     }
     weatherTick(sess);
     coachTick();
+    forecastTick(sess);
     mixTick(sess);
     const g = sess.guidance();
     if (g) { alertsTick(g); render(g); liveTick(sess, g); }
@@ -1147,6 +1154,7 @@
       notify('plan', `Plan mis à jour : arrivée ${hmm(sess.plan.tFinish)}`, true);
       setBanner(`Plan mis à jour (${reason}) : arrivée ${hmm(sess.plan.tFinish)}${Math.abs(d) >= 1 ? ' (' + U.fmtDelta(d) + ')' : ''}`, 'plan');
       run.lastReplanMs = Date.now() - t0;
+      run.fcJob = null; run.fcDirty = true;                       // la prévision des réserves suit le nouveau plan
       saveSession();
     } catch (e) {
       console.error(e);
@@ -1181,13 +1189,13 @@
     const sess = run.sess;
     if (!sess || !kind) return;
     const label = sess.eat(kind);
-    if (label) { run.coach.taken('eat', sess.t); run.al.eat = null; D.toast('Noté : ' + label); coachTick(); render(sess.guidance()); }
+    if (label) { run.coach.taken('eat', sess.t); run.al.eat = null; run.fcDirty = true; D.toast('Noté : ' + label); coachTick(); render(sess.guidance()); }
   }
   function takeDrink(idx) {
     const sess = run.sess;
     if (!sess) return;
     const q = sess.drink(idx);
-    if (q > 0) { run.coach.taken('drink', sess.t); run.al.drink = null; D.toast(`Noté : ${U.fmt(q * 1000)} mL`); coachTick(); render(sess.guidance()); }
+    if (q > 0) { run.coach.taken('drink', sess.t); run.al.drink = null; run.fcDirty = true; D.toast(`Noté : ${U.fmt(q * 1000)} mL`); coachTick(); render(sess.guidance()); }
     else D.toast('Plus rien à boire dans ce contenant.', 'error');
   }
 
@@ -1226,94 +1234,112 @@
   }
 
   /* ======================================================================
-   * Affichage de la sortie
+   * Affichage de la sortie : un en-tête fixe (écart au plan, capteurs, puis vitesse · puissance · FC) et des vues entre lesquelles on
+   * balaie l'écran — carte, puissance cible, corps et sortie, classement du défi —, signalées par des points en bas. Thème sombre.
    * ====================================================================== */
+  const VIEWS = [['map', 'Carte'], ['pow', 'Puissance cible'], ['body', 'Corps et sortie'], ['mix', 'Classement']];
+  const viewList = () => VIEWS.filter(([k]) => k !== 'mix' || !!run.mix).map(([k]) => k);
+  const viewName = () => viewList()[run.view] || 'map';
+  const viewOn = (k) => run.mode === 'live' && viewName() === k;
+  const round5 = (p) => Math.round(p / 5) * 5;
+  const svgOf = (html) => { const b = document.createElement('span'); b.innerHTML = html; return b.firstChild; };
+
   function buildLive() {
-    V.live = h('section', { class: 'rd-live', hidden: true });
+    V.live = h('section', { class: 'rd-live rd-dark', hidden: true });
     V.banner = h('div', { class: 'rd-banner', hidden: true });
 
-    // bandeau : capteurs et menu, puis les mesures (vitesse, puissance, cardio, distance, temps)
+    // ---------- en-tête : écart au plan, rappel d'alimentation, capteurs, menu ; puis vitesse, puissance, FC
+    V.gapLbl = h('span', { class: 'l' });
+    V.gapVal = h('b', { class: 'num' });
+    V.gap = h('span', { class: 'rd-gap', 'data-state': 'even' }, V.gapLbl, V.gapVal);
+    V.nutPill = h('button', { class: 'rd-nutpill', type: 'button', hidden: true, title: 'Poches : manger ou boire', onclick: () => togglePockets() });
     V.chGps = h('span', { class: 'rd-chip' }, 'GPS');
     V.chPwr = h('span', { class: 'rd-chip' }, 'PUISS.');
+    V.chHr = h('span', { class: 'rd-chip' }, 'FC');
     V.chPlan = h('span', { class: 'rd-chip plan', hidden: true }, 'Recalcul…');
-    V.menuBtn = h('button', { class: 'rd-icon', type: 'button', 'aria-label': 'Réglages et actions', onclick: () => openMenu() }, '⋯');
     V.chRank = h('span', { class: 'rd-chip rank', hidden: true, title: 'Ta place parmi les coureurs virtuels' });
-    V.status = h('div', { class: 'rd-status' }, h('span', { class: 'rd-chips' }, V.chRank, V.chPlan, V.chGps, V.chPwr), V.menuBtn);
+    V.menuBtn = h('button', { class: 'rd-icon', type: 'button', 'aria-label': 'Réglages et actions', onclick: () => openMenu() }, '⋯');
+    V.status = h('div', { class: 'rd-status' }, V.gap, V.nutPill, h('span', { class: 'rd-chips' }, V.chRank, V.chPlan, V.chGps, V.chPwr, V.chHr), V.menuBtn);
     const tile = (cls, label) => {
-      const val = h('div', { class: 'v' }), sub = h('div', { class: 's' });
+      const val = h('div', { class: 'v num' }), sub = h('div', { class: 's' });
       return { el: h('div', { class: 'rd-tile ' + cls }, h('div', { class: 'l' }, label), val, sub), val, sub };
     };
-    V.hSpeed = tile('speed', 'Vitesse'); V.hGrade = tile('grade', 'Pente'); V.hPow = tile('pow', 'Puissance'); V.hHr = tile('hr', 'Cardio');
-    V.hDist = tile('dist', 'Distance'); V.hTime = tile('time', 'Temps');
-    V.hud = h('div', { class: 'rd-hud' }, V.hSpeed.el, V.hGrade.el, V.hPow.el, V.hHr.el, V.hDist.el, V.hTime.el);
+    V.hSpeed = tile('speed', 'Vitesse'); V.hPow = tile('pow', 'Puissance'); V.hHr = tile('hr', 'FC');
+    V.hud = h('div', { class: 'rd-hud' }, V.hSpeed.el, V.hPow.el, V.hHr.el);
     V.liveBar = h('div', { class: 'rd-livebar', hidden: true });
-    V.head = h('div', { class: 'rd-head' }, V.status, V.liveBar, V.hud);
+    V.head = h('header', { class: 'rd-head' }, V.status, V.liveBar, V.hud);
 
-    // carte : l'élément #map de la page y est déplacé le temps de la sortie (attachMap)
+    // ---------- vue Carte : l'élément #map de la page y est déplacé le temps de la sortie (attachMap)
     V.mTurnArrow = h('span', { class: 'a' }); V.mTurnTxt = h('span', { class: 't' });
     V.mapTurn = h('div', { class: 'rd-map-turn', hidden: true }, V.mTurnArrow, V.mTurnTxt);
     V.mapNorth = h('div', { class: 'rd-map-north', hidden: true, title: 'Nord' }, h('span', { class: 'ar' }), h('span', { class: 'n' }, 'N'));
     V.mapAttr = h('div', { class: 'rd-map-attr' });     // l'attribution de Leaflet, quand la carte tourne (la sienne est alors hors de la vue)
-    V.mapProf = h('canvas', { class: 'rd-map-prof', hidden: true, onclick: () => { run.profNear = !run.profNear; if (run.sess) render(run.sess.guidance()); } });
-    V.pockets = h('div', { class: 'rd-pockets', hidden: true, role: 'dialog', 'aria-label': 'Poches' });   // liste des aliments et boissons, sur la carte (renderPockets)
-    V.segLeft = h('div', { class: 'rd-next', title: 'Temps restant avant la fin du segment' });
-    V.ovChips = h('div', { class: 'rd-ov-chips' }, V.segLeft);     // fin du tronçon et tronçon suivant, par-dessus la carte (placeHud)
-    V.mapBox = h('div', { class: 'rd-map', hidden: true }, V.mapTurn, V.mapNorth, V.mapAttr, V.ovChips, V.pockets, V.mapProf);
+    V.mapProf = h('canvas', { class: 'rd-map-prof', hidden: true, onclick: () => { run.profNear = !run.profNear; if (run.sess) drawProfile(run.sess.guidance()); } });
+    V.profBtn = h('button', { class: 'rd-mbtn rd-prof-btn', type: 'button', 'aria-label': 'Profil d\'élévation', title: 'Afficher ou masquer le profil d\'élévation',
+      onclick: () => { store.set('ride.cfg.mapProfile', !cfg().mapProfile); if (run.sess) render(run.sess.guidance()); } },
+    svgOf('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20 9 8l4 6 3-4 6 10z"/></svg>'));
+    V.segT = h('b', { class: 'num' }); V.segN = h('span');
+    V.segLeft = h('div', { class: 'rd-segpill', title: 'Temps et distance restants sur le tronçon, puis la consigne suivante' }, V.segT, V.segN);
+    V.mapBox = h('div', { class: 'rd-map', hidden: true }, V.mapTurn, V.mapNorth, V.mapAttr, V.segLeft, V.profBtn, V.mapProf);
+    V.mapView = h('div', { class: 'rd-view map' }, V.mapBox);
 
-    // écart
-    V.gapLbl = h('div', { class: 'rd-gap-lbl' });
-    V.gapVal = h('div', { class: 'rd-gap-val' });
-    V.gapSub = h('div', { class: 'rd-gap-sub' });
-    V.gap = h('div', { class: 'rd-card rd-gap', 'data-state': 'even' }, h('div', { class: 'rd-gap-l' }, V.gapLbl, V.gapSub), V.gapVal);
+    // ---------- vue Puissance : consigne au centre (jauge ou cadran, au choix), fin du tronçon, frise des tronçons à venir
+    V.segLine = h('div', { class: 'rd-segline' });
+    V.gTgt = h('div', { class: 'rd-tgt num' });
+    V.gCur = h('span', { class: 'rd-cur num' });
+    V.gZone = h('span', { class: 'rd-zone' });
+    V.gBand = h('div', { class: 'band' }); V.gMark = h('div', { class: 'mk' });
+    V.gLo = h('span', { class: 'num' }); V.gBandTxt = h('span', { class: 'b num' }); V.gHi = h('span', { class: 'num' });
+    V.gaugeBox = h('div', { class: 'rd-gaugebox' },
+      h('div', { class: 'rd-tgt-lbl' }, 'Cible'), V.gTgt, h('div', { class: 'rd-cur-row' }, V.gCur, V.gZone),
+      h('div', { class: 'rd-gauge' }, V.gBand, V.gMark),
+      h('div', { class: 'rd-gauge-l' }, V.gLo, h('span', null, 'trop faible'), V.gBandTxt, h('span', null, 'trop fort'), V.gHi));
+    V.dialBox = buildDial();
+    V.center = h('div', { class: 'rd-card rd-pw-center', 'data-cue': 'ok', role: 'button', tabindex: '0', title: 'Toucher : jauge ou cadran',
+      onclick: () => togglePowerView(), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePowerView(); } } }, V.gaugeBox, V.dialBox);
+    V.cdT = h('div', { class: 'v num' }); V.cdS = h('div', { class: 's' });
+    V.nxL = h('div', { class: 'l' }); V.nxP = h('span'); V.nxA = h('span', { class: 'ar' }); V.nxS = h('div', { class: 's' });
+    V.nx = h('div', { class: 'c nx' }, V.nxL, h('div', { class: 'v num' }, V.nxP, V.nxA), V.nxS);
+    V.cd = h('div', { class: 'rd-cd' }, h('div', { class: 'c' }, h('div', { class: 'l' }, 'Fin du tronçon'), V.cdT, V.cdS), V.nx);
+    V.est = h('div', { class: 'rd-est', hidden: true });
+    V.frise = h('canvas', { class: 'rd-frise' });
+    V.friseCard = h('div', { class: 'rd-card rd-frise-card' }, h('div', { class: 'rd-lbl0' }, h('span', null, 'Les 25 prochaines minutes'), h('span', null, 'tronçons du plan')), V.frise);
+    V.pow = h('div', { class: 'rd-view pow' }, V.segLine, V.center, V.cd, V.est, V.friseCard);
 
-    // consigne
-    V.tgtLbl = h('div', { class: 'rd-tgt-lbl' }, 'Consigne');
-    V.tgt = h('div', { class: 'rd-tgt' });
-    V.cueTxt = h('span', { class: 'rd-cue' });           // part du temps dans le tube de la consigne, sur le tronçon en cours
-    V.cueSub = h('span', { class: 'rd-cue-sub' });
-    V.traj = h('canvas', { class: 'rd-traj' });
-    V.seg = h('div', { class: 'rd-seg' });
-    V.next = h('div', { class: 'rd-next' });
-    V.est = h('div', { class: 'rd-est' });
-    // le bloc consigne (valeur, part du temps dans la cible, courbe qui défile) se pose par-dessus la carte (placeHud) ; le détail du tronçon reste dans la page
-    V.power = h('div', { class: 'rd-card rd-power', 'data-cue': 'ok' },
-      h('div', { class: 'rd-pw-l' }, V.tgtLbl, V.tgt, h('div', { class: 'rd-gauge-lbl' }, V.cueTxt, V.cueSub)), V.traj);
-    V.info = h('div', { class: 'rd-card rd-info' }, V.est, V.seg, V.next);   // V.next : tronçon suivant (sur la carte pendant la sortie)
-
-    // défi contre des coureurs virtuels : place, classement en course, points, montagne
-    V.mixHead = h('div', { class: 'rd-mix-head' });
-    V.mixTabBtn = {};
-    for (const [k, label] of [['course', 'Course'], ['points', 'Points'], ['kom', 'Montagne']]) {
-      V.mixTabBtn[k] = h('button', { class: 'rd-mbtn small', type: 'button', onclick: () => { run.mixTab = k; run.mixSig = ''; if (run.sess) renderMix(); } }, label);
-    }
-    V.mixTabs = h('div', { class: 'rd-mix-tabs', hidden: true }, V.mixTabBtn.course, V.mixTabBtn.points, V.mixTabBtn.kom);
-    V.mixBody = h('div', { class: 'rd-mix-body' });
-    V.mix = h('div', { class: 'rd-card rd-mix', hidden: true }, h('h3', null, 'Classement'), V.mixHead, V.mixTabs, V.mixBody);
-
-    // réserves
-    const reserve = (name, stacked) => {
+    // ---------- vue Corps et sortie
+    const reserve = (name, cls) => {
       const fill = h('div', { class: 'fill' }), tick = h('div', { class: 'tick', hidden: true });
       const val = h('span', { class: 'val' }), sub = h('span', { class: 'sub' });
-      // glycogène : le foie à la suite des muscles, puis les glucides avalés en hachuré : dans l'intestin, puis dans l'estomac
-      const liver = stacked ? h('div', { class: 'fill liver' }) : null, gut = stacked ? h('div', { class: 'gut' }) : null, stomach = stacked ? h('div', { class: 'gut stomach' }) : null;
-      const el = h('div', { class: 'rd-res-row' }, h('span', { class: 'nm' }, name), h('div', { class: 'track' + (stacked ? ' stacked' : '') }, fill, liver, gut, stomach, tick), val, sub);
-      return { el, fill, tick, val, sub, liver, gut, stomach };
+      const el = h('div', { class: 'rd-res-row ' + (cls || '') }, h('span', { class: 'nm' }, name), h('div', { class: 'track' }, fill, tick), val, sub);
+      return { el, fill, tick, val, sub };
     };
-    V.rW = reserve('W′'); V.rG = reserve('Glycogène', true); V.rH = reserve('Hydratation');
-    V.rT = reserve('Chaleur');      // modèle physiologique : température centrale, de 37 à 40 °C
-    V.rT.el.hidden = true;
+    V.rW = reserve('W′', 'big');
+    V.cpNow = h('span', { class: 'rd-cpnow', hidden: true });     // modèle physiologique : puissance critique du moment ; son info-bulle détaille l'état du corps
     V.tenable = h('div', { class: 'rd-tenable' });
-    V.phys = h('div', { class: 'rd-phys', hidden: true });   // modèle physiologique : PC effective, glycémie, FC prévue, sodium
-    V.res = h('div', { class: 'rd-card rd-res', role: 'button', tabindex: '0', title: 'Poches : manger ou boire', onclick: () => togglePockets(),
-      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePockets(); } } }, V.rW.el, V.rG.el, V.rH.el, V.rT.el, V.tenable, V.phys);
-
-    // alimentation
-    const slot = (key, icon, name) => {
+    V.wCard = h('div', { class: 'rd-card rd-wcard' }, h('div', { class: 'rd-lbl0' }, h('span', null, 'Réserve anaérobie'), V.cpNow), V.rW.el, V.tenable);
+    V.resCv = h('canvas', { class: 'rd-rescv' });
+    V.lgG = h('span'); V.lgH = h('span');
+    V.resCard = h('div', { class: 'rd-card rd-rescard' },
+      h('div', { class: 'rd-lbl0' }, h('span', null, 'Glycogène et hydratation jusqu\'à l\'arrivée'), h('span', null, '%')), V.resCv,
+      h('div', { class: 'rd-legend' }, h('span', { class: 'gly' }, h('i'), V.lgG), h('span', { class: 'hyd' }, h('i'), V.lgH),
+        h('span', { class: 'key' }, '— roulé · – – prévu · ··· prévu au départ')));
+    V.rT = reserve('Chaleur interne', 'thin');      // modèle physiologique : température centrale, de 37 à 40 °C
+    V.tCard = h('div', { class: 'rd-card rd-tcard', hidden: true }, V.rT.el);
+    const stat = (label) => {
+      const v = h('div', { class: 'v num' }), s = h('div', { class: 's' });
+      return { el: h('div', { class: 'rd-stat' }, h('div', { class: 'l' }, label), v, s), v, s };
+    };
+    V.sTime = stat('Temps'); V.sDist = stat('Distance'); V.sUp = stat('D+');
+    V.sAvg = stat('Moyenne'); V.sNp = stat('Normalisée'); V.sWork = stat('Travail');
+    V.stats = h('div', { class: 'rd-card rd-stats' }, h('div', { class: 'rd-lbl0' }, h('span', null, 'Sortie en cours')),
+      h('div', { class: 'rd-stat-grid' }, V.sTime.el, V.sDist.el, V.sUp.el, V.sAvg.el, V.sNp.el, V.sWork.el));
+    // rappels : manger, boire
+    const slot = (icon, name) => {
       const txt = h('span', { class: 'txt' }), btn = h('button', { class: 'btn', type: 'button' }, 'Pris');
       const el = h('div', { class: 'rd-nut-item', 'data-state': 'later' }, h('span', { class: 'ic' }, icon), h('span', { class: 'nm' }, name), txt, btn);
       return { el, txt, btn };
     };
-    V.nEat = slot('eat', '🍌', 'Manger'); V.nDrink = slot('drink', '💧', 'Boire');
+    V.nEat = slot('🍌', 'Manger'); V.nDrink = slot('💧', 'Boire');
     V.nEat.btn.addEventListener('click', () => { const r = run.rem && run.rem.eat; takeFood(r && r.kind ? r.kind : defaultFood()); });
     V.nDrink.btn.addEventListener('click', () => takeDrink());
     V.stock = h('div', { class: 'rd-stock' });
@@ -1323,13 +1349,37 @@
       h('button', { class: 'btn small', type: 'button', onclick: () => takeDrink() }, '+ Gorgée'),
       h('button', { class: 'btn small', type: 'button', onclick: () => openFood() }, 'Autre…'));
     V.nut = h('div', { class: 'rd-card rd-nut' }, V.nEat.el, V.nDrink.el, V.nutQuick, V.stock);
+    V.body = h('div', { class: 'rd-view body' }, V.wCard, V.resCard, V.tCard, V.stats, V.nut);
 
-    // profil
-    V.prof = h('canvas', { class: 'rd-prof', onclick: () => { run.profNear = !run.profNear; if (run.sess) render(run.sess.guidance()); } });
-    V.profCap = h('div', { class: 'rd-prof-cap' });
-    V.profCard = h('div', { class: 'rd-card rd-profile' }, V.prof, V.profCap);
+    // ---------- vue Classement (défi contre des coureurs virtuels)
+    V.mixHead = h('div', { class: 'rd-mix-head' });
+    V.mixTabBtn = {};
+    for (const [k, label] of [['course', 'Course'], ['points', 'Points'], ['kom', 'Montagne']]) {
+      V.mixTabBtn[k] = h('button', { class: 'rd-mbtn small', type: 'button', onclick: () => { run.mixTab = k; run.mixSig = ''; if (run.sess) renderMix(); } }, label);
+    }
+    V.mixTabs = h('div', { class: 'rd-mix-tabs', hidden: true }, V.mixTabBtn.course, V.mixTabBtn.points, V.mixTabBtn.kom);
+    V.mixBody = h('div', { class: 'rd-mix-body' });
+    V.mix = h('div', { class: 'rd-card rd-mix', hidden: true }, h('h3', null, 'Classement'), V.mixHead, V.mixTabs, V.mixBody);
+    V.mixView = h('div', { class: 'rd-view mixv', hidden: true }, V.mix);
 
-    V.live.append(V.banner, V.head, V.mapBox, (V.liveA = h('div', { class: 'rd-live-a' }, V.gap, V.mix, V.power, V.info)), (V.liveB = h('div', { class: 'rd-live-b' }, V.res, V.nut, V.profCard)));
+    // ---------- vues, points de navigation, poches
+    V.pager = h('div', { class: 'rd-pager' }, V.mapView, V.pow, V.body, V.mixView);
+    V.pager.addEventListener('scroll', onPagerScroll, { passive: true });
+    V.dots = h('nav', { class: 'rd-dots', 'aria-label': 'Vues du compteur' });
+    V.pockets = h('div', { class: 'rd-pockets', hidden: true, role: 'dialog', 'aria-label': 'Poches' });   // aliments et boissons (renderPockets)
+    V.live.append(V.head, V.pager, V.dots, V.pockets, V.banner);
+  }
+
+  /** Cadran (au choix avec la jauge) : arc de 240°, bande de la cible ± tolérance, repère de la puissance des 3 dernières secondes. */
+  function buildDial() {
+    const box = h('div', { class: 'rd-dialbox' });
+    const svg = svgOf('<svg class="rd-dial" viewBox="0 0 280 280" aria-hidden="true"><path class="trk"/><path class="lo"/><path class="hi"/><path class="band"/>'
+      + '<g class="ticks"></g><circle class="mk" r="14"/><circle class="mk2" r="6"/></svg>');
+    V.dSvg = { trk: svg.querySelector('.trk'), lo: svg.querySelector('.lo'), hi: svg.querySelector('.hi'), band: svg.querySelector('.band'),
+      ticks: svg.querySelector('.ticks'), mk: svg.querySelector('.mk'), mk2: svg.querySelector('.mk2') };
+    V.dTgt = h('div', { class: 't num' }); V.dCur = h('div', { class: 'c num' }); V.dZone = h('div', { class: 'rd-zone' });
+    box.append(svg, h('div', { class: 'ctr' }, h('div', { class: 'rd-tgt-lbl' }, 'Cible'), V.dTgt, V.dCur), V.dZone);
+    return box;
   }
 
   const defaultFood = () => {
@@ -1350,116 +1400,253 @@
     });
   }
 
-  /** Mise à jour de l'écran (4 fois par seconde au plus). */
+  function togglePowerView() {
+    store.set('ride.cfg.powerView', cfg().powerView === 'dial' ? 'gauge' : 'dial');
+    if (run.sess) render(run.sess.guidance());
+  }
+
+  /* ---------- navigation entre les vues ---------- */
+  function onPagerScroll() {
+    if (run.pgRaf) return;
+    run.pgRaf = requestAnimationFrame(() => {
+      run.pgRaf = 0;
+      const w = V.pager.clientWidth;
+      if (w > 0) setView(Math.round(V.pager.scrollLeft / w));
+    });
+  }
+
+  /** Vue i (dans viewList) ; scroll : 'smooth' ou true (instantané) pour y amener le défilement. */
+  function setView(i, scroll) {
+    const list = viewList();
+    i = U.clamp(Math.round(i) || 0, 0, list.length - 1);
+    const changed = i !== run.view;
+    run.view = i;
+    if (scroll && V.pager.clientWidth) V.pager.scrollTo({ left: i * V.pager.clientWidth, behavior: scroll === 'smooth' ? 'smooth' : 'auto' });
+    renderDots();
+    if (!changed) return;
+    V.live.dataset.view = list[i];
+    if (cfg().view !== list[i]) store.set('ride.cfg.view', list[i]);
+    if (run.sess && run.mode === 'live') {
+      if (list[i] === 'map' && run.mapOn) { run.mapKey = null; PYR.map.map.invalidateSize({ animate: false }); }
+      render(run.sess.guidance());
+    }
+  }
+
+  function renderDots() {
+    const list = viewList(), sig = list.join(',') + '|' + run.view;
+    V.mixView.hidden = !run.mix;
+    if (run.dotSig === sig) return;
+    run.dotSig = sig;
+    D.clear(V.dots);
+    list.forEach((k, i) => V.dots.append(h('button', {
+      class: 'dot', type: 'button', 'aria-label': (VIEWS.find((x) => x[0] === k) || [k, k])[1], 'aria-current': i === run.view ? 'page' : 'false',
+      onclick: () => setView(i, 'smooth'),
+    })));
+  }
+
+  /** Mise à jour de l'écran (4 fois par seconde au plus) : l'en-tête toujours, puis la vue visible. */
   function render(g) {
     if (!g || run.mode !== 'live') return;
+    renderHead(g);
+    renderDots();
+    const v = viewName();
+    if (v === 'pow') renderPower(g);
+    if (v === 'body') renderBody(g);
+    renderNut(g);
+    renderMix();
+    mapTick(g);
+    if (v === 'map') drawProfile(g);
+  }
+
+  function renderHead(g) {
     const sess = run.sess;
-    // bandeau
     setAttr(V.chGps, 'data-ok', g.offCourse ? 'off' : g.gpsLost ? 'no' : run.demo || run.lastFix ? 'yes' : 'no');
     setTxt(V.chGps, g.offCourse ? 'HORS TRACÉ' : 'GPS');
     setAttr(V.chPwr, 'data-ok', run.demo || run.powerOn ? 'yes' : g.powerEstimated ? 'est' : 'no');
     setTxt(V.chPwr, g.powerEstimated ? 'PUISS. ~' : 'PUISS.');
+    const hrIn = run.hrOn || (run.demo && run.demo.replay && sess.hr > 0);
+    setAttr(V.chHr, 'data-ok', hrIn ? 'yes' : 'none');
     V.chPlan.hidden = !run.replanning;
-    // mesures
-    const avgKmh = g.t > 5 ? g.s / g.t * 3.6 : 0;
-    setTxt(V.hSpeed.val, U.fmt(g.v * 3.6, 1)); setTxt(V.hSpeed.sub, `km/h · moy ${U.fmt(avgKmh, 1)}`);
-    setTxt(V.hGrade.val, U.fmt(g.grade * 100, 1)); setTxt(V.hGrade.sub, '%');
-    setTxt(V.hPow.val, Math.round(g.pDisp) + ''); setTxt(V.hPow.sub, g.pDispN === 1 ? 'W · instantanée' : `W · moy ${g.pDispN} s`);
-    const hr = (run.hrOn || (run.demo && run.demo.replay)) && sess.hr > 0 ? Math.round(sess.hr) : 0;   // ceinture, ou cœur de la sortie rejouée
-    const ph = g.fuelStatus && g.fuelStatus.phys;   // modèle physiologique : FC prédite à comparer à la mesure
-    const hf = ph && ph.hrFit;                        // recalage du modèle par la FC mesurée (filtre de Kalman de metabo.js)
+    // vitesse, et celle du tronçon dans le plan
+    setTxt(V.hSpeed.val, U.fmt(g.v * 3.6, 1));
+    setTxt(V.hSpeed.sub, g.seg ? `cible ${U.fmt(g.seg.kmh, 1)}` : 'km/h');
+    // puissance : la vignette prend la couleur de la consigne
+    const tg = g.target;
+    setAttr(V.hPow.el, 'data-cue', g.cue);
+    setTxt(V.hPow.val, Math.round(g.pDisp) + '');
+    setTxt(V.hPow.sub, tg < 15 ? 'roue libre' : `cible ${tg}`);
+    setAttr(V.hPow.el, 'title', g.pDispN === 1 ? 'Puissance instantanée (W)' : `Puissance moyenne sur ${g.pDispN} s (W)`);
+    // FC : ceinture, ou cœur de la sortie rejouée ; modèle physiologique : FC prévue
+    const hr = hrIn && sess.hr > 0 ? Math.round(sess.hr) : 0;
+    const ph = g.fuelStatus && g.fuelStatus.phys, hf = ph && ph.hrFit;
     setTxt(V.hHr.val, hr ? hr + '' : '–');
-    setTxt(V.hHr.sub, hr ? (ph ? `bpm · prévue ${Math.round(ph.HR)}` : 'bpm') : ph ? `prévue ${Math.round(ph.HR)} bpm` : run.hrOn ? 'en attente' : 'pas de ceinture');
+    setTxt(V.hHr.sub, hr ? (ph ? `prévue ${Math.round(ph.HR)}` : 'bpm') : ph ? `prévue ${Math.round(ph.HR)}` : run.hrOn ? 'en attente' : 'pas de ceinture');
     setAttr(V.hHr.el, 'title', hf ? `FC prévue par le modèle physiologique, recalé sur ta FC depuis ${hmm(hf.n)}.` : '');
-    setTxt(V.hDist.val, km(g.s)); setTxt(V.hDist.sub, `km · reste ${km(g.remaining)}`);
-    setTxt(V.hTime.val, hmm(g.t)); setTxt(V.hTime.sub, `reste ${hmm(g.remainPlanT)}`);
-
-    // écart
+    // écart au plan
     const gap = g.gap, state = Math.abs(gap) < 3 ? 'even' : gap > 0 ? 'ahead' : 'behind';
     setAttr(V.gap, 'data-state', state);
-    setTxt(V.gapLbl, state === 'even' ? 'Dans le plan' : state === 'ahead' ? 'En avance' : 'En retard');
+    setTxt(V.gapLbl, state === 'even' ? 'dans le plan' : state === 'ahead' ? 'en avance' : 'en retard');
     setTxt(V.gapVal, (state === 'even' ? '±' : state === 'ahead' ? '+' : '−') + gapText(gap));
     const m = Math.round(g.gapM);
-    setTxt(V.gapSub, `${m >= 0 ? '+' : '−'}${Math.abs(m)} m · arrivée ${hmm(g.finishProj)}${Math.abs(g.finishDelta0) >= 1 ? ` (${U.fmtDelta(g.finishDelta0)} sur le plan de départ)` : ''}`);
+    setAttr(V.gap, 'title', `${m >= 0 ? '+' : '−'}${Math.abs(m)} m · arrivée ${hmm(g.finishProj)}${Math.abs(g.finishDelta0) >= 1 ? ` (${U.fmtDelta(g.finishDelta0)} sur le plan de départ)` : ''}`);
+    // hauteur de l'en-tête : les vues se placent dessous, la carte passe dessous
+    const hh = V.head.offsetHeight;
+    if (hh && hh !== run.headH) { run.headH = hh; V.live.style.setProperty('--head-h', hh + 'px'); }
+  }
 
-    // consigne
-    const tg = g.target;
-    setAttr(V.power, 'data-cue', g.cue);
-    setTxt(V.tgt, tg < 15 ? 'Roue libre' : tg + ' W');
-    V.tgt.classList.toggle('word', tg < 15);
-    // part du temps passé dans le tube de la consigne (± 5 %, moyenne 3 s) depuis le début du tronçon en cours
-    setTxt(V.cueTxt, g.zonePct === null ? '–' : Math.round(g.zonePct * 100) + ' %');
-    setTxt(V.cueSub, 'dans la cible' + (g.cad > 0 ? ` · ${Math.round(g.cad)} tr/min` : ''));
-    drawTrajectory(g);
-    const e = g.powerEstimated ? g.est30 : null;           // l'estimation sur 30 s ne sert que sans capteur de puissance
+  function renderPower(g) {
+    setTxt(V.segLine, g.seg ? `Tronçon ${g.segIndex + 1}/${g.segCount} · km ${km(g.seg.a)} → ${km(g.seg.b)} · pente ${U.fmt(g.grade * 100, 1)} %` : '');
+    const dial = cfg().powerView === 'dial', tg = g.target, coast = tg < 15;
+    V.center.classList.toggle('dial', dial);
+    setAttr(V.center, 'data-cue', g.cue);
+    // plage affichée : la cible ± 30 % (roue libre : 0 à 150 W) ; la bande est le tube de la consigne
+    const lo = coast ? 0 : Math.floor(tg * 0.7 / 10) * 10, hi = coast ? 150 : Math.ceil(tg * 1.3 / 10) * 10;
+    const bLo = coast ? 0 : g.band[0], bHi = coast ? 40 : g.band[1], p = g.p3;
+    const zone = (g.zonePct === null ? '–' : Math.round(g.zonePct * 100) + ' %') + ' dans la cible' + (g.cad > 0 ? ` · ${Math.round(g.cad)} tr/min` : '');
+    const tgtTxt = coast ? 'Roue libre' : tg + '';
+    if (!dial) {
+      const f = (x) => U.clamp((x - lo) / (hi - lo), 0, 1) * 100;
+      setTxt(V.gTgt, tgtTxt); V.gTgt.classList.toggle('word', coast);
+      setTxt(V.gCur, Math.round(p) + ' W'); setTxt(V.gZone, zone);
+      V.gBand.style.left = f(bLo).toFixed(1) + '%'; V.gBand.style.width = (f(bHi) - f(bLo)).toFixed(1) + '%';
+      V.gMark.style.left = f(p).toFixed(1) + '%';
+      setTxt(V.gLo, lo + ''); setTxt(V.gHi, hi + ''); setTxt(V.gBandTxt, `${Math.round(bLo)} – ${Math.round(bHi)}`);
+    } else {
+      setTxt(V.dTgt, tgtTxt); V.dTgt.classList.toggle('word', coast);
+      setTxt(V.dCur, Math.round(p) + ' W'); setTxt(V.dZone, zone);
+      updateDial(lo, hi, bLo, bHi, p, tg);
+    }
+    // fin du tronçon et consigne suivante
+    setTxt(V.cdT, g.seg ? hmm(g.segTimeLeft) : '–');
+    setTxt(V.cdS, g.seg ? distTxt(g.toSegEnd) : '');
+    if (g.next) {
+      const to = round5(g.next.P), d = to - tg;
+      setTxt(V.nxL, `Ensuite · ${hmm(g.next.t1 - g.next.t0)}`);
+      setTxt(V.nxP, to < 15 ? 'Roue libre' : to + ' W'); setTxt(V.nxA, d >= 10 ? '▲' : d <= -10 ? '▼' : '');
+      setTxt(V.nxS, `pente ${U.fmt(g.next.grade * 100, 1)} %`);
+      V.nx.style.setProperty('--zc', ZONE_FILL[PYR.physio.zoneIndex(g.next.P, run.sess.athlete.ftp)]);
+    } else { setTxt(V.nxL, 'Ensuite'); setTxt(V.nxP, 'Arrivée'); setTxt(V.nxA, ''); setTxt(V.nxS, 'dernier tronçon'); V.nx.style.removeProperty('--zc'); }
+    // sans capteur : la puissance estimée sur 30 s
+    const e = g.powerEstimated ? g.est30 : null;
     V.est.hidden = !e;
     if (e) {
       const pct = Math.round(e.alpha * 100), dh = (x) => (x >= 0 ? '+' : '−') + U.fmt(Math.abs(x), 1) + ' m';
-      setTxt(V.est, `Estimée sur ${e.n} s : ${Math.round(e.P)} W`);
+      setTxt(V.est, `Puissance estimée sur ${e.n} s : ${Math.round(e.P)} W`);
       V.est.title = `Bilan d'énergie sur ${e.n} s d'après la vitesse, la météo et la dénivelée ${dh(e.dh)} : ${pct} % altitude mesurée`
         + (Number.isFinite(e.dhMeas) ? ` (${dh(e.dhMeas)})` : ' (pas de mesure)') + `, ${100 - pct} % tracé (${dh(e.dhCourse)}).` + (g.altForced ? ' Hors parcours : l\'altitude du tracé ne compte plus.' : '');
     }
-    if (g.seg) {
-      setTxt(V.segLeft, `Fin du segment · ${hmm(g.segTimeLeft)}`);
-      setTxt(V.seg, `Tronçon ${g.segIndex + 1}/${g.segCount} · km ${km(g.seg.a)} → ${km(g.seg.b)} · pente ${U.fmt(g.grade * 100, 1)} % · encore ${km(g.toSegEnd, g.toSegEnd < 1000 ? 2 : 1)} km (${hmm(g.segTimeLeft)})`);
-      setTxt(V.next, g.next ? `Prochain : ${mmss(g.next.t1 - g.next.t0)} @ ${Math.round(g.next.P / 5) * 5}W` : 'Dernier segment');
-    }
+    drawFrise(g);
+  }
 
-    // réserves
+  /** Cadran : les arcs ne sont redessinés que si la plage ou la bande changent ; le repère suit la puissance. */
+  function updateDial(lo, hi, bLo, bHi, p, tg) {
+    const R0 = 112, cx = 140, cy = 140, a0 = 150, sweep = 240;
+    const ang = (v) => (a0 + U.clamp((v - lo) / (hi - lo), 0, 1) * sweep) * Math.PI / 180;
+    const pt = (v, r) => [cx + r * Math.cos(ang(v)), cy + r * Math.sin(ang(v))];
+    const arc = (v0, v1, r) => {
+      const [x0, y0] = pt(v0, r), [x1, y1] = pt(v1, r), large = ang(v1) - ang(v0) > Math.PI ? 1 : 0;
+      return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    };
+    const key = `${lo}|${hi}|${Math.round(bLo)}|${Math.round(bHi)}`;
+    if (key !== run.dialKey) {
+      run.dialKey = key;
+      const S = V.dSvg;
+      S.trk.setAttribute('d', arc(lo, hi, R0)); S.lo.setAttribute('d', arc(lo, bLo, R0)); S.hi.setAttribute('d', arc(bHi, hi, R0));
+      S.band.setAttribute('d', arc(bLo, Math.max(bHi, bLo + 0.5), R0));
+      let t = '';
+      for (let i = 0; i <= 8; i++) {
+        const v = lo + (hi - lo) * i / 8, [x0, y0] = pt(v, R0 + 14), [x1, y1] = pt(v, R0 + 22);
+        t += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}"/>`;
+      }
+      for (const v of [lo, tg >= 15 ? tg : (lo + hi) / 2, hi]) {
+        const [x, y] = pt(v, R0 - 30);
+        t += `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}">${Math.round(v)}</text>`;
+      }
+      S.ticks.innerHTML = t;
+    }
+    const [mx, my] = pt(p, R0);
+    for (const c of [V.dSvg.mk, V.dSvg.mk2]) { c.setAttribute('cx', mx.toFixed(1)); c.setAttribute('cy', my.toFixed(1)); }
+  }
+
+  function renderBody(g) {
+    const sess = run.sess;
     const pct = (x) => Math.round(U.clamp(x, 0, 1) * 100);
+    const signed = (x) => Math.round(x * 100);                    // négatif : le profil de l'athlète est dépassé
+    // W′ et puissance critique du moment
     V.rW.fill.style.width = pct(g.wbalFrac) + '%';
     V.rW.tick.hidden = false; V.rW.tick.style.left = pct(g.wbalPlanFrac) + '%';
-    const signed = (x) => Math.round(x * 100);                    // négatif : le profil de l'athlète est dépassé
     setTxt(V.rW.val, signed(g.wbalFrac) + ' %'); setTxt(V.rW.sub, `plan ${signed(g.wbalPlanFrac)} %`);
     setAttr(V.rW.el, 'data-lvl', g.wbalFrac < 0 ? 'neg' : g.wbalFrac < 0.15 ? 'low' : g.wbalFrac < 0.4 ? 'mid' : 'ok');
-    // modèle physiologique : glycogène des muscles (vert) puis du foie (jaune pâle), sinon un seul stock ; hachuré : glucides avalés pas encore absorbés, intestin (vert) puis estomac (marron)
-    const gs = g.fuelStatus, sp = gs && gs.split;
-    V.rG.el.classList.toggle('split', !!sp);
-    V.rG.fill.style.width = pct(sp ? sp.muscle : g.energy) + '%';
-    V.rG.liver.style.width = pct(sp ? sp.liver : 0) + '%';
-    V.rG.gut.style.width = pct(gs ? gs.gutParts.intestine : 0) + '%';
-    V.rG.stomach.style.width = pct(gs ? gs.gutParts.stomach : 0) + '%';
-    setAttr(V.rG.el, 'title', (sp ? 'Vert : glycogène des muscles. Jaune pâle : glycogène du foie. ' : '') + (gs && gs.gut > 1
-      ? `Hachuré : glucides avalés pas encore absorbés — intestin (vert) ${Math.round(gs.intestine)} g, estomac (marron) ${Math.round(gs.stomach)} g, absorption ${Math.round(gs.absorbing)} g/h.` : 'Hachuré : glucides avalés, dans l\'intestin (vert) et dans l\'estomac (marron).'));
-    setTxt(V.rG.val, pct(g.energy) + ' %');
+    const te = g.tenable;
+    setTxt(V.tenable, te && Number.isFinite(te.t) ? `À ${Math.round(g.p3)} W, tu tiens encore ${hmm(te.t)}${te.by === 'wprime' ? ' (W′)' : ' (courbe record)'}` : g.p3 > 20 ? `À ${Math.round(g.p3)} W, tu peux tenir jusqu'à l'arrivée` : '');
+    const gs = g.fuelStatus, ph = gs && gs.phys, hf = ph && ph.hrFit;
+    V.cpNow.hidden = !ph;
+    if (ph) {
+      setTxt(V.cpNow, `PC actuelle ${Math.round(ph.CP2e)} W · ${Math.round(ph.cpK * 100)} %`);
+      const hr = (run.hrOn || (run.demo && run.demo.replay)) && sess.hr > 0 ? Math.round(sess.hr) : 0, dHr = hr ? hr - Math.round(ph.HR) : 0;
+      const sg = (x, d, u) => `${x >= 0 ? '+' : '−'}${U.fmt(Math.abs(x), d)} ${u}`;
+      V.cpNow.title = `Modèle physiologique : puissance critique du moment ${Math.round(ph.CP2e)} W (${Math.round(ph.cpK * 100)} % de la fraîche), glycémie ${U.fmt(ph.glu, 1)} mmol/L, `
+        + `glycogène des fibres lentes / rapides / du foie ${Math.round(ph.gI * 100)} / ${Math.round(ph.gII * 100)} / ${Math.round(ph.gL * 100)} %, FC prévue ${Math.round(ph.HR)}`
+        + `${hr ? ` (mesurée ${hr}, ${dHr >= 0 ? '+' : '−'}${Math.abs(dHr)})` : ''}, natrémie ${Math.round(ph.Na)} mmol/L.`
+        + (hf ? `\nRecalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.round(hf.HRrest)} bpm (${sg(hf.dRest, 0, 'bpm')}), FC max ${Math.round(hf.HRmax)} bpm (${sg(hf.dMax, 0, 'bpm')}),`
+          + ` chaleur que la météo ne voit pas ${sg(hf.Q, 0, 'W')} ; incertitude sur le noyau ± ${U.fmt(hf.sdTc, 1)} °C.` : '');
+      setAttr(V.cpNow, 'data-warn', ph.hypo || ph.hypoNa || ph.critical ? '1' : '');
+    }
+    // glycogène et hydratation : valeurs du moment dans la légende du graphique
     const tb = g.timeToBonk;
-    setTxt(V.rG.sub, g.bonk ? 'fringale !' : tb < 5400 ? `fringale dans ${hmm(tb)}` : `${g.trend >= 0 ? '+' : '−'}${U.fmt(Math.abs(g.trend) * 100, 0)} %/h`);
-    setAttr(V.rG.el, 'data-lvl', g.energy < 0.2 ? 'low' : g.energy < 0.4 ? 'mid' : 'ok');
-    V.rH.fill.style.width = pct(g.hydration) + '%';
-    setTxt(V.rH.val, pct(g.hydration) + ' %'); setTxt(V.rH.sub, `−${U.fmt(g.lossPct, 1)} % du poids`);
-    setAttr(V.rH.el, 'data-lvl', g.hydration < 0.4 ? 'low' : g.hydration < 0.7 ? 'mid' : 'ok');
-    // modèle physiologique : température centrale (barre de 37 à 40 °C), puis l'état du corps sur une ligne
-    V.rT.el.hidden = !ph; V.phys.hidden = !ph;
+    setTxt(V.lgG, `Glycogène ${pct(g.energy)} % · ${g.bonk ? 'fringale !' : tb < 5400 ? `fringale dans ${hmm(tb)}` : `${g.trend >= 0 ? '+' : '−'}${U.fmt(Math.abs(g.trend) * 100, 0)} %/h`}`);
+    const sp = gs && gs.split;
+    setAttr(V.lgG.parentNode, 'title', (sp ? `Muscles ${pct(sp.muscle)} %, foie ${pct(sp.liver)} %. ` : '')
+      + (gs && gs.gut > 1 ? `Glucides avalés pas encore absorbés : ${Math.round(gs.gut)} g (absorption ${Math.round(gs.absorbing)} g/h).` : ''));
+    setTxt(V.lgH, `Hydratation ${pct(g.hydration)} % · −${U.fmt(g.lossPct, 1)} % du poids`);
+    // chaleur interne (modèle physiologique) : barre fine de 37 à 40 °C
+    V.tCard.hidden = !ph;
     if (ph) {
       V.rT.fill.style.width = pct((ph.Tc - 37) / 3) + '%';
-      setTxt(V.rT.val, U.fmt(ph.Tc, 1) + '°');     // température centrale (°C), courte pour tenir dans la colonne
-      // recalé : « recalé FC » prend la place de « sueur » (colonne étroite), le débit de sueur reste dans l'info-bulle
-      setTxt(V.rT.sub, ph.critical ? 'trop chaud !' : ph.hot ? 'ralentis, bois' : hf ? `recalé FC · ${U.fmt(ph.SR, 1)} L/h` : `noyau · sueur ${U.fmt(ph.SR, 1)} L/h`);
+      setTxt(V.rT.val, U.fmt(ph.Tc, 1) + ' °C');
+      setTxt(V.rT.sub, ph.critical ? 'trop chaud !' : ph.hot ? 'ralentis, bois' : `sueur ${U.fmt(ph.SR, 1)} L/h`);
       setAttr(V.rT.el, 'data-lvl', ph.Tc >= 39.5 ? 'low' : ph.Tc >= 38.8 ? 'mid' : 'ok');
       setAttr(V.rT.el, 'title', (hf ? 'Température centrale du modèle, recalée sur la fréquence cardiaque mesurée (filtre de Kalman)' : 'Température centrale prévue par le modèle (sans ceinture cardio, rien ne la recale)')
         + ` ; sueur ${U.fmt(ph.SR, 1)} L/h.`);
-      const dHr = hr ? hr - Math.round(ph.HR) : 0;
-      setTxt(V.phys, `PC ${Math.round(ph.CP2e)} W (${Math.round(ph.cpK * 100)} %) · glycémie ${U.fmt(ph.glu, 1)} · I/II/foie ${Math.round(ph.gI * 100)}/${Math.round(ph.gII * 100)}/${Math.round(ph.gL * 100)} %`
-        + ` · FC prévue ${Math.round(ph.HR)}${hf ? ', recalée' : ''}${hr ? ` (mesurée ${hr}, ${dHr >= 0 ? '+' : '−'}${Math.abs(dHr)})` : ''} · Na⁺ ${Math.round(ph.Na)}`);
-      const sg = (x, d, u) => `${x >= 0 ? '+' : '−'}${U.fmt(Math.abs(x), d)} ${u}`;
-      V.phys.title = 'Modèle physiologique : puissance critique du moment, glycémie (mmol/L), glycogène des fibres lentes, rapides et du foie, fréquence cardiaque prévue (mesurée plus haute : plus de chaleur stockée, de déshydratation ou de fibres rapides recrutées), natrémie (mmol/L).'
-        + (hf ? `
-Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.round(hf.HRrest)} bpm (${sg(hf.dRest, 0, 'bpm')}), FC max ${Math.round(hf.HRmax)} bpm (${sg(hf.dMax, 0, 'bpm')}),`
-          + ` chaleur que la météo ne voit pas ${sg(hf.Q, 0, 'W')} ; incertitude sur le noyau ± ${U.fmt(hf.sdTc, 1)} °C ; écart FC mesurée − prévue sur la dernière minute ${sg(hf.res, 0, 'bpm')}.` : '');
-      setAttr(V.phys, 'data-warn', ph.hypo || ph.hypoNa || ph.critical ? '1' : '');
     }
-    const te = g.tenable;
-    setTxt(V.tenable, te && Number.isFinite(te.t) ? `À ${Math.round(g.p3)} W, tu tiens encore ${hmm(te.t)}${te.by === 'wprime' ? ' (W′)' : ' (courbe record)'}` : g.p3 > 20 ? `À ${Math.round(g.p3)} W, tu peux tenir jusqu'à l'arrivée` : '');
-
-    renderNut(g);
-    renderMix();
-    mapTick(g);
-    drawProfile(g);
+    // statistiques de la sortie
+    const st = updateStats(sess), n = sess.t;
+    setTxt(V.sTime.v, hmm(g.t)); setTxt(V.sTime.s, `reste ${hmm(g.remainPlanT)}`);
+    setTxt(V.sDist.v, km(g.s) + ' km'); setTxt(V.sDist.s, `reste ${km(g.remaining)} km`);
+    const up = upAt(g.s);
+    setTxt(V.sUp.v, U.fmt(up) + ' m'); setTxt(V.sUp.s, `reste ${U.fmt(Math.max(0, run.upTot - up))} m`);
+    setTxt(V.sAvg.v, n ? Math.round(st.work / n) + ' W' : '–'); setTxt(V.sAvg.s, n ? `${U.fmt(st.work / n / Math.max(1, sess.mass), 1)} W/kg` : '');
+    const np = st.cnt ? Math.pow(st.s4 / st.cnt, 0.25) : 0, ftp = sess.athlete.ftp;
+    setTxt(V.sNp.v, np ? Math.round(np) + ' W' : '–'); setTxt(V.sNp.s, np && ftp ? `IF ${U.fmt(np / ftp, 2)}` : '');
+    setTxt(V.sWork.v, U.fmt(st.work / 1000) + ' kJ'); setTxt(V.sWork.s, gs ? `${Math.round(sess.fuel.burned)} g de glucides` : '');
+    drawReserves(g);
   }
+
+  /** Puissance moyenne, normalisée (moyenne glissante sur 30 s à la puissance 4, comme le bilan) et travail : cumulés seconde après seconde. */
+  function updateStats(sess) {
+    const S = run.stats || (run.stats = { k: 0, work: 0, acc: 0, s4: 0, cnt: 0 });
+    const P = sess.Pk;
+    for (; S.k < sess.t; S.k++) {
+      const k = S.k, p = P[k];
+      S.work += p; S.acc += p;
+      if (k >= 30) S.acc -= P[k - 30];
+      if (k >= 29) { const m = S.acc / 30; S.s4 += m * m * m * m; S.cnt++; }
+    }
+    return S;
+  }
+
+  /** Dénivelé positif cumulé du parcours (profil de la page), pour le D+ roulé et restant. */
+  function buildUpCum() {
+    const p = store.profile;
+    if (!p) { run.upCum = null; run.upTot = 0; return; }
+    const c = new Float32Array(p.n);
+    for (let i = 1; i < p.n; i++) c[i] = c[i - 1] + Math.max(0, p.ele[i] - p.ele[i - 1]);
+    run.upCum = c; run.upStep = p.step; run.upTot = c[p.n - 1];
+  }
+  const upAt = (s) => (run.upCum ? run.upCum[U.clamp(Math.floor(s / run.upStep), 0, run.upCum.length - 1)] : 0);
 
   function renderNut(g) {
     const r = run.rem || coachTick();
-    const sess = run.sess, t = sess.t;
     const show = (it, x, noun) => {
       if (!x) { setAttr(it.el, 'data-state', 'off'); setTxt(it.txt, 'plus utile avant l\'arrivée'); return; }
       const st = x.inS <= 0 ? (x.urgent ? 'urgent' : 'due') : x.inS < 120 ? 'soon' : 'later';
@@ -1469,110 +1656,193 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     const lbl = (k) => (k === 'gel' ? 'un gel' : k === 'bar' ? 'une barre' : '');
     show(V.nEat, r && r.eat, r && r.eat && !r.eat.empty ? lbl(r.eat.kind) : '');
     show(V.nDrink, r && r.drink, '');
-    // le bloc des réserves (sur la carte) signale qu'il est temps de manger ou de boire : ouvrir les poches
-    const due = (x) => (x && !x.deferred && x.inS <= 0 ? (x.urgent ? 2 : 1) : 0), need = Math.max(due(r && r.eat), due(r && r.drink));
-    setAttr(V.res, 'data-nut', need === 2 ? 'urgent' : need === 1 ? 'due' : '');
+    // l'heure de manger ou de boire : une pastille dans l'en-tête, sur toutes les vues ; elle ouvre les poches
+    const due = (x) => (x && !x.deferred && x.inS <= 0 ? (x.urgent ? 2 : 1) : 0);
+    const dEat = due(r && r.eat), dDrink = due(r && r.drink), need = Math.max(dEat, dDrink);
+    V.nutPill.hidden = !need;
+    setTxt(V.nutPill, dEat && dDrink ? '🍌💧 Manger, boire' : dEat ? '🍌 Manger' : '💧 Boire');
+    setAttr(V.nutPill, 'data-urgent', need === 2 ? '1' : '');
     renderPockets(g);
     const st = g.fuelStatus;
     setTxt(V.stock, `${st.gels} gel${st.gels > 1 ? 's' : ''} · ${st.bars} barre${st.bars > 1 ? 's' : ''} · ${U.fmt(st.fluid, 1)} L`
       + (st.gut > 1 ? ` · ${Math.round(st.gut)} g en cours d'absorption (${Math.round(st.absorbing)} g/h)` : ''));
   }
 
-  /* ---------- trajectoire de puissance ---------- */
-  const TRAJ_PAST = 30, TRAJ_AHEAD = 15;     // s affichées avant et après l'instant courant
+  /* ---------- prévision des réserves jusqu'à l'arrivée (ride.js, forecastJob) ---------- */
+  const FC_EVERY = 60, FC_BUDGET = 2500, FC_STEP = 30;
 
   /**
-   * Tube de la consigne (± 5 %) sur les 30 dernières et les 15 prochaines secondes, avec la puissance moyenne sur 3 s qui le traverse
-   * (ou pas) et, juste à droite de l'instant courant, ce qu'il faut produire à la seconde suivante.
+   * Prises à venir pour la prévision : manger et boire au rythme du plan d'alimentation, à partir des prochains rappels du coach (qui se
+   * calent sur ce qui a vraiment été pris), tant qu'il en reste dans les poches. dt : secondes d'ici.
    */
-  function drawTrajectory(g) {
-    const cv = V.traj;
-    if (!cv.isConnected) return;
+  function forecastEvents(sess) {
+    const nut = run.nut, r = run.rem, ev = [];
+    if (!nut || !r || !sess.plan) return ev;
+    const remaining = sess.plan.tFinish - sess.plan.tAt(sess.s);
+    if (r.eat && !r.eat.empty && nut.food.everyS > 0) {
+      const stock = Object.assign({}, sess.fuel.items);
+      for (let dt = Math.max(0, r.eat.inS); dt < remaining - Nu.NO_FOOD_LAST; dt += nut.food.everyS) {
+        const kind = Nu.pickFood(stock, false);
+        if (!kind) break;
+        ev.push({ dt, type: 'eat', kind });
+      }
+    }
+    if (r.drink && nut.drink.everyS > 0) for (let dt = Math.max(0, r.drink.inS); dt < remaining; dt += nut.drink.everyS) ev.push({ dt, type: 'drink' });
+    return ev;
+  }
+
+  /** Relance la prévision toutes les FC_EVERY s de sortie (ou aussitôt après une prise, un recalcul, la météo), par tranches de FC_BUDGET s. */
+  function forecastTick(sess) {
+    if (!sess.plan || run.replanning) return;
+    if (!run.fcJob && (run.fcDirty || sess.t - run.fcT >= FC_EVERY)) {
+      run.fcDirty = false; run.fcT = sess.t;
+      run.fcEv = forecastEvents(sess);
+      run.fcJob = sess.forecastJob(run.fcEv, FC_STEP);
+    }
+    const job = run.fcJob;
+    if (!job || !job.run(FC_BUDGET)) return;
+    run.fcJob = null;
+    run.fc = job.out;
+    // pastilles des prises (manger) le long de la prévision
+    const plan = sess.plan, t0 = plan.tAt(job.s);
+    run.fcMarks = run.fcEv.filter((e) => e.type === 'eat').map((e) => ({ s: plan.sAt(t0 + e.dt), kind: e.kind }));
+    if (!run.fc0) run.fc0 = { s: job.out.s.slice(), G: job.out.G.slice(), hyd: job.out.hyd.slice() };   // prévu au départ : la première prévision
+  }
+
+  /* ---------- dessins de la vue Puissance et de la vue Corps ---------- */
+  /** Canevas à la taille affichée (densité de l'écran comprise) : { ctx, w, h }, ou null s'il n'est pas visible. */
+  function fitCanvas(cv) {
+    if (!cv.isConnected) return null;
     const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, hgt = cv.clientHeight;
-    if (!w || !hgt) return;
+    if (!w || !hgt) return null;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(hgt * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); }
     const ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, hgt);
-    const tr = run.sess.trajectory(TRAJ_PAST, TRAJ_AHEAD);
-    if (!tr) return;
-    const n = tr.n, A = tr.ahead.length, tolOf = (p) => Math.max(tr.minTol, tr.tolFrac * p);
-    // une consigne par seconde : tv[i] vaut de l'instant t0 + i à t0 + i + 1
-    const t0 = tr.t - n, tv = new Float32Array(n + A);
-    tv.set(tr.tgt, 0); tv.set(tr.ahead, n);
-    const css = getComputedStyle(document.documentElement), col = (k, d) => css.getPropertyValue(k).trim() || d;
-    const ink = col('--ink', '#000'), ink2 = col('--ink-2', '#555');
-    const good = col('--rd-good', '#0ca30c'), goodBg = col('--rd-good-bg', 'rgba(12,163,12,0.14)');
-    const warn = col('--rd-warn', '#e8a000'), bad = col('--rd-bad', '#d03b3b'), low = col('--rd-low', '#2a78d6');
+    return { ctx, w, h: hgt };
+  }
 
-    // échelle verticale : tout le tube et la courbe, arrondis à 10 W
-    let lo = Infinity, hi = -Infinity;
-    for (let i = 0; i < tv.length; i++) {
-      const tol = tolOf(tv[i]);
-      if (i < n || tv[i] >= 15) { lo = Math.min(lo, tv[i] - tol); hi = Math.max(hi, tv[i] + tol); }
-    }
-    for (let j = 0; j < n; j++) { lo = Math.min(lo, tr.avg[j]); hi = Math.max(hi, tr.avg[j]); }
-    if (!(hi > lo)) { lo = 0; hi = 100; }
-    const pad = Math.max(8, (hi - lo) * 0.12);
-    lo = Math.max(0, Math.floor((lo - pad) / 10) * 10); hi = Math.ceil((hi + pad) / 10) * 10;
-    if (hi - lo < 40) hi = lo + 40;
-    const left = 30, right = 4, top = 6, bot = hgt - 16, pw = w - left - right;
-    const X = (t) => left + (t - (tr.t - TRAJ_PAST)) / (TRAJ_PAST + TRAJ_AHEAD) * pw;
-    const Y = (p) => bot - (p - lo) / (hi - lo) * (bot - top);
-    const nowX = X(tr.t);
-
-    // tube : marches de la consigne, plus marqué à venir que pour le passé
-    const tube = (i0, i1) => {
-      if (i1 <= i0) return;
-      ctx.beginPath();
-      for (let i = i0; i < i1; i++) { const y = Y(tv[i] + tolOf(tv[i])); if (i === i0) ctx.moveTo(X(t0 + i), y); else ctx.lineTo(X(t0 + i), y); ctx.lineTo(X(t0 + i + 1), y); }
-      for (let i = i1 - 1; i >= i0; i--) { const y = Y(Math.max(0, tv[i] - tolOf(tv[i]))); ctx.lineTo(X(t0 + i + 1), y); ctx.lineTo(X(t0 + i), y); }
-      ctx.closePath();
+  /** Couleurs du thème de la sortie (sombre), lues sur l'élément de la sortie. */
+  function liveColors() {
+    const css = getComputedStyle(V.live), c = (k, d) => css.getPropertyValue(k).trim() || d;
+    return {
+      ink: c('--ink', '#fff'), ink2: c('--ink-2', '#c3c2b7'), border: c('--border-strong', 'rgba(255,255,255,0.24)'), surface: c('--surface', '#1a1a19'),
+      good: c('--rd-good', '#2fc42f'), warn: c('--rd-warn', '#f2b327'), bad: c('--rd-bad', '#ee5a5a'), badBg: c('--rd-bad-bg', 'rgba(238,90,90,0.22)'),
+      low: c('--rd-low', '#4a96f0'), gly: c('--gly-muscle', '#34c05a'), past: c('--surface-2', '#232321'),
     };
-    ctx.fillStyle = goodBg; tube(0, n); ctx.fill();
-    tube(n, n + A); ctx.fill(); ctx.fill();                       // deux couches : le tube à venir ressort davantage
-    ctx.strokeStyle = good; ctx.lineWidth = 1.5; tube(0, n + A); ctx.stroke();
-    // consigne au centre
-    ctx.setLineDash([4, 3]); ctx.lineWidth = 1; ctx.beginPath();
-    for (let i = 0; i < tv.length; i++) { const y = Y(tv[i]); if (i === 0) ctx.moveTo(X(t0), y); else ctx.lineTo(X(t0 + i), y); ctx.lineTo(X(t0 + i + 1), y); }
-    ctx.stroke(); ctx.setLineDash([]);
+  }
 
-    // mesures : brutes en fond, moyenne sur 3 s en couleur selon la position dans le tube
-    if (n > 0) {
-      ctx.strokeStyle = ink2; ctx.globalAlpha = 0.35; ctx.lineWidth = 1; ctx.beginPath();
-      for (let j = 0; j < n; j++) { const x = X(t0 + j + 0.5), y = Y(tr.raw[j]); if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
-      ctx.stroke(); ctx.globalAlpha = 1;
-      const colorAt = (j) => {
-        const d = tr.avg[j] - tr.tgt[j], tol = tolOf(tr.tgt[j]);
-        if (tr.tgt[j] < 15 && tr.avg[j] <= 40) return good;       // roue libre respectée
-        return Math.abs(d) <= tol ? good : d > 0 ? (d > 2.5 * tol ? bad : warn) : low;
-      };
-      ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      for (let j = 1; j < n; j++) {
-        ctx.strokeStyle = colorAt(j); ctx.beginPath();
-        ctx.moveTo(X(t0 + j), Y(tr.avg[j - 1])); ctx.lineTo(X(t0 + j + 1), Y(tr.avg[j])); ctx.stroke();
+  const FRISE_MIN = 25;            // min de tronçons à venir dans la frise
+  const FRISE_PAST = 120;          // s au plus de la part déjà roulée du tronçon en cours
+
+  /** Frise des tronçons à venir (histogramme) : largeur = durée prévue, hauteur = puissance, couleur = zone ; ligne de la PC. */
+  function drawFrise(g) {
+    const c = fitCanvas(V.frise), sess = run.sess, segs = sess.segs;
+    if (!c || !segs.length || g.segIndex < 0) return;
+    const { ctx, w, h: hgt } = c, ftp = sess.athlete.ftp, cp = sess.athlete.cp, col = liveColors();
+    const dur = (sg) => (sg.b - sg.a) / Math.max(1, sg.kmh / 3.6);
+    const cur = segs[g.segIndex];
+    const past = Math.min(FRISE_PAST, Math.max(0, dur(cur) - g.segTimeLeft));
+    const horizon = FRISE_MIN * 60 + past;
+    const bars = [{ d: past, P: cur.P, done: true }, { d: g.segTimeLeft, P: cur.P }];
+    for (let i = g.segIndex + 1, t = past + g.segTimeLeft; i < segs.length && t < horizon; i++) { const d = dur(segs[i]); bars.push({ d, P: segs[i].P }); t += d; }
+    let pmax = cp * 1.25;
+    for (const b of bars) pmax = Math.max(pmax, b.P * 1.1);
+    const top = 16, bot = hgt - 16, X = (t) => t / horizon * w, Y = (p) => bot - Math.max(0, p) / pmax * (bot - top);
+    ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    let t = 0, lastLbl = -99;
+    for (const b of bars) {
+      if (t >= horizon) break;
+      const d = Math.min(b.d, horizon - t), x0 = X(t), x1 = X(t + d);
+      if (x1 - x0 > 0.5) {
+        const y = Math.min(bot - 3, Y(b.P));
+        ctx.fillStyle = b.done ? col.past : ZONE_FILL[PYR.physio.zoneIndex(b.P, ftp)];
+        ctx.fillRect(x0 + 0.75, y, Math.max(1, x1 - x0 - 1.5), bot - y);
+        if (!b.done && x1 - x0 > 22 && x0 - lastLbl > 24) { ctx.fillStyle = col.ink; ctx.fillText(b.P < 15 ? 'RL' : round5(b.P) + '', (x0 + x1) / 2, y - 2); lastLbl = x0; }
       }
+      t += d;
     }
-
-    // instant courant, puis cible de la seconde suivante
-    ctx.strokeStyle = ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(nowX, top); ctx.lineTo(nowX, bot); ctx.stroke(); ctx.globalAlpha = 1;
-    const nextT = tr.ahead.length ? tr.ahead[0] : g.target, nextX = X(tr.t + 1), nextY = Y(nextT);
-    if (n > 0) {
-      const cy = Y(tr.avg[n - 1]), c = g.cue === 'ok' || g.cue === 'coast' ? good : g.cue === 'under' || g.cue === 'way_under' ? low : g.cue === 'over' ? warn : bad;
-      ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(nowX, cy); ctx.lineTo(nextX, nextY); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = c; ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(nowX, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // puissance critique
+    const yc = Y(cp);
+    ctx.strokeStyle = col.ink2; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke(); ctx.setLineDash([]);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = '700 10px system-ui, sans-serif';
+    ctx.lineWidth = 3; ctx.strokeStyle = col.surface; ctx.strokeText('PC', w - 2, yc + 2); ctx.fillStyle = col.ink2; ctx.fillText('PC', w - 2, yc + 2);
+    // maintenant
+    const nx = X(past);
+    ctx.strokeStyle = col.ink; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(nx, top - 2); ctx.lineTo(nx, bot + 1); ctx.stroke();
+    ctx.fillStyle = col.ink; ctx.beginPath(); ctx.moveTo(nx - 5, top - 8); ctx.lineTo(nx + 5, top - 8); ctx.lineTo(nx, top - 2); ctx.closePath(); ctx.fill();
+    // graduations : toutes les 5 min
+    ctx.font = '10px system-ui, sans-serif'; ctx.fillStyle = col.ink2; ctx.textBaseline = 'alphabetic';
+    for (let m = 0; m <= FRISE_MIN; m += 5) {
+      const x = X(past + m * 60);
+      ctx.textAlign = m === 0 ? (x < 20 ? 'left' : 'center') : x > w - 24 ? 'right' : 'center';
+      ctx.fillText(m === 0 ? 'maint.' : `+${m} min`, Math.min(w - 1, x), hgt - 3);
     }
-    ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(nextX, nextY, 3.5, 0, Math.PI * 2); ctx.fill();
+  }
 
-    // axes
-    ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = ink2;
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-    ctx.fillText(hi + '', left - 4, top + 5); ctx.fillText(lo + '', left - 4, bot - 5);
-    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
-    for (const dt of (w < 260 ? [-30, 0] : [-30, -15, 0, 15])) ctx.fillText(dt === 0 ? 'maintenant' : (dt > 0 ? '+' : '−') + Math.abs(dt) + ' s', Math.max(left + 14, Math.min(w - 20, X(tr.t + dt))), hgt - 3);
-    // lecture : valeur à produire à la seconde suivante
-    ctx.textAlign = nextX > w - 60 ? 'right' : 'left'; ctx.textBaseline = 'bottom'; ctx.fillStyle = ink; ctx.font = '700 12px system-ui, sans-serif';
-    ctx.fillText(nextT < 15 ? 'roue libre' : nextT + ' W', nextX + (ctx.textAlign === 'left' ? 6 : -6), Math.max(top + 12, nextY - tolOf(nextT) / (hi - lo) * (bot - top) - 3));
+  /**
+   * Glycogène et hydratation, du départ à l'arrivée (km) : roulé (trait plein, enregistré par la séance), prévu jusqu'à l'arrivée (tirets,
+   * prévision avec les prises à venir, pastilles G et B), prévu au départ (pointillé) ; zone de fringale sous 20 %.
+   */
+  function drawReserves(g) {
+    const c = fitCanvas(V.resCv), sess = run.sess;
+    if (!c) return;
+    const { ctx, w, h: hgt } = c, L = sess.course.length, col = liveColors();
+    const left = 28, right = 8, top = 10, bot = hgt - 16;
+    const X = (s) => left + U.clamp(s / L, 0, 1) * (w - left - right), Y = (f) => bot - U.clamp(f, 0, 1) * (bot - top);
+    // fringale, grille et axes
+    ctx.fillStyle = col.badBg; ctx.fillRect(left, Y(0.2), w - left - right, bot - Y(0.2));
+    ctx.font = '700 10px system-ui, sans-serif'; ctx.fillStyle = col.bad; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText('fringale', left + 4, bot - 4);
+    ctx.strokeStyle = col.border; ctx.lineWidth = 1;
+    ctx.font = '10px system-ui, sans-serif'; ctx.fillStyle = col.ink2; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (const f of [0, 0.5, 1]) { ctx.beginPath(); ctx.moveTo(left, Y(f)); ctx.lineTo(w - right, Y(f)); ctx.stroke(); ctx.fillText(Math.round(f * 100) + '', left - 4, Y(f)); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const stepKm = L > 120000 ? 50 : L > 50000 ? 25 : L > 20000 ? 10 : 5;
+    for (let k = 0; k * 1000 <= L; k += stepKm) {
+      const x = X(k * 1000);
+      ctx.textAlign = x > w - 30 ? 'right' : 'center';
+      ctx.fillText(String(k), x, hgt - 3);
+    }
+    ctx.textAlign = 'right'; ctx.fillText('km', w - right, hgt - 3);
+    const path = (S, F, n, color, width, dash) => {
+      if (n < 2) return;
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.beginPath();
+      for (let i = 0; i < n; i++) { const x = X(S[i]), y = Y(F[i]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke(); ctx.setLineDash([]);
+    };
+    // prévu au départ
+    const f0 = run.fc0;
+    if (f0) { ctx.globalAlpha = 0.6; path(f0.s, f0.hyd, f0.s.length, col.low, 1.2, [1.5, 3]); path(f0.s, f0.G, f0.s.length, col.gly, 1.2, [1.5, 3]); ctx.globalAlpha = 1; }
+    // roulé : un point toutes les quelques secondes
+    const tr = sess.track(), n = tr.n, stp = Math.max(1, Math.floor(n / 400)), m = Math.floor((n - 1) / stp) + 1;
+    if (n > 1) {
+      const S = new Float32Array(m), G = new Float32Array(m), Hh = new Float32Array(m);
+      for (let i = 0, k = 0; i < m; i++, k = Math.min(n - 1, k + stp)) { S[i] = tr.s[k]; G[i] = tr.gStock[k] / tr.g0; Hh[i] = tr.hydration[k]; }
+      S[m - 1] = tr.s[n - 1]; G[m - 1] = tr.gStock[n - 1] / tr.g0; Hh[m - 1] = tr.hydration[n - 1];
+      path(S, Hh, m, col.low, 2.5); path(S, G, m, col.gly, 3);
+    }
+    // prévu jusqu'à l'arrivée, et les prises
+    const fc = run.fc;
+    if (fc) {
+      path(fc.s, fc.hyd, fc.s.length, col.low, 2, [6, 4]); path(fc.s, fc.G, fc.s.length, col.gly, 2.5, [6, 4]);
+      const at = (s) => { let i = 1; while (i < fc.s.length - 1 && fc.s[i] < s) i++; const a = fc.s[i - 1], b = fc.s[i], q = b > a ? U.clamp((s - a) / (b - a), 0, 1) : 0; return fc.G[i - 1] + (fc.G[i] - fc.G[i - 1]) * q; };
+      ctx.font = '800 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const mk of run.fcMarks || []) {
+        if (mk.s < g.s || mk.s > L) continue;
+        const x = X(mk.s), y = Math.max(top + 8, Y(at(mk.s)) - 12);
+        ctx.fillStyle = col.warn; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.fillText(Fu.FOODS[mk.kind] && Fu.FOODS[mk.kind].cat === 'bar' ? 'B' : 'G', x, y + 0.5);
+      }
+      const last = fc.s.length - 1;
+      ctx.font = '800 11px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+      const yG = Y(fc.G[last]), yH = Y(fc.hyd[last]), lab = (y, other) => Math.max(top + 12, Math.abs(y - other) < 13 && y <= other ? Math.min(y, other - 13) : y - 3);
+      ctx.fillStyle = col.gly; ctx.fillText(Math.round(fc.G[last] * 100) + ' %', w - right - 2, lab(yG, yH));
+      ctx.fillStyle = col.low; ctx.fillText(Math.round(fc.hyd[last] * 100) + ' %', w - right - 2, lab(yH, yG));
+    }
+    // maintenant
+    const x = X(g.s);
+    ctx.strokeStyle = col.ink; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke(); ctx.globalAlpha = 1;
+    for (const [f, cl] of [[g.hydration, col.low], [g.energy, col.gly]]) { ctx.fillStyle = cl; ctx.strokeStyle = col.ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, Y(f), 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   }
 
   /* ---------- profil ---------- */
@@ -1586,10 +1856,9 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     return run.profPts;
   }
 
-  /** Profil d'élévation sur la carte (surcouche) ou dans sa carte, selon le réglage. */
+  /** Profil d'élévation par-dessus la carte (bouton ⛰ de la vue Carte, réglage « Profil d'élévation sur la carte »). */
   function drawProfile(g) {
     if (!V.mapProf.hidden) drawProfileOn(V.mapProf, g, null);
-    if (!V.profCard.hidden) drawProfileOn(V.prof, g, V.profCap);
   }
 
   function drawProfileOn(cv, g, cap) {
@@ -1629,7 +1898,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       const yy = Y((el[i] + el[i + 1]) / 2);
       ctx.fillRect(x0, yy, x1 - x0, bot - yy);
     }
-    const css = getComputedStyle(document.documentElement);
+    const css = getComputedStyle(V.live);
     const ink = css.getPropertyValue('--ink').trim() || '#000', ink2 = css.getPropertyValue('--ink-2').trim() || '#555';
     ctx.strokeStyle = ink2; ctx.lineWidth = 1.5; ctx.beginPath();
     for (let i = 0; i <= cols; i++) { const x = X(a + (b - a) * i / cols), y = Y(el[i]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
@@ -1676,23 +1945,6 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     for (const k of ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'boxZoom', 'keyboard']) if (map[k]) map[k].disable();
   }
 
-  /** Mesures, bloc consigne, fin et suivant du tronçon, réserves (et « Dans le plan » en haut) se posent sur la carte quand elle est affichée, sinon ils restent dans la page. */
-  function placeHud() {
-    (run.mapOn ? V.mapBox : V.head).appendChild(V.hud);
-    if (run.mapOn) {
-      V.mapBox.append(V.power, V.res);
-      V.ovChips.append(V.next);
-      V.status.insertBefore(V.gap, V.status.firstChild);        // « Dans le plan » en haut, à côté des capteurs
-    } else {
-      V.liveA.insertBefore(V.gap, V.liveA.firstChild);
-      V.liveA.insertBefore(V.power, V.info);
-      V.info.appendChild(V.next);
-      V.liveB.insertBefore(V.res, V.liveB.firstChild);
-    }
-    V.mapBox.classList.toggle('hud-on', run.mapOn);
-    V.info.hidden = V.nut.hidden = run.mapOn;                    // détail du tronçon et alimentation : sur la carte (pastilles, poches)
-  }
-
   /** La carte de la page vient s'installer dans l'écran de la sortie. */
   function attachMap() {
     const M = PYR.map, p = store.profile;
@@ -1701,11 +1953,15 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     run.mapHome = { parent: M.map.getContainer().parentNode, view: [M.map.getCenter(), M.map.getZoom()] };
     V.mapBox.hidden = false;
     V.mapBox.insertBefore(M.map.getContainer(), V.mapBox.firstChild);
+    // fond sombre le temps de la sortie, sans changer le fond choisi par l'utilisateur (rendu par detachMap)
+    run.baseBefore = M.baseId();
+    if (run.baseBefore !== 'dark') M.setBase('dark', { temp: true });
     M.setMode('plain');
-    placeHud();
     M.map.invalidateSize();
     run.turns = PYR.nav.turns(p);
     if (run.mix && PYR.classif.active(run.mix.cps)) M.setCheckpoints(run.mix.cps, []);   // sprints et côtes classées du défi
+    run.segFor = null;
+    run.segLayer = L.layerGroup().addTo(M.map);               // tronçons du plan, sous le tracé roulé (drawSegLayer)
     run.turnLayer = L.layerGroup().addTo(M.map);
     for (const t of run.turns) {
       const ll = M.latLngAt(t.s);
@@ -1745,11 +2001,13 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     if (run.mix) { M.setCheckpoints(null); store.emit('checkpoints'); }      // la page Parcours redessine ses propres points de passage
     if (run.turnLayer) { run.turnLayer.remove(); run.turnLayer = null; }
     if (run.turnNow) { run.turnNow.remove(); run.turnNow = null; }
+    if (run.segLayer) { run.segLayer.remove(); run.segLayer = null; run.segFor = null; }
+    if (run.baseBefore && run.baseBefore !== 'dark') M.setBase(run.baseBefore, { temp: true });
+    run.baseBefore = null;
     run.sock = null; run.sockEl = null;
     if (home && home.parent) home.parent.insertBefore(map.getContainer(), home.parent.firstChild);
     V.mapBox.hidden = true;
     togglePockets(false);
-    placeHud();
     M.setMode('grade');
     map.invalidateSize();
     if (home && home.view) map.setView(home.view[0], home.view[1], { animate: false });   // la vue de la page Parcours est rendue telle qu'elle était
@@ -1764,10 +2022,19 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     else if (!want && run.mapOn) detachMap();
     const prof = want && c.mapProfile;
     V.mapProf.hidden = !prof;
-    V.profCard.hidden = want;                                  // la carte occupe l'écran : le profil s'y superpose (réglage « Profil d'élévation sur la carte »)
     V.mapBox.classList.toggle('has-prof', prof);
+    setAttr(V.profBtn, 'aria-pressed', String(!!c.mapProfile));
+    // fin du tronçon (temps, distance) et consigne suivante
+    V.segLeft.hidden = !g.seg;
+    if (g.seg) {
+      setTxt(V.segT, `${hmm(g.segTimeLeft)} · ${distTxt(g.toSegEnd)}`);
+      setTxt(V.segN, `fin du tronçon, puis ${g.next ? (g.next.P < 15 ? 'roue libre' : round5(g.next.P) + ' W') : 'l\'arrivée'}`);
+    }
+    // la carte passe sous l'en-tête et sous les pastilles du bas : le cycliste est placé dans la partie visible (mapFrame)
+    run.mapPad = { top: run.headH || 0, bottom: (prof ? 84 : 0) + 76 };
     if (!run.mapOn) return;
     const map = M.map, now = Date.now();
+    if (run.segFor !== run.sess.segs) drawSegLayer();
     updateProgress(g.s);
     // la position n'est connue qu'une fois par seconde : la boucle d'animation (mapFrame) l'extrapole entre deux mises à jour
     run.mapT = { s: g.s, v: g.v, t: g.t, at: performance.now() };
@@ -1794,7 +2061,28 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       run.mapZoom = z; run.mapZoomAt = now;
       map.setZoomAround(M.latLngAt(run.mapS), z, { animate: !first });
     }
-    startMapLoop();
+    if (viewOn('map')) startMapLoop(); else stopMapLoop();      // la carte ne s'anime que sur sa vue
+  }
+
+  /** Tronçons du plan sur la carte : chacun à la couleur de sa zone de puissance, un point à chaque limite et la consigne à son début. */
+  function drawSegLayer() {
+    const M = PYR.map, p = store.profile, sess = run.sess, g = run.segLayer;
+    run.segFor = sess.segs;
+    if (!g || !p) return;
+    g.clearLayers();
+    const ftp = sess.athlete.ftp;
+    for (const sg of sess.segs) {
+      const i0 = U.clamp(Math.floor(sg.a / p.step), 0, p.n - 1), i1 = U.clamp(Math.ceil(sg.b / p.step), 0, p.n - 1);
+      const pts = [];
+      for (let i = i0; i <= i1; i++) pts.push([p.lat[i], p.lng[i]]);
+      if (pts.length < 2) continue;
+      g.addLayer(L.polyline(pts, { color: ZONE_FILL[PYR.physio.zoneIndex(sg.P, ftp)], weight: 7, opacity: 0.95, renderer: M.renderer, interactive: false }));
+      const pos = M.latLngAt(sg.a);
+      if (!pos) continue;
+      g.addLayer(L.circleMarker(pos, { radius: 4, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1, renderer: M.renderer, interactive: false }));
+      const lbl = h('b', null, sg.P < 15 ? 'RL' : String(round5(sg.P)));
+      g.addLayer(L.marker(pos, { icon: L.divIcon({ className: 'seg-icon', html: lbl, iconSize: [0, 0], iconAnchor: [0, 0] }), interactive: false, keyboard: false, zIndexOffset: 300 }));
+    }
   }
 
   /**
@@ -1843,7 +2131,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
   function updateProgress(s) {
     const p = store.profile, M = PYR.map;
     if (!run.progLine) {
-      run.progLine = L.polyline([], { color: '#eb6834', weight: 6, opacity: 1, renderer: M.renderer, interactive: false }).addTo(M.layers.progress);
+      run.progLine = L.polyline([], { color: '#eb6834', weight: 8, opacity: 1, renderer: M.renderer, interactive: false }).addTo(M.layers.progress);
       run.progIdx = -1;
     }
     const i1 = Math.min(p.n - 1, Math.floor(s / p.step));
@@ -1865,7 +2153,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
 
   function mapFrame(now) {
     run.mapRaf = 0;
-    if (!run.mapOn || !run.mapT) return;
+    if (!run.mapOn || !run.mapT || !viewOn('map')) return;
     run.mapRaf = requestAnimationFrame(mapFrame);
     const dtMs = now - run.mapLast;
     if (dtMs < run.mapInterval - 4) return;                       // cadence adaptative : on saute cette image
@@ -1882,8 +2170,10 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     const prevA = run.mapAngle === null ? ahead : run.mapAngle;
     run.mapAngle = prevA + (((ahead - prevA + 540) % 360) - 180) * (1 - Math.exp(-dt / 0.3));
     layoutMap(run.mapAngle);
-    // caméra : le cycliste est placé en arrière du centre (dans le sens de la marche), pour voir plus de route devant lui
-    const hd = run.mapAngle * Math.PI / 180, k = 0.24 * Math.min(run.mapW || 300, run.mapH || 300);
+    // caméra : le cycliste est placé en arrière du centre de la partie visible (entre l'en-tête et les pastilles du bas), dans le sens de
+    // la marche, pour voir plus de route devant lui
+    const pad = run.mapPad || { top: 0, bottom: 0 }, visH = Math.max(120, (run.mapH || 300) - pad.top - pad.bottom);
+    const hd = run.mapAngle * Math.PI / 180, k = (pad.top - pad.bottom) / 2 + 0.22 * Math.min(run.mapW || 300, visH);
     const want = { x: -Math.sin(hd) * k, y: Math.cos(hd) * k }, off = run.mapOff || (run.mapOff = { x: want.x, y: want.y });
     const e = 1 - Math.exp(-dt / 0.4);
     off.x += (want.x - off.x) * e; off.y += (want.y - off.y) * e;
@@ -1977,6 +2267,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
         h('div', { class: 'rd-checks' },
           checkEl('Profil d\'élévation sur la carte', c.mapProfile, (v) => { store.set('ride.cfg.mapProfile', v); render(sess.guidance()); }),
           ),
+        rowEl('Consigne (vue Puissance)', selectEl(POWER_VIEWS, c.powerView === 'dial' ? 'dial' : 'gauge', (v) => { store.set('ride.cfg.powerView', v); render(sess.guidance()); })),
         rowEl('Sensibilité', selectEl(Object.entries(SENS_LABEL), c.sens, (v) => { store.set('ride.cfg.sens', v); sess.cfg.sens = v; })),
         rowEl('Lissage de l\'écart', selectEl([[5, '5 s'], [8, '8 s'], [12, '12 s'], [20, '20 s']], c.gapTau, (v) => { store.set('ride.cfg.gapTau', Number(v)); sess.cfg.gapTau = Number(v); })),
         rowEl('Forme du plan (% de mes capacités)', h('span', { class: 'rd-inline' }, (() => {
@@ -2012,9 +2303,8 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
   /* ---------- poches sur la carte ---------- */
   function togglePockets(open) {
     const on = open === undefined ? V.pockets.hidden : open;
-    if (on && !run.mapOn) return;
+    if (on && run.mode !== 'live') return;
     V.pockets.hidden = !on;
-    V.mapBox.classList.toggle('pk-on', on);
     run.pkSig = '';
     clearTimeout(run.pkTimer);
     document.removeEventListener('pointerdown', pocketsOutside, true);
@@ -2024,9 +2314,9 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
 
   const POCKETS_MS = 15000;                    // les poches se referment seules après ce délai sans prise
   function armPockets() { clearTimeout(run.pkTimer); run.pkTimer = setTimeout(() => togglePockets(false), POCKETS_MS); }
-  /** Un toucher hors de la vignette la ferme (le bloc des réserves, lui, l'ouvre et la ferme par son propre clic). */
+  /** Un toucher hors de la vignette la ferme (la pastille « Manger / Boire » de l'en-tête, elle, l'ouvre et la ferme par son propre clic). */
   function pocketsOutside(e) {
-    if (V.pockets.contains(e.target) || V.res.contains(e.target)) return;
+    if (V.pockets.contains(e.target) || V.nutPill.contains(e.target)) return;
     togglePockets(false);
   }
 
@@ -2081,6 +2371,7 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
       PYR.kv.setItem(SESSION_KEY, JSON.stringify({
         session: sess.pack(), coach: { lastEat: run.coach.lastEat, lastDrink: run.coach.lastDrink }, demo: !!run.demo, savedAt: Date.now(),
         mix: run.mix ? PYR.rideMixed.pack(run.mix) : null,
+        fc0: run.fc0 ? { s: Array.from(run.fc0.s, (x) => Math.round(x)), G: Array.from(run.fc0.G, (x) => Math.round(x * 1000) / 1000), hyd: Array.from(run.fc0.hyd, (x) => Math.round(x * 1000) / 1000) } : null,
       }));
     } catch (e) { console.warn('Sauvegarde de la sortie impossible', e); }
   }
@@ -2113,6 +2404,8 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
     run.coach = Nu.createCoach(run.nut);
     run.coach.restore(d.coach);
     run.mix = d.mix ? PYR.rideMixed.unpack(d.mix, mixOptions(base, d.mix.n)) : null;   // les coureurs virtuels sont rattrapés en quelques tours d'horloge
+    const f0 = d.fc0;
+    run.fc0 = f0 && Array.isArray(f0.s) && f0.s.length > 1 ? { s: Float32Array.from(f0.s), G: Float32Array.from(f0.G), hyd: Float32Array.from(f0.hyd) } : null;
     run.power.length = 0; run.fix.length = 0; run.cads.length = 0;
     if (!run.gpsOn) toggleGps();
     // les capteurs connus se reconnectent tout seuls, sans liste de choix (si le navigateur le permet)
@@ -2272,9 +2565,15 @@ Recalé sur ta FC depuis ${hmm(hf.n)} (filtre de Kalman) : FC de repos ${Math.ro
         if (document.body.dataset.tab === 'ride') renderPrep();
       });
       window.addEventListener('pagehide', () => { if (run.mode === 'live') saveSession(); });
+      // flèches gauche et droite : vue précédente ou suivante
+      document.addEventListener('keydown', (e) => {
+        if (run.mode !== 'live' || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.target.closest('input, select, textarea, .modal')) return;
+        e.preventDefault();
+        setView(run.view + (e.key === 'ArrowRight' ? 1 : -1), 'smooth');
+      });
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && run.mode === 'live') saveSession(); });
       window.addEventListener('resize', () => {
-        if (run.mode === 'live' && run.sess) render(run.sess.guidance());
+        if (run.mode === 'live' && run.sess) { setView(run.view, true); render(run.sess.guidance()); }
         else if (run.mode === 'prep' && document.body.dataset.tab === 'ride') renderPrep();
       });
     },

@@ -133,6 +133,24 @@ test('course avec le modèle physiologique : déterministe, capacité réduite p
   assert.equal(PYR.race.normRules({ physio: true }).physio, false, 'le modèle physiologique demande l’alimentation');
 });
 
+test('compteur : la prévision des réserves suit le modèle physiologique sur une copie du corps', () => {
+  const profile = makeProfile([{ len: 8000, grade: 0.01 }]);
+  const { course, setup, athlete } = setupFor(profile, {}, { temperature: 25 });
+  const c = Mx.card(RIDER, athlete);
+  const sess = PYR.ride.createSession({ course, setup, athlete, mass: 70, tempC: 25, physio: c });
+  // plan simple : 240 W à 9 m/s jusqu'à l'arrivée
+  const n = Math.ceil(course.length / 9), S = new Float32Array(n + 1), P = new Float32Array(n).fill(240);
+  for (let k = 0; k <= n; k++) S[k] = Math.min(course.length, 9 * k);
+  sess.setPlan(PYR.ride.makePlan({ t0: 0, s: S, P, wbal: new Float32Array(n + 1).fill(athlete.w0), tFinish: n, length: course.length }));
+  for (let k = 0; k < 300; k++) sess.step({ power: 240, fix: null });
+  const Tc = sess.fuel.phy.s.Tc, G = sess.fuel.G;
+  const fc = sess.forecast([], 60);
+  assert.equal(sess.fuel.phy.s.Tc, Tc, 'la prévision ne touche pas l\'état de la séance');
+  assert.equal(sess.fuel.G, G);
+  assert.ok(fc.G.length >= 3 && fc.G[fc.G.length - 1] < fc.G[0], 'glycogène en baisse à 240 W');
+  assert.ok(fc.hyd[fc.hyd.length - 1] < fc.hyd[0], 'on transpire');
+});
+
 test('compteur : la séance suit le modèle physiologique, et la reprise le rejoue à l’identique', () => {
   const profile = makeProfile([{ len: 8000, grade: 0.01 }]);
   const { course, setup, athlete } = setupFor(profile, {}, { temperature: 25 });
