@@ -44,6 +44,7 @@ Le site est fait d'**applications**, chacune dans son dossier, avec son propre s
 | `VirtualRide2D/` | **Course 2D** | `index.html` : choix du parcours (carrousel 3D), de l'athlète, de la météo et réglages de la partie ; `course.html` : la course sur la carte |
 | `VirtualRide3D/` | **Course 3D** | idem, la course dans l'univers 3D de Bike3D (`VirtualRide3D/univers/`, voir son [README](VirtualRide3D/univers/README.md)) |
 | `VirtualRide3DRealiste/` | **Course 3D réaliste** | idem, la course dans un **monde 3D réaliste** pour PC et consoles de salon (`VirtualRide3DRealiste/monde/`, voir son [README](VirtualRide3DRealiste/monde/README.md)) : le même monde que Bike3D, avec lumière et ciel physiques, ombres, herbe et forêts, eau, pluie, nuit |
+| `VirtualRideUnity/` | **Course 3D native** (en préparation) | le futur jeu Unity pour PC, casque Meta Quest autonome et, plus tard, Xbox : document de conception ([`CONCEPTION.md`](VirtualRideUnity/CONCEPTION.md)), générateur de vélos 3D pour Blender et script d'animation Unity (voir son [README](VirtualRideUnity/README.md)). Hors du site publié |
 | `Compteur/` | **Compteur** | la vraie sortie (téléphone au guidon) : suit le plan calculé dans Plan |
 | `Commun/` | code partagé | moteur de calcul, état et stockage, interface commune (carte, graphiques, météo, capteurs), styles, bibliothèques (Leaflet, QR codes), images |
 
