@@ -158,6 +158,7 @@ html, body {
   color: var(--ink);
 }
 .chip.active { background: var(--yellow); box-shadow: 0 3px 0 var(--ink); transform: translateY(-2px); }
+.chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .chip .sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink); vertical-align: -2px; margin-right: 4px; }
 
 /* ---------- boutons ---------- */

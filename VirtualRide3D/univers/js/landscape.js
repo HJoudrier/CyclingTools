@@ -1,5 +1,8 @@
 /* Bike3D — génération procédurale du paysage autour de la route :
-   relief, falaises, rivières, lacs, occupation du sol (prés, champs, forêts, alpages, neige). */
+   relief, falaises, rivières, lacs, occupation du sol (prés, champs, forêts, alpages, neige).
+   Le relief est inventé (bruit procédural sur un versant ajusté aux altitudes de la route), ou réel : avec l'option dem
+   (B3D.Dem, le modèle numérique de terrain autour du vrai parcours), le terrain est celui de la carte, recalé sur l'altitude
+   de la route ; rivières, lacs, villages et végétation restent tirés de la graine. */
 (function (root) {
   'use strict';
   const B3D = root.B3D = root.B3D || {};
@@ -8,6 +11,8 @@
   const G = 32; // pas de la grille du champ d'altitude de base (m)
   const BLK = 32; // cellules par bloc du cache
   const SIGMA = 170; // portée du lissage de l'altitude de la route (m)
+  const VALS = 4; // valeurs par nœud de la grille de base : B, M, D, écart route − relief réel
+  const DEM_MEDIAN = 500; // relief réel : l'écart route − carte est filtré (médiane) sur ±DEM_MEDIAN m de route (ponts, tunnels)
   const RIVER_CELL = 64;
   const RIVER_MARGIN = 80;
 
@@ -36,9 +41,11 @@
   function key(cx, cz) { return (cx + 32768) * 65536 + (cz + 32768); }
 
   class Landscape {
-    constructor(route, seed) {
+    // opts.dem : relief réel (B3D.Dem, at(lat, lon)) ; sans lui, le relief est inventé.
+    constructor(route, seed, opts = {}) {
       this.route = route;
       this.seed = seed >>> 0;
+      this.dem = (opts && opts.dem) || null;
       const rnd = this.rnd = mulberry32(Math.imul(this.seed ^ 0x9E3779B9, 0x85EBCA6B) ^ 0x27d4eb2d);
       rnd(); rnd();
       this.amb = rnd.pick(B3D.ambiances);
@@ -115,6 +122,7 @@
       this._vor = {};
 
       this._computeMountainness();
+      if (this.dem) this._computeDemOffset();
       this._planRivers();
       this._buildBridgeMask();
       this._planVillages();
@@ -145,6 +153,44 @@
       // index des échantillons grossiers -> position dans cY
       this.cIndex = new Map();
       for (let k = 0; k < n; k++) this.cIndex.set(ci[k], k);
+    }
+
+    // Relief réel : altitude de la carte en (x, z), NaN hors de la zone chargée.
+    demAt(x, z) {
+      const R = this.route;
+      return this.dem.at(R.lat0 - z / R.kz, R.lon0 + x / R.kx);
+    }
+
+    // Relief réel : écart entre l'altitude de la route et celle de la carte sous chaque échantillon grossier (cR). Il vient du
+    // GPX (altimètre mal calé, autre modèle de terrain, trace décalée de quelques mètres) ; filtré par une médiane glissante, il ne
+    // garde que la tendance (un viaduc ou un tunnel ne soulève ni ne creuse la vallée) et décale tout le relief réel autour de la
+    // route : la route reste toujours posée sur le terrain, même si les altitudes du GPX sont loin de celles de la carte.
+    _computeDemOffset() {
+      const R = this.route, ci = R.coarse, n = ci.length;
+      const raw = new Float64Array(n);
+      let have = 0;
+      for (let k = 0; k < n; k++) {
+        const d = this.demAt(R.x[ci[k]], R.z[ci[k]]);
+        raw[k] = d === d ? this.cY[k] - d : NaN;
+        if (d === d) have++;
+      }
+      if (!have) { this.dem = null; return; } // rien sous la route : relief inventé
+      // trous (hors tuiles) : l'écart connu le plus proche le long de la route
+      let last = NaN;
+      for (let k = 0; k < n; k++) { if (raw[k] === raw[k]) last = raw[k]; else if (last === last) raw[k] = last; }
+      last = NaN;
+      for (let k = n - 1; k >= 0; k--) { if (raw[k] === raw[k]) last = raw[k]; else raw[k] = last; }
+      const span = Math.max(1, Math.round(DEM_MEDIAN / (R.spacing * Math.max(1, (ci[1] - ci[0]) || 1))));
+      const buf = [];
+      this.cR = new Float64Array(n);
+      for (let k = 0; k < n; k++) {
+        buf.length = 0;
+        for (let q = Math.max(0, k - span); q <= Math.min(n - 1, k + span); q++) buf.push(raw[q]);
+        buf.sort((a, b) => a - b);
+        const m = buf.length >> 1;
+        const med = buf.length & 1 ? buf[m] : 0.5 * (buf[m - 1] + buf[m]);
+        this.cR[k] = med;
+      }
     }
 
     _computeCell(px, pz, out, o) {
@@ -179,8 +225,8 @@
       const rc = Math.ceil(rad / CC) + 1;
       // Ajustement pondéré d'un plan local (y = a + b.dx + c.dz) sur les altitudes de la route :
       // les lacets s'inscrivent ainsi dans un versant au lieu d'une moyenne "plate".
-      let S = 0, Sx = 0, Sz = 0, Sxx = 0, Szz = 0, Sxz = 0, Sy = 0, Sxy = 0, Szy = 0, sm = 0;
-      const inv = 1 / SIGMA;
+      let S = 0, Sx = 0, Sz = 0, Sxx = 0, Szz = 0, Sxz = 0, Sy = 0, Sxy = 0, Szy = 0, sm = 0, sr = 0;
+      const inv = 1 / SIGMA, cR = this.cR;
       for (let ix = cx - rc; ix <= cx + rc; ix++) {
         for (let iz = cz - rc; iz <= cz + rc; iz++) {
           const arr = cells.get(key(ix, iz));
@@ -197,6 +243,7 @@
             S += w; Sx += w * dx; Sz += w * dz; Sxx += w * dx * dx; Szz += w * dz * dz; Sxz += w * dx * dz;
             Sy += w * y; Sxy += w * dx * y; Szy += w * dz * y;
             sm += w * this.cM[c];
+            if (cR) sr += w * cR[c];
           }
         }
       }
@@ -214,6 +261,7 @@
       out[o] = (Sy - bS * Sx - cS * Sz) / S;
       out[o + 1] = sm / S;
       out[o + 2] = dmin;
+      out[o + 3] = cR ? sr / S : 0;
     }
 
     _cell(ix, iz) {
@@ -221,33 +269,39 @@
       const k = key(bx, bz);
       let blk = this.blocks.get(k);
       if (!blk) {
-        blk = new Float32Array(BLK * BLK * 3).fill(NaN);
+        blk = new Float32Array(BLK * BLK * VALS).fill(NaN);
         this.blocks.set(k, blk);
       }
-      const o = ((ix - bx * BLK) * BLK + (iz - bz * BLK)) * 3;
+      const o = ((ix - bx * BLK) * BLK + (iz - bz * BLK)) * VALS;
       if (blk[o] !== blk[o]) this._computeCell(ix * G, iz * G, blk, o);
       this._cb = blk; this._co = o;
       return blk;
     }
 
-    // Altitude de base B, "montagnitude" M et distance approximative D à la route.
+    // Altitude de base B, "montagnitude" M et distance approximative D à la route. Relief réel : B est l'altitude de la carte
+    // recalée sur la route (out.real), sauf hors de la zone chargée où l'on garde le versant ajusté.
     base(x, z, out) {
       const fx = x / G, fz = z / G;
       const ix = Math.floor(fx), iz = Math.floor(fz);
       const tx = fx - ix, tz = fz - iz;
       let b, o;
       b = this._cell(ix, iz); o = this._co;
-      const b00 = b[o], m00 = b[o + 1], d00 = b[o + 2];
+      const b00 = b[o], m00 = b[o + 1], d00 = b[o + 2], r00 = b[o + 3];
       b = this._cell(ix + 1, iz); o = this._co;
-      const b10 = b[o], m10 = b[o + 1], d10 = b[o + 2];
+      const b10 = b[o], m10 = b[o + 1], d10 = b[o + 2], r10 = b[o + 3];
       b = this._cell(ix, iz + 1); o = this._co;
-      const b01 = b[o], m01 = b[o + 1], d01 = b[o + 2];
+      const b01 = b[o], m01 = b[o + 1], d01 = b[o + 2], r01 = b[o + 3];
       b = this._cell(ix + 1, iz + 1); o = this._co;
-      const b11 = b[o], m11 = b[o + 1], d11 = b[o + 2];
+      const b11 = b[o], m11 = b[o + 1], d11 = b[o + 2], r11 = b[o + 3];
       const w00 = (1 - tx) * (1 - tz), w10 = tx * (1 - tz), w01 = (1 - tx) * tz, w11 = tx * tz;
       out.B = b00 * w00 + b10 * w10 + b01 * w01 + b11 * w11;
       out.M = m00 * w00 + m10 * w10 + m01 * w01 + m11 * w11;
       out.D = d00 * w00 + d10 * w10 + d01 * w01 + d11 * w11;
+      out.real = false;
+      if (this.dem) {
+        const h = this.demAt(x, z);
+        if (h === h) { out.B = h + r00 * w00 + r10 * w10 + r01 * w01 + r11 * w11; out.real = true; }
+      }
       return out;
     }
 
@@ -257,6 +311,13 @@
       const P = this.P, M = o.M, D = o.D;
       const X = x + this.ox, Z = z + this.oz;
       let h = o.B;
+      if (o.real) {
+        // relief réel : la carte a déjà ses montagnes et ses collines ; un léger modelé garde l'aspect cartoon
+        const detT = smoothstep(4, 22, D);
+        if (detT > 0) h += this.noiseB.noise(X / 45, Z / 45) * (0.3 + 1.2 * M) * detT;
+        o.hNat = h;
+        return h;
+      }
       const M2 = M * M;
       if (M2 > 0.012) {
         const wt = smoothstep(30, 1100, D);
@@ -984,7 +1045,12 @@
       for (let k = 0; k < this.cM.length; k++) mAvg += this.cM[k];
       mAvg /= this.cM.length;
       const score = P.mountainAmp * mAvg * mAvg + P.hillAmp + 16 * mAvg;
-      const relief = score > 330 ? 'spectaculaire' : score > 70 ? 'marqué' : 'doux';
+      let relief = score > 330 ? 'spectaculaire' : score > 70 ? 'marqué' : 'doux';
+      const fmt = (v) => Math.round(v).toLocaleString('fr-FR');
+      if (this.dem) {
+        const r = this.dem.range();
+        relief = 'réel (carte) · ' + fmt(r.min) + ' – ' + fmt(r.max) + ' m';
+      } else if (this.realReliefFailed) relief += ' (inventé : relief réel indisponible)';
       return [
         { icon: '🎨', label: 'Ambiance', value: this.amb.name },
         { icon: '⛰️', label: 'Relief', value: relief },
