@@ -1,0 +1,25 @@
+{
+    "name": "Wattlas.Tests.Domaine",
+    "rootNamespace": "Wattlas.Tests",
+    "references": [
+        "Wattlas.Domaine",
+        "Wattlas.Jeu",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

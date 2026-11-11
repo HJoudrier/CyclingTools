@@ -2,7 +2,12 @@
 
 Version native de la course 3D de Wattlas : un jeu installé, fait avec **Unity**, qui reprend la simulation de Wattlas (modèle mécanique, modèle physiologique, aspiration, peloton, tactiques, météo) et la montre dans un monde 3D plus abouti que les vues web.
 
-Statut : proposition, novembre 2026. Rien n'est encore construit, sauf le générateur de vélos (`blender/velo_route.py`) et son script d'animation (`unity/VeloAnimation.cs`).
+Statut (novembre 2026) :
+
+- **Fait** : les générateurs de vélos (`blender/velo_route.py`) et de cyclistes (`blender/cycliste.py`, avec tenues, équipements et animations), puis le projet Unity [`Wattlas/`](Wattlas/README.md).
+  - Socle de l'étape 0 : URP, `.asmdef`, préfabs et scène de démonstration construits par menus.
+  - Le cœur de l'étape 3 : mécanique et roulage portés en C#, testés contre le moteur JavaScript.
+- **Pas encore fait** : ouvrir le projet dans l'éditeur Unity et le lancer sur le Quest.
 
 ## 1. Cibles
 
@@ -29,8 +34,8 @@ Le Quest 2 n'est pas visé. On pourra l'essayer à la fin, en qualité réduite.
 | Rendu | **URP** (Universal Render Pipeline), chemin *Forward* | le seul pipeline de Unity qui couvre Quest, PC et Xbox ; HDRP est trop lourd pour un casque autonome |
 | Réalité virtuelle | **OpenXR** + *Unity OpenXR: Meta* + *XR Interaction Toolkit* | un seul code pour le Quest autonome et les casques PC ; menus et pointeurs fournis |
 | Entrées | **Input System** | clavier, manette, contrôleurs VR avec les mêmes actions ; indispensable pour la Xbox |
-| Modèles 3D | **glTF binaire (.glb)** importé par **glTFast** (`com.unity.cloud.gltfast`), FBX possible | format ouvert, sortie directe de Blender, axes sans ambiguïté |
-| Route | paquet **Splines** de Unity | l'axe de la route se construit à partir du GPX |
+| Modèles 3D | **FBX** (import natif de Unity : niveaux de détail, rig et clips du cycliste, réglés par `ImportModeles.cs`) ; les générateurs produisent aussi du **glTF (.glb)**, lisible par glTFast | sortie directe de Blender ; le FBX garde le *LOD Group* et les clips sans paquet de plus |
+| Route | ruban construit par script d'après le GPX rééchantillonné tous les 10 m (`RouteMaillage.cs`) ; paquet **Splines** plus tard pour lisser les lacets | même pas que le moteur du site |
 | Langage du jeu | **C#** ; le domaine en C# « pur », sans `UnityEngine` | testable hors de Unity, portable, et même découpage que la cible hexagonale de Wattlas |
 | Tests | **Unity Test Framework** (NUnit), en mode *EditMode* pour le domaine | rapides ; ils comparent le C# aux résultats du moteur JavaScript (§ 7) |
 | Compilation Quest | Android, **IL2CPP**, ARM64, **Vulkan**, textures **ASTC**, couleurs linéaires | réglages recommandés par Meta et Unity pour le Quest |
@@ -73,7 +78,7 @@ Ces chiffres sont des ordres de grandeur, pas des limites. On les vérifie **sur
 | Modèle | LOD0 | LOD1 | LOD2 | Au-delà |
 | --- | ---: | ---: | ---: | --- |
 | **Vélo** (généré, mesuré) | 28 000 | 7 600 | 2 600 | caché à ~120 m |
-| Cycliste (corps, tenue, casque) | 18 000 | 6 000 | 1 500 | imposteur |
+| **Cycliste** (généré, mesuré : corps et équipement visible) | 19 000 | 6 400 | 1 900 | imposteur |
 | Spectateur | 3 000 | 1 000 | — | carte (*billboard*) |
 | Arbre | 3 000–5 000 | 1 000 | — | imposteur (8 angles) |
 | Maison | 2 000–5 000 | 1 000 | 200 | — |
@@ -110,7 +115,7 @@ Rouler en VR, c'est avancer sans bouger : le mal des transports guette.
 | Famille | Source | État |
 | --- | --- | --- |
 | **Vélos** | **générés** par `blender/velo_route.py` (paramétrique, mêmes identifiants que le magasin) | fait pour la route (6 cadres, 8 roues, 5 pneus) ; à faire : contre-la-montre, VTT, ville, crampons, logos |
-| **Cyclistes** | **personnage de base** d'une bibliothèque, puis pédalage par cinématique inverse sur les ancres du vélo (§ 4.2) | à choisir |
+| **Cyclistes** | **générés** par `blender/cycliste.py` (corps homme ou femme, tenues, équipements du magasin, clips de pédalage) ; un personnage plus détaillé d'une bibliothèque pourra reprendre les mêmes clips (§ 4.2) | fait (à voir dans Unity) |
 | **Mobilier de route** (bornes, panneaux, barrières, arches, glissières, bottes de foin) | **générés** par des scripts Blender, comme le vélo : formes simples, paramétriques, palette | à faire |
 | **Bâtiments** | kit modulaire (murs, toits, fenêtres) généré en Blender, assemblé dans Unity à partir de la graine du monde | à faire |
 | **Arbres, rochers** | bibliothèque (Fab / Quixel Megascans, Unity Asset Store) ramenée au budget Quest ; imposteurs générés dans Unity | à choisir |
@@ -121,21 +126,20 @@ Vérifier la licence de tout ce qui vient d'une bibliothèque ou d'un générate
 
 ### 4.2 Le cycliste
 
-Il faut un personnage **détaillé** et **animé par la simulation**, pas une animation en boucle.
+Il faut un personnage **détaillé** et **animé par la simulation**, pas une animation en boucle. Choix retenu : `blender/cycliste.py` (voir [`README.md`](README.md)).
 
-1. **Corps** : un personnage humanoïde riggé, en deux morphologies (homme et femme) comme dans les vues web, de 18 000 triangles au plus au LOD0.
-   - Pistes : un pack de l'Asset Store, ou un personnage créé dans un logiciel de création de personnages dont la licence permet l'usage dans un jeu.
-   - À vérifier avant de choisir : le nombre de triangles, le squelette compatible *Humanoid* de Unity, les niveaux de détail.
-2. **Tenue** : maillot, cuissard, combinaison, casque, lunettes, chaussures. Ce sont des maillages par-dessus le corps, ou des zones peintes dans une texture masque (comme `body.js` de la vue réaliste). Les couleurs d'équipe viennent d'une propriété par instance (§ 3.4).
-3. **Pédalage** : cinématique inverse (paquet *Animation Rigging*, contrainte *Two Bone IK*).
-   - **Pieds** sur `Ancre_PiedD` et `Ancre_PiedG`, qui tournent avec les pédales ; genoux orientés vers l'avant.
-   - **Bassin** posé sur `Ancre_Selle`.
-   - **Mains** sur les ancres de la position du magasin : `Ancre_MainD/G_Cocotte`, `_Bas` ou `_Haut`.
-   - **Buste** penché selon la position (même table que `POSITIONS` de `bike.js`).
-   - **Danseuse** : bassin relevé et vélo qui se balance.
-
-   C'est ce que font déjà les vues web : il n'y a aucun clip d'animation à produire pour pédaler.
-4. **Niveaux de détail** : au LOD2, la cinématique inverse est coupée (pose figée qui tourne avec le pédalier) ; au-delà, imposteur.
+1. **Corps** : même méthode que la vue réaliste du site. Un champ de distance (formes fondues entre elles) donne une surface sans couture, en deux morphologies. Elle est rattachée à 15 os aux noms de l'avatar *Humanoid* de Unity. LOD0 : 14 000 triangles, plus l'équipement (environ 19 000 au total).
+2. **Tenue** :
+   - le maillot, le cuissard, les chaussettes et les gants sont des **bandes de couleur le long des membres**, lues dans une texture de 64 × 64 : une tenue ou une équipe de plus ne coûte aucun maillage ;
+   - les casques, les lunettes et les chaussures sont des maillages, tous dans le modèle, montrés selon le choix du magasin ;
+   - pour un peloton, la texture par coureur casse le dessin en lots : à remplacer à terme par une propriété par instance (§ 3.4).
+3. **Pédalage** : des **clips calculés à l'avance** plutôt qu'une cinématique inverse dans le jeu.
+   - Blender résout les jambes sur les pédales et les bras sur les prises du cintre, pour chaque position du magasin et en danseuse.
+   - Chaque clip est un tour de pédalier. Unity règle le temps du clip sur l'angle du pédalier.
+   - Rien n'est calculé dans le casque : c'est bien moins cher sur le Quest qu'une cinématique inverse par coureur et par image, et les pieds tombent sur les pédales.
+   - Contrepartie : les clips valent pour un vélo et une hauteur de selle donnés (`--avec-velo` exporte le vélo assorti). Pour d'autres tailles, il faut générer d'autres clips, ou ajouter une petite correction des pieds par cinématique inverse (paquet *Animation Rigging*) sur le seul vélo du joueur.
+4. **Niveaux de détail** : 3 niveaux pour le corps et l'équipement (environ 19 000, 6 400 et 1 900 triangles). Au-delà, imposteur (à faire).
+5. **Personnage du commerce** : grâce aux noms d'os *Humanoid*, les clips peuvent être reciblés sur un personnage acheté plus détaillé, avec l'option *Foot IK* de l'Animator pour garder les pieds sur les pédales.
 
 ### 4.3 Conventions communes
 
@@ -171,7 +175,7 @@ Même découpage que celui préparé pour Wattlas (agents `architecture-auditor`
                 └──────────────────────────────┬───────────────────────────────┘
                                                │ lit l'état de la course
 ┌─ Adaptateurs ─────────────┐   ┌──────────────┴──────────────┐   ┌─ Adaptateurs ────────────────┐
-│ PontWebSocket (sim JS)    │──▶│  Application (cas d'usage)  │◀──│ CapteurBLE Android / Windows │
+│ PontWebSocket (sim JS)    │──▶│  Jeu (cas d'usage)          │◀──│ CapteurBLE Android / Windows │
 │ Stockage fichiers, Dropbox│──▶│  DémarrerCourse, Avancer…   │◀──│ RelaisRéseau (trainer)       │
 │ Horloge, Entrées          │──▶│  ┌───────────────────────┐  │   │ Clavier / manette            │
 └───────────────────────────┘   │  │ Domaine (C# pur)      │  │   └──────────────────────────────┘
@@ -210,8 +214,8 @@ VirtualRideUnity/
    │     ├─ Scenes/               Demarrage, Menu, Course, Vitrine
    │     ├─ Scripts/
    │     │  ├─ Domaine/           Wattlas.Domaine.asmdef        (noEngineReferences : true)
-   │     │  ├─ Application/       Wattlas.Application.asmdef    (→ Domaine)
-   │     │  ├─ Adaptateurs/       Wattlas.Adaptateurs.asmdef    (→ Application, Domaine, UnityEngine)
+   │     │  ├─ Jeu/               Wattlas.Jeu.asmdef            (→ Domaine ; cas d'usage, sans UnityEngine)
+   │     │  ├─ Adaptateurs/       Wattlas.Adaptateurs.asmdef    (→ Jeu, Domaine, UnityEngine)
    │     │  └─ Presentation/      Wattlas.Presentation.asmdef   (→ tout)
    │     ├─ Tests/
    │     │  ├─ Domaine/           EditMode : comparaison au moteur JS
@@ -225,17 +229,25 @@ Les fichiers `.asmdef` rendent les règles de dépendance vérifiables par le co
 
 ### 6.2 Paquets
 
+Dans `Packages/manifest.json` aujourd'hui :
+
 | Paquet | Pour |
 | --- | --- |
-| `com.unity.render-pipelines.universal` | rendu URP |
-| `com.unity.xr.openxr`, `com.unity.xr.meta-openxr` | casque Quest (OpenXR) |
+| `com.unity.render-pipelines.universal` 17.3 | rendu URP |
+| `com.unity.xr.openxr` 1.15.1 | casque (OpenXR, groupe *Meta Quest Support*) ; version recommandée par Meta |
+| `com.unity.inputsystem` 1.14.2 | clavier, manette, manettes du casque, suivi de la tête (`TrackedPoseDriver`) |
+| `com.unity.test-framework` | tests du domaine |
+| modules intégrés (`com.unity.modules.*`) | animation et *Playables* (clips du cycliste), XR, interface immédiate (compteur)… |
+
+Plus tard, selon les besoins :
+
+| Paquet | Pour |
+| --- | --- |
 | `com.unity.xr.interaction.toolkit` | menus et pointeurs en VR |
-| `com.unity.inputsystem` | clavier, manette, contrôleurs |
-| `com.unity.cloud.gltfast` | import des `.glb` |
-| `com.unity.splines` | axe de la route |
-| `com.unity.animation.rigging` | pédalage par cinématique inverse |
-| `com.unity.test-framework` | tests |
-| plus tard : `com.unity.webrtc`, `com.unity.addressables` | courses en direct (compatibles avec `live.js`), chargement à la demande |
+| `com.unity.cloud.gltfast` | import des `.glb` (les modèles du projet sont en FBX) |
+| `com.unity.splines` | axe de la route lissé (la route actuelle suit les points du GPX tous les 10 m) |
+| `com.unity.animation.rigging` | correction des pieds par cinématique inverse (§ 4.2) |
+| `com.unity.webrtc`, `com.unity.addressables` | courses en direct (compatibles avec `live.js`), chargement à la demande |
 
 ### 6.3 Profils de compilation
 
@@ -317,12 +329,12 @@ Dans tous les cas, le jeu envoie au home-trainer la **pente simulée** (FTMS : p
 
 | Étape | Contenu | Terminé quand |
 | --- | --- | --- |
-| 0 · Socle | projet Unity 6.3 LTS (URP), dossiers et `.asmdef`, paquets, profils Windows et Quest, Git LFS ; vélo généré importé et animé | le vélo tourne ses roues dans une scène vide, sur PC et sur le Quest |
+| 0 · Socle | projet Unity 6.3 LTS (URP), dossiers et `.asmdef`, paquets, profils Windows et Quest ; vélo et cycliste générés, importés et animés | le cycliste pédale dans une scène, sur PC et sur le Quest — **construit, à ouvrir dans Unity** |
 | 1 · Vue Unity (A) | serveur WebSocket et adaptateur `PontWebSocket` ; route depuis le GPX (Splines) ; terrain simple ; coureurs placés selon les messages `frame` ; caméras | une course lancée dans Wattlas (page servie en local) se voit dans Unity, à 90 images/s sur PC |
 | 2 · Quest | même chose dans le casque, par le réseau local ; passe de performance (§ 3) ; confort (§ 3.5) | 72 images/s tenues au milieu d'un peloton de 30 |
-| 3 · Solo autonome (B) | lots 1, 3 et 5 portés et testés ; `SimulationLocale` ; puissance à la manette | une sortie en solo sur un GPX, sans PC, dans le casque |
+| 3 · Solo autonome (B) | lots 1, 3 et 5 portés et testés ; `SimulationLocale` ; puissance à la manette | une sortie en solo sur un GPX, sans PC, dans le casque — **en partie : mécanique, roulage, W′, magasin et GPX portés et testés ; restent les plafonds de la courbe record, la météo et le freinage** |
 | 4 · Home-trainer | greffon BLE Android (puis Windows) ; consigne de pente | on pédale sur son home-trainer, casque sur la tête, sans PC |
-| 5 · Cycliste et peloton | personnage, tenues, pédalage par IK ; lots 2 et 4 | une course complète contre les coureurs virtuels, en autonome |
+| 5 · Cycliste et peloton | personnage, tenues, pédalage ; lots 2 et 4 | une course complète contre les coureurs virtuels, en autonome — **cycliste, tenues et pédalage faits ; peloton du site à porter** |
 | 6 · Monde | portage de la génération du paysage ; villages, végétation, public dans les budgets | même paysage que Virtual Ride 3D pour la même graine |
 | 7 · Multijoueur | WebRTC compatible avec `live.js` et `relay.js` | un joueur Unity et un joueur web dans la même course en direct |
 | 8 · Xbox | après acceptation ID@Xbox : module Xbox de Unity, certification | — |

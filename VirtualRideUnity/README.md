@@ -6,10 +6,10 @@ Ce dossier prépare une version **native** de la course 3D de Wattlas, faite ave
 | --- | --- |
 | [`CONCEPTION.md`](CONCEPTION.md) | Document de conception : cibles, budgets de performance (Quest), modèles 3D, structure du projet Unity, plan de portage du moteur JavaScript en C#, étapes |
 | [`blender/velo_route.py`](blender/velo_route.py) | Générateur de vélos de route pour Unity (Blender, Python) |
-| [`blender/exemples/`](blender/exemples/) | Un vélo déjà généré (`Velo_Aero.glb`, `.fbx`), son rapport et ses aperçus |
-| [`unity/VeloAnimation.cs`](unity/VeloAnimation.cs) | Script Unity qui anime le vélo généré : roues, pédalier, pédales, direction, niveaux de détail |
-
-Le projet Unity lui-même n'existe pas encore : sa structure est décrite dans `CONCEPTION.md`.
+| [`blender/cycliste.py`](blender/cycliste.py) | Générateur du cycliste : corps (homme ou femme), squelette, tenues, équipements du magasin, animations de pédalage |
+| [`blender/exemples/`](blender/exemples/) | Un vélo déjà généré (`Velo_Aero.glb`, `.fbx`), les rapports et les aperçus des deux cyclistes |
+| [`Wattlas/`](Wattlas/) | **Le projet Unity** : socle jouable (route d'après un GPX, joueur et coureurs virtuels, moteur porté en C#, casque VR) ; voir son [README](Wattlas/README.md) |
+| [`outils/`](outils/) | Vecteurs de référence tirés du moteur JavaScript (`vecteurs.js`) ; vérifications sans Unity (`verifier_domaine.sh`, `verifier_scripts.sh`) |
 
 ## Le générateur de vélos (`blender/velo_route.py`)
 
@@ -108,7 +108,7 @@ Triangles du vélo aéro de l'exemple : **LOD0 27 972** (vélo du joueur, vu de 
 
 Dans les deux cas, pour les textures de palette : **Generate Mip Maps décoché** et **Filter Mode : Point**. Sinon, des liserés de couleur apparaissent à la jonction de deux pièces.
 
-**Animer** : copier [`unity/VeloAnimation.cs`](unity/VeloAnimation.cs) dans `Assets/` et l'ajouter au vélo. On règle `vitesse` (m/s), `cadence` (tr/min) et `braquage` (°) depuis la simulation ; `rayonRoue` vient du rapport (`geometrie.rayon_roue`). Les pédales tournent à l'envers du pédalier pour rester à plat. Les axes de rotation sont déduits des positions des pivots, donc le script fonctionne quel que soit le chemin d'import. Cochez `toujoursLod0` sur le vélo du joueur.
+**Animer** : [`VeloAnimation.cs`](Wattlas/Assets/_Wattlas/Scripts/Presentation/VeloAnimation.cs) (projet Unity), sur la racine du vélo. On règle `vitesse` (m/s), `cadence` (tr/min) et `braquage` (°) depuis la simulation ; `rayonRoue` vient du rapport (`geometrie.rayon_roue`). Les pédales tournent à l'envers du pédalier pour rester à plat. Les axes de rotation sont déduits des positions des pivots, donc le script fonctionne quel que soit le chemin d'import. Cochez `toujoursLod0` sur le vélo du joueur.
 
 ### Vérifications faites
 
@@ -124,3 +124,70 @@ Dans les deux cas, pour les textures de palette : **Generate Mip Maps décoché*
 - Pas encore de vélo de contre-la-montre, de VTT ni de vélo de ville ; pas de crampons sur les pneus gravel ; pas de logos.
 - La chaîne est un ruban lisse : les maillons viendront d'une texture de relief si on les voit de près.
 - Les tubes se croisent aux jonctions, sans raccords soudés : on ne le voit pas en jeu, mais ce n'est pas un modèle de fabrication.
+
+## Le générateur de cycliste (`blender/cycliste.py`)
+
+Il construit le cycliste avec la même méthode que la vue réaliste du site (`VirtualRide3DRealiste/monde/js/body.js`) : un corps d'une seule surface, sans couture, tiré d'un champ de distance (formes arrondies fondues entre elles), extrait en maillage puis rattaché à un squelette de 15 os. Les poids sont lissés aux articulations. Proportions homme (1,78 m) ou femme (1,68 m), à l'échelle de la taille choisie.
+
+![Cycliste sur son vélo](blender/exemples/Cycliste_M_apercu.jpg)
+
+- **Squelette** : `Hips`, `Spine`, `Head`, `LeftUpperArm`… Ce sont les noms de l'avatar *Humanoid* de Unity : les clips pourront servir à un autre personnage plus tard. S'y ajoute l'os `Ancre_Yeux`, origine de la caméra du joueur.
+- **Tenue** : manches, cuissard, chaussettes et gants ne sont pas des maillages mais des bandes de couleur le long des membres, réglées par une petite texture (16 rangées × 64 px). Toutes les tenues du magasin (`loose`, `fitted`, `aero`, `skinsuit`, `skinsuit_tt`), les trois hauteurs de chaussettes et les couleurs d'équipe changent sans toucher au maillage. Dans Unity, c'est `CyclisteEquipement` qui refait la texture.
+- **Équipements** : tous ceux du magasin sont dans le même fichier, chacun déformé par son os.
+  - casques `road` (ventilé), `city` (visière), `aero`, `tt` (goutte d'eau et visière) ;
+  - lunettes `sport` et `shield` ;
+  - chaussures `flat`, `mtb`, `road`, `carbon` et `aero` (couvre-chaussures) ;
+  - yeux, et queue de cheval pour une cycliste.
+
+  Unity montre ceux qu'on choisit.
+- **Animations** : un clip par position du magasin (`upright`, `tops`, `hoods`, `hoods_bent`, `drops`, `forearms`) et deux en danseuse (`hoods`, `drops`).
+  - Chaque clip est **un tour de pédalier** (37 images, la dernière égale à la première).
+  - Les jambes sont calculées par cinématique inverse sur les pédales du vélo, avec un pied qui s'incline au fil du tour. Les bras vont aux prises du cintre ; le buste s'incline jusqu'à ce que les mains les atteignent.
+  - En danseuse, le haut du corps reste droit pendant que le vélo se balance (le balancement est fait dans Unity).
+- **Réglé pour son vélo** : la hauteur de selle est calculée pour que le genou soit à 145° en bas du coup de pédale (0,748 m pour le cycliste de 1,78 m, 0,709 m pour la cycliste de 1,68 m). `--avec-velo` exporte le vélo réglé ainsi (`Velo_Aero_M`, `Velo_Aero_F`).
+- **Niveaux de détail** :
+
+  | Niveau | Cycliste | Femme |
+  | --- | ---: | ---: |
+  | LOD0 | 18 900 triangles | 19 300 |
+  | LOD1 | 6 400 | 6 500 |
+  | LOD2 | 1 900 | 2 000 |
+
+  Ces chiffres comptent l'équipement visible.
+
+```sh
+python VirtualRideUnity/blender/cycliste.py --avec-velo --apercu
+python VirtualRideUnity/blender/cycliste.py --sexe f --maillot "#1F4E9C" --maillot-accent "#F2C230" --casque aero --lunettes shield --avec-velo
+```
+
+Options : `--sexe m|f`, `--taille-cycliste 1.80`, `--tenue`, `--chaussettes`, `--casque`, `--lunettes`, `--chaussures` (ce qui est montré par défaut), `--maillot`, `--maillot-accent`, `--cuissard`, `--peau`, `--motif uni|bande`, `--cadre`, `--taille` (du cadre), `--velo-config fichier.json`, `--formats fbx,glb,blend`, `--lods`, `--apercu`, `--liste`, `--aide`.
+
+Les aperçus montrent :
+
+- les quatre positions de profil ;
+- un tour de pédalier (les pieds sur les pédales) ;
+- les casques et lunettes ;
+- quatre tenues ;
+- les niveaux de détail ;
+- la **vue du joueur dans le casque**.
+
+| | |
+| --- | --- |
+| ![Positions](blender/exemples/Cycliste_F_apercu_positions.jpg) | ![Un tour de pédalier](blender/exemples/Cycliste_M_apercu_pedalage.jpg) |
+| ![Casques et lunettes](blender/exemples/Cycliste_M_apercu_casques.jpg) | ![Tenues](blender/exemples/Cycliste_M_apercu_tenues.jpg) |
+
+![Vue du joueur](blender/exemples/Cycliste_M_apercu_joueur.jpg)
+
+**Vérifié** :
+
+- le FBX réimporté dans Blender donne, posé sur un clip, exactement la même géométrie que la scène d'origine ;
+- le glb la donne à 4 mm près (arrondi de l'échantillonnage) ;
+- les 8 clips sont présents dans les deux formats.
+
+**Pas encore vu dans Unity.**
+
+**Limites** :
+
+- le visage est simple, presque toujours sous le casque et les lunettes ;
+- les doigts ne sont pas séparés (les mains restent fermées sur le cintre) ;
+- pas encore de position contre-la-montre, car le vélo n'a pas de prolongateurs.

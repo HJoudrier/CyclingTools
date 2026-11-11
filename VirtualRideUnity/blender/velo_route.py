@@ -879,11 +879,12 @@ def objet_maillage(nom, mm, pivot, pivot_monde, mat, col):
     return ob
 
 
-def generer(p):
+def construire_scene(p, dossier, reinitialiser=True):
+    """Construit le vélo dans la scène Blender (pivots, ancres, maillages de chaque niveau de détail).
+    reinitialiser=False : ajoute le vélo à la scène en cours (aperçus du cycliste)."""
     nom = p["nom"] or "Velo_" + p["cadre"].capitalize()
-    dossier = os.path.abspath(p["sortie"])
-    os.makedirs(dossier, exist_ok=True)
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    if reinitialiser:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.unit_settings.system = "METRIC"
     scene.unit_settings.scale_length = 1.0
@@ -933,8 +934,17 @@ def generer(p):
             triangles[f"LOD{lod}"][ob.name] = mm.triangles
             retournees += mm.retournees
         triangles[f"LOD{lod}"]["total"] = sum(triangles[f"LOD{lod}"].values())
-
     bpy.context.view_layer.update()
+    return {"nom": nom, "g": g, "col": col, "obs": obs, "par_lod": par_lod, "triangles": triangles, "retournees": retournees,
+            "transmission": transmission, "ancres": ancres, "pivots": pv}
+
+
+def generer(p):
+    dossier = os.path.abspath(p["sortie"])
+    os.makedirs(dossier, exist_ok=True)
+    sc = construire_scene(p, dossier)
+    nom, g, col, par_lod = sc["nom"], sc["g"], sc["col"], sc["par_lod"]
+    triangles, retournees, transmission = sc["triangles"], sc["retournees"], sc["transmission"]
     fichiers = []
     if "glb" in p["formats"]:
         chemin = os.path.join(dossier, nom + ".glb")
@@ -946,7 +956,7 @@ def generer(p):
         bpy.ops.export_scene.fbx(filepath=chemin, use_selection=False, object_types={"EMPTY", "MESH"},
                                  apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL", axis_forward="-Z", axis_up="Y",
                                  bake_space_transform=False, mesh_smooth_type="OFF", use_tspace=False, add_leaf_bones=False,
-                                 path_mode="COPY", embed_textures=True, bake_anim=False)
+                                 path_mode="STRIP", embed_textures=False, bake_anim=False)
         fichiers.append(chemin)
     if "blend" in p["formats"]:
         chemin = os.path.join(dossier, nom + ".blend")

@@ -45,8 +45,8 @@
       "glb",
       "fbx"
     ],
-    "sortie": "exemples",
-    "apercu": true
+    "sortie": "sortie/ex",
+    "apercu": false
   },
   "geometrie": {
     "rayon_roue": 0.339,

@@ -1,0 +1,188 @@
+{
+  "nom": "Velo_Aero_F",
+  "parametres": {
+    "nom": "Velo_Aero_F",
+    "cadre": "aero",
+    "roues": "c45",
+    "pneus": "road",
+    "taille_cm": 56,
+    "geometrie": {},
+    "couleur": "#C8102E",
+    "accent": "#F2F2F2",
+    "hauteur_selle": 0.7093,
+    "potence": 0.1,
+    "angle_potence": -6.0,
+    "entretoises": 0.02,
+    "largeur_cintre": 0.42,
+    "reach_cintre": 0.08,
+    "drop_cintre": 0.125,
+    "manivelle": 0.1725,
+    "plateaux": [
+      52,
+      36
+    ],
+    "cassette": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      17,
+      19,
+      21,
+      24,
+      27,
+      30
+    ],
+    "pignon_chaine": 17,
+    "bidons": 1,
+    "lods": [
+      0,
+      1,
+      2
+    ],
+    "formats": [
+      "fbx"
+    ],
+    "sortie": "sortie",
+    "apercu": false
+  },
+  "geometrie": {
+    "rayon_roue": 0.339,
+    "empattement": 0.9875,
+    "hauteur_boitier": 0.269,
+    "fourche_axe_couronne": 0.3542,
+    "stack": 0.555,
+    "reach": 0.395,
+    "angle_direction": 73.5,
+    "angle_selle": 73.5
+  },
+  "transmission": {
+    "plateau": 52,
+    "pignon": 17,
+    "manivelle": 0.1725,
+    "developpement_m": 6.515
+  },
+  "triangles": {
+    "LOD0": {
+      "Cadre_LOD0": 5576,
+      "Direction_LOD0": 5492,
+      "RoueAvant_LOD0": 5088,
+      "RoueArriere_LOD0": 8336,
+      "Pedalier_LOD0": 3272,
+      "PedaleD_LOD0": 104,
+      "PedaleG_LOD0": 104,
+      "total": 27972
+    },
+    "LOD1": {
+      "Cadre_LOD1": 2160,
+      "Direction_LOD1": 1300,
+      "RoueAvant_LOD1": 1296,
+      "RoueArriere_LOD1": 1872,
+      "Pedalier_LOD1": 824,
+      "PedaleD_LOD1": 56,
+      "PedaleG_LOD1": 56,
+      "total": 7564
+    },
+    "LOD2": {
+      "Cadre_LOD2": 484,
+      "Direction_LOD2": 516,
+      "RoueAvant_LOD2": 504,
+      "RoueArriere_LOD2": 576,
+      "Pedalier_LOD2": 496,
+      "PedaleD_LOD2": 32,
+      "PedaleG_LOD2": 32,
+      "total": 2640
+    }
+  },
+  "positions_unity": {
+    "Velo_Aero_F": [
+      -0.0,
+      0.0,
+      -0.0
+    ],
+    "Pivot_Direction": [
+      -0.0,
+      0.6802,
+      0.3458
+    ],
+    "Pivot_RoueAvant": [
+      -0.0,
+      0.339,
+      0.4938
+    ],
+    "Pivot_RoueArriere": [
+      -0.0,
+      0.339,
+      -0.4938
+    ],
+    "Pivot_Pedalier": [
+      -0.0,
+      0.269,
+      -0.0918
+    ],
+    "Pivot_PedaleD": [
+      0.077,
+      0.269,
+      0.0807
+    ],
+    "Pivot_PedaleG": [
+      -0.077,
+      0.269,
+      -0.2643
+    ],
+    "Repere_AxeDirection": [
+      -0.0,
+      0.824,
+      0.3032
+    ],
+    "Ancre_Selle": [
+      -0.0,
+      0.9491,
+      -0.3233
+    ],
+    "Ancre_MainD_Cocotte": [
+      0.21,
+      0.9125,
+      0.4874
+    ],
+    "Ancre_MainG_Cocotte": [
+      -0.21,
+      0.9125,
+      0.4874
+    ],
+    "Ancre_MainD_Bas": [
+      0.21,
+      0.7632,
+      0.3829
+    ],
+    "Ancre_MainG_Bas": [
+      -0.21,
+      0.7632,
+      0.3829
+    ],
+    "Ancre_MainD_Haut": [
+      0.13,
+      0.8882,
+      0.3879
+    ],
+    "Ancre_MainG_Haut": [
+      -0.13,
+      0.8882,
+      0.3879
+    ],
+    "Ancre_PiedD": [
+      0.11,
+      0.28,
+      0.0807
+    ],
+    "Ancre_PiedG": [
+      -0.11,
+      0.28,
+      -0.2643
+    ]
+  },
+  "fichiers": [
+    "Velo_Aero_F.fbx"
+  ]
+}

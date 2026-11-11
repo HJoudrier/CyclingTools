@@ -5,14 +5,14 @@ using UnityEngine;
 namespace Wattlas.Presentation
 {
     /// <summary>
-    /// Anime un vélo produit par VirtualRideUnity/blender/velo_route.py : roues, pédalier, pédales (qui restent
-    /// à plat) et direction.
+    /// Anime un vélo produit par VirtualRideUnity/blender/velo_route.py : roues, pédalier, pédales (qui restent à plat),
+    /// direction et roulis (inclinaison dans les virages, balancement en danseuse).
     ///
     /// Les axes de rotation sont déduits de la position des pivots (roue arrière → roue avant = l'avant ;
-    /// Pivot_Direction → Repere_AxeDirection = l'axe de braquage), pas de leur orientation : le script marche
-    /// de la même façon après un import .glb (glTFast) ou .fbx, avec ou sans « Bake Axis Conversion ».
+    /// Pivot_Direction → Repere_AxeDirection = l'axe de braquage), pas de leur orientation : le script marche de la même
+    /// façon après un import .glb (glTFast) ou .fbx, avec ou sans « Bake Axis Conversion ».
     ///
-    /// À poser sur l'objet racine du vélo (Velo_Aero…) ou sur un de ses parents.
+    /// À poser sur l'objet racine du vélo (Velo_Aero…). Le cycliste se pose comme enfant de cet objet.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class VeloAnimation : MonoBehaviour
@@ -27,6 +27,12 @@ namespace Wattlas.Presentation
         [Tooltip("Braquage du guidon (degrés ; positif = vers la droite).")]
         [Range(-45f, 45f)] public float braquage;
 
+        [Tooltip("Inclinaison du vélo (degrés ; positif = penché à droite) : virages.")]
+        public float roulis;
+
+        [Tooltip("Balancement ajouté par le pédalage en danseuse (degrés), réglé par CyclisteAnimation.")]
+        public float roulisPedalage;
+
         [Header("Géométrie (rapport .json du générateur)")]
         [Tooltip("Rayon de la roue, pneu compris (m) : geometrie.rayon_roue du rapport.")]
         public float rayonRoue = 0.339f;
@@ -39,7 +45,10 @@ namespace Wattlas.Presentation
         public bool toujoursLod0;
 
         [Tooltip("Hauteur à l'écran (fraction) sous laquelle on passe au niveau suivant : LOD0→1, 1→2, 2→caché.")]
-        public float[] seuilsLod = { 0.25f, 0.08f, 0.015f };
+        public float[] seuilsLod = { 0.25f, 0.08f, 0.012f };
+
+        /// <summary>Angle du pédalier (degrés, 0 = manivelle droite vers l'avant, croissant en pédalant).</summary>
+        public float AngleManivelle { get { return angleManivelle; } }
 
         sealed class Pivot
         {
@@ -47,20 +56,30 @@ namespace Wattlas.Presentation
             public Quaternion rot0;
             public Vector3 axe; // dans le repère du parent
 
-            public void Tourner(float degres) => t.localRotation = Quaternion.AngleAxis(degres, axe) * rot0;
+            public void Tourner(float degres)
+            {
+                t.localRotation = Quaternion.AngleAxis(degres, axe) * rot0;
+            }
         }
 
-        Pivot roueAvant, roueArriere, pedalier, pedaleD, pedaleG, direction;
+        Pivot roueAvant, roueArriere, pedalier, pedaleD, pedaleG, direction, racine;
         float angleRoues, angleManivelle;
+        bool pret;
 
         void Awake()
+        {
+            Initialiser();
+        }
+
+        /// <summary>Repère les pivots (appelé au réveil ; à rappeler si la hiérarchie change).</summary>
+        public void Initialiser()
         {
             Transform tRoueAv = Chercher(transform, "Pivot_RoueAvant");
             Transform tRoueAr = Chercher(transform, "Pivot_RoueArriere");
             Transform tSelle = Chercher(transform, "Ancre_Selle");
             if (tRoueAv == null || tRoueAr == null || tSelle == null)
             {
-                Debug.LogWarning($"{name} : pivots du vélo introuvables (Pivot_RoueAvant, Pivot_RoueArriere, Ancre_Selle).", this);
+                Debug.LogWarning(name + " : pivots du vélo introuvables (Pivot_RoueAvant, Pivot_RoueArriere, Ancre_Selle).", this);
                 enabled = false;
                 return;
             }
@@ -79,16 +98,21 @@ namespace Wattlas.Presentation
             Transform tAxe = Chercher(transform, "Repere_AxeDirection");
             if (tDir != null && tAxe != null)
                 direction = Creer(tDir, (tAxe.position - tDir.position).normalized);
+            // roulis : rotation de tout le vélo (et du cycliste, son enfant) autour de l'avant, au sol
+            racine = Creer(transform, -avant);
 
             LODGroup groupe = GetComponentInChildren<LODGroup>();
             if (groupe == null && creerLodGroup)
                 groupe = CreerLodGroup();
             if (groupe != null && toujoursLod0)
                 groupe.ForceLOD(0);
+            pret = true;
         }
 
         void Update()
         {
+            if (!pret)
+                return;
             float dt = Time.deltaTime;
             if (rayonRoue > 0f)
                 angleRoues = Mathf.Repeat(angleRoues + vitesse / rayonRoue * Mathf.Rad2Deg * dt, 360f);
@@ -100,6 +124,7 @@ namespace Wattlas.Presentation
             pedaleD?.Tourner(-angleManivelle); // les pédales tournent à l'envers du pédalier : elles restent à plat
             pedaleG?.Tourner(-angleManivelle);
             direction?.Tourner(braquage);
+            racine?.Tourner(roulis + roulisPedalage);
         }
 
         static Pivot Creer(Transform t, Vector3 axeMonde)
@@ -110,7 +135,7 @@ namespace Wattlas.Presentation
             return new Pivot { t = t, rot0 = t.localRotation, axe = axe.normalized };
         }
 
-        static Transform Chercher(Transform racine, string nom)
+        public static Transform Chercher(Transform racine, string nom)
         {
             if (racine.name == nom)
                 return racine;
@@ -137,7 +162,8 @@ namespace Wattlas.Presentation
                 if (!m.Success)
                     continue;
                 int n = int.Parse(m.Groups[1].Value);
-                if (!niveaux.TryGetValue(n, out List<Renderer> liste))
+                List<Renderer> liste;
+                if (!niveaux.TryGetValue(n, out liste))
                     niveaux[n] = liste = new List<Renderer>();
                 liste.Add(r);
             }
