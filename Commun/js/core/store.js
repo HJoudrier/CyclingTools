@@ -91,7 +91,7 @@
       plan: null, planInfo: null,
       kit: { slots: ['iso', 'iso', '', ''], items: { gel: 3, gelglu: 0, gelplus: 0, bar: 2, barmini: 0 } },
       cfg: { auto: true, sens: 'normal', gapTau: 8, sound: true, vibrate: true, voice: false, lookahead: 10, altAlpha: 0.3, powerAvg: 3, weatherMin: 15, mapProfile: true, mixed: false, physio: true,
-        view: 'map', powerView: 'gauge' },       // compteur : dernière vue regardée (map, pow, body, mix) ; consigne de la vue Puissance (gauge : jauge, dial : cadran)
+        view: 'map', powerView: 'gauge', baseMap: 'osm' },       // compteur : dernière vue regardée (map, pow, body, mix) ; consigne de la vue Puissance (gauge : jauge, dial : cadran)
       demo: { speed: 5, bias: 0 },
     },
     shop: {},                // magasin : article acheté par catégorie (cadre, roues…)
@@ -362,6 +362,7 @@
     c.lookahead = Math.min(30, Math.max(0, Number(c.lookahead) || 0));
     c.powerAvg = Math.min(60, Math.max(1, Math.round(Number(c.powerAvg) || 3)));
     c.weatherMin = [5, 15, 30, 60].includes(Number(c.weatherMin)) ? Number(c.weatherMin) : 15;      // période de mise à jour de la météo pendant la sortie (min)
+    c.baseMap = typeof c.baseMap === 'string' && c.baseMap ? c.baseMap : 'osm';      // fond de carte du compteur (identifiant de map.js) : OpenStreetMap par défaut
     c.mapProfile = c.mapProfile !== false; c.mixed = !!c.mixed; c.physio = c.physio !== false;
     delete c.map; delete c.mapRotate; delete c.mapSize;      // anciens réglages : la carte est toujours affichée, orientée dans le sens de la marche
     c.altAlpha = c.altAlpha === undefined ? 0.3 : Math.min(1, Math.max(0, Number(c.altAlpha) || 0));

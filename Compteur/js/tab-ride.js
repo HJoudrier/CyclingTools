@@ -21,7 +21,16 @@
   const SLOT_LABEL = ['Bidon 1', 'Bidon 2', 'Bidon 3', 'Camelback'];
   const FOOD_LABEL = { gel: 'Gel double source', gelglu: 'Gel glucose', gelplus: 'Gel haute dose', gelcaf: 'Gel caféiné', bar: 'Barre', barmini: 'Mini-barre' };
   const SENS_LABEL = { low: 'Faible', normal: 'Normale', high: 'Forte' };
-  const POWER_VIEWS = [['gauge', 'Jauge (ligne et intervalle)'], ['dial', 'Cadran']];
+  /** Fonds de carte proposés dans les réglages (ceux de la page Parcours) et fond choisi pour le compteur (OpenStreetMap par défaut). */
+  const baseOptions = () => PYR.map.baseSpecs.map((b) => [b.id, b.label]);
+  const baseMapId = () => { const id = cfg().baseMap; return PYR.map.baseSpecs.some((b) => b.id === id) ? id : 'osm'; };
+  /** Le fond choisi s'applique aussitôt à la carte de la sortie (passager : le fond de la page Parcours n'est pas modifié) et à celle de la préparation. */
+  function setBaseMap(id) {
+    store.set('ride.cfg.baseMap', id);
+    if (run.mapOn && PYR.map.setBase) PYR.map.setBase(baseMapId(), { temp: true });
+    if (V.mapCard && !V.mapCard.hidden) renderPrepMap();
+  }
+  const POWER_VIEWS =[['gauge', 'Jauge (ligne et intervalle)'], ['dial', 'Cadran']];
 
   const V = {};                             // éléments du DOM
   const run = {
@@ -287,6 +296,7 @@
       rowEl('Annoncer un changement de consigne', selectEl([[0, 'jamais'], [5, '5 s avant'], [10, '10 s avant'], [15, '15 s avant'], [20, '20 s avant']], c.lookahead, (v) => store.set('ride.cfg.lookahead', Number(v)))),
       rowEl('Mises à jour météo', selectEl([[5, 'toutes les 5 min'], [15, 'toutes les 15 min'], [30, 'toutes les 30 min'], [60, 'toutes les 60 min']], c.weatherMin, (v) => { store.set('ride.cfg.weatherMin', Number(v)); }), h('span', { class: 'rd-st' }, 'si la météo est activée')),
       rowEl('Consigne (vue Puissance)', selectEl(POWER_VIEWS, c.powerView === 'dial' ? 'dial' : 'gauge', (v) => store.set('ride.cfg.powerView', v))),
+      rowEl('Fond de carte', selectEl(baseOptions(), baseMapId(), (v) => setBaseMap(v))),
       h('div', { class: 'rd-checks' },
         checkEl('Bips', c.sound, (v) => { store.set('ride.cfg.sound', v); if (v) Sx.alerts.unlock(); }),
         checkEl('Vibrations', c.vibrate, (v) => store.set('ride.cfg.vibrate', v)),
@@ -530,7 +540,7 @@
     const p = store.profile;
     V.mapCard.hidden = !p;
     if (!p) return;
-    const spec = PYR.map.baseSpec();
+    const spec = PYR.map.baseSpecs.find((b) => b.id === baseMapId()) || PYR.map.baseSpecs[0];
     if (!run.pmap) {
       run.pmap = L.map(V.pmapBox, { zoomControl: false, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25 });
       run.pmapLayers = L.layerGroup().addTo(run.pmap);
@@ -1953,9 +1963,9 @@
     run.mapHome = { parent: M.map.getContainer().parentNode, view: [M.map.getCenter(), M.map.getZoom()] };
     V.mapBox.hidden = false;
     V.mapBox.insertBefore(M.map.getContainer(), V.mapBox.firstChild);
-    // fond sombre le temps de la sortie, sans changer le fond choisi par l'utilisateur (rendu par detachMap)
+    // fond choisi dans les réglages du compteur (OpenStreetMap par défaut) le temps de la sortie, sans changer le fond de la page Parcours (rendu par detachMap)
     run.baseBefore = M.baseId();
-    if (run.baseBefore !== 'dark') M.setBase('dark', { temp: true });
+    M.setBase(baseMapId(), { temp: true });
     M.setMode('plain');
     M.map.invalidateSize();
     run.turns = PYR.nav.turns(p);
@@ -2002,7 +2012,7 @@
     if (run.turnLayer) { run.turnLayer.remove(); run.turnLayer = null; }
     if (run.turnNow) { run.turnNow.remove(); run.turnNow = null; }
     if (run.segLayer) { run.segLayer.remove(); run.segLayer = null; run.segFor = null; }
-    if (run.baseBefore && run.baseBefore !== 'dark') M.setBase(run.baseBefore, { temp: true });
+    if (run.baseBefore) M.setBase(run.baseBefore, { temp: true });
     run.baseBefore = null;
     run.sock = null; run.sockEl = null;
     if (home && home.parent) home.parent.insertBefore(map.getContainer(), home.parent.firstChild);
@@ -2268,6 +2278,7 @@
           checkEl('Profil d\'élévation sur la carte', c.mapProfile, (v) => { store.set('ride.cfg.mapProfile', v); render(sess.guidance()); }),
           ),
         rowEl('Consigne (vue Puissance)', selectEl(POWER_VIEWS, c.powerView === 'dial' ? 'dial' : 'gauge', (v) => { store.set('ride.cfg.powerView', v); render(sess.guidance()); })),
+        rowEl('Fond de carte', selectEl(baseOptions(), baseMapId(), (v) => setBaseMap(v))),
         rowEl('Sensibilité', selectEl(Object.entries(SENS_LABEL), c.sens, (v) => { store.set('ride.cfg.sens', v); sess.cfg.sens = v; })),
         rowEl('Lissage de l\'écart', selectEl([[5, '5 s'], [8, '8 s'], [12, '12 s'], [20, '20 s']], c.gapTau, (v) => { store.set('ride.cfg.gapTau', Number(v)); sess.cfg.gapTau = Number(v); })),
         rowEl('Forme du plan (% de mes capacités)', h('span', { class: 'rd-inline' }, (() => {
