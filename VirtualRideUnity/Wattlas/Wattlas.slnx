@@ -1,0 +1,8 @@
+﻿<Solution>
+  <Project Path="Wattlas.Presentation.csproj" />
+  <Project Path="Wattlas.Domaine.csproj" />
+  <Project Path="Wattlas.Editeur.csproj" />
+  <Project Path="Wattlas.Jeu.csproj" />
+  <Project Path="Wattlas.Tests.Domaine.csproj" />
+  <Project Path="Wattlas.Adaptateurs.csproj" />
+</Solution>
