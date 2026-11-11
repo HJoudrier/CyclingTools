@@ -28,7 +28,7 @@
 
   const Game = {
     state: 'menu',
-    settings: { jersey: 'jaune', quality: 'medium', riders: 10, hour: 'auto', weather: 'variable', wind: 'auto', timeFlow: 30, riderDetail: 'auto', sex: 'm' },
+    settings: { jersey: 'jaune', quality: 'medium', riders: 10, hour: 'auto', weather: 'variable', wind: 'auto', timeFlow: 30, riderDetail: 'auto', sex: 'm', relief: 'procedural' },
     phys: PHYS,
     input: { left: false, right: false, brake: false, pUp: false, pDown: false },
     camIndex: 0,
@@ -40,6 +40,7 @@
       if (!B3D.Cyclist.JERSEYS[this.settings.jersey]) this.settings.jersey = 'jaune';
       if (this.settings.riderDetail !== 'auto' && !B3D.Cyclist.DETAILS.includes(this.settings.riderDetail)) this.settings.riderDetail = 'auto';
       if (this.settings.sex !== 'f') this.settings.sex = 'm';
+      if (this.settings.relief !== 'real') this.settings.relief = 'procedural';
       if (!RIDER_COUNTS.includes(this.settings.riders)) this.settings.riders = 10;
       if (!SKY_OPTS.weather.some((o) => o[0] === this.settings.weather)) this.settings.weather = 'variable';
       if (!SKY_OPTS.wind.some((o) => o[0] === this.settings.wind)) this.settings.wind = 'auto';
@@ -136,7 +137,7 @@
         const b = document.createElement('button');
         b.className = 'btn small';
         b.innerHTML = d.name.replace(' (démo)', '') + '<small>' + d.desc + '</small>';
-        b.onclick = () => this.loadRouteData(B3D.demoRoutes.get(d.id));
+        b.onclick = () => this.loadRouteData(B3D.demoRoutes.get(d.id), true);
         db.appendChild(b);
       }
       // import fichier
@@ -174,6 +175,9 @@
       });
       document.querySelectorAll('#opt-sex .chip').forEach((b) => {
         b.onclick = () => { this.settings.sex = b.dataset.s; this.saveSettings(); this.refreshChips(); };
+      });
+      document.querySelectorAll('#opt-relief .chip').forEach((b) => {
+        b.onclick = () => { this.settings.relief = b.dataset.r; this.saveSettings(); this.refreshChips(); };
       });
       this.refreshChips();
       this.buildSkyControls();
@@ -278,6 +282,18 @@
       document.querySelectorAll('#opt-riders .chip').forEach((b) => b.classList.toggle('active', +b.dataset.n === this.settings.riders));
       document.querySelectorAll('#opt-detail .chip').forEach((b) => b.classList.toggle('active', b.dataset.d === this.settings.riderDetail));
       document.querySelectorAll('#opt-sex .chip').forEach((b) => b.classList.toggle('active', b.dataset.s === this.settings.sex));
+      // relief réel : pas pour les parcours de démonstration, dont le tracé est inventé
+      document.querySelectorAll('#opt-relief .chip').forEach((b) => {
+        const real = b.dataset.r === 'real';
+        b.disabled = real && !!this.routeIsDemo;
+        b.title = b.disabled ? 'Parcours de démonstration : son tracé est inventé, il n\'a pas de relief réel' : '';
+        b.classList.toggle('active', b.dataset.r === (this.wantsRealRelief() ? 'real' : 'procedural'));
+      });
+    },
+
+    // Le relief réel (la carte autour du vrai parcours) est demandé, et possible : pas sur un parcours de démonstration
+    wantsRealRelief() {
+      return this.settings.relief === 'real' && !this.routeIsDemo && !!B3D.Dem;
     },
 
     // Commandes : ←/→ (ou Q/D) pour se déplacer, jauge de puissance (Z/S, molette, chiffres, glisser), Espace pour freiner.
@@ -428,7 +444,7 @@
       fr.readAsText(f);
     },
 
-    loadRouteData(data) {
+    loadRouteData(data, demo) {
       $('menu-error').classList.add('hidden');
       let route;
       try {
@@ -438,6 +454,9 @@
         return;
       }
       this.route = route;
+      this.routeData = { route, data }; // les points du GPX : sans altitudes, la route prendra celles du relief réel
+      this.routeIsDemo = !!demo;
+      this.refreshChips();
       this.state = 'menu';
       this.disposeWorld();
       const st = route.stats;
@@ -452,7 +471,7 @@
       ];
       $('route-stats').innerHTML = stats.map((s) => '<span class="stat">' + s[0] + ' <b>' + s[1] + '</b> <small>' + s[2] + '</small></span>').join('');
       if (route.syntheticElevation) {
-        $('route-stats').innerHTML += '<span class="stat">⚠️ altitudes absentes du GPX : relief inventé</span>';
+        $('route-stats').innerHTML += '<span class="stat">⚠️ altitudes absentes du GPX : relief inventé, ou celui de la carte avec le relief réel</span>';
       }
       B3D.drawProfile($('route-profile'), route);
       const cats = ['HC', '1', '2', '3', '4'];
@@ -529,9 +548,33 @@
       await nextFrame();
       if (this.state === 'menu') this.hide('screen-menu');
       this.disposeWorld();
-      const route = this.route;
+      let route = this.route;
+      // relief réel : les tuiles d'altitude du couloir du parcours (gardées en mémoire : une autre graine ne recharge rien)
+      let dem = null, demFailed = false;
+      if (this.wantsRealRelief()) {
+        this.setLoading(0.02, 'Relief réel : chargement de la carte…');
+        try {
+          dem = await B3D.Dem.load(route, { onProgress: (k, n) => this.setLoading(0.02 + 0.1 * (n ? k / n : 1), 'Relief réel : ' + k + ' / ' + n + ' tuiles…') });
+        } catch (err) {
+          console.warn('Relief réel indisponible :', err);
+          demFailed = true;
+        }
+        this.setLoading(0.12, demFailed ? 'Relief réel indisponible (connexion ?) : relief inventé' : 'Lecture du relief…');
+        await nextFrame();
+        // GPX sans altitudes : la route prend celles de la carte (même tracé, donc mêmes tuiles)
+        const rd = this.routeData;
+        if (dem && route.syntheticElevation && rd && rd.route === route) {
+          const points = rd.data.points.map((p) => { const h = dem.at(p.lat, p.lon); return { lat: p.lat, lon: p.lon, ele: h === h ? h : null }; });
+          try {
+            const r2 = new B3D.Route({ name: route.name, points });
+            if (!r2.syntheticElevation) { route = this.route = r2; this.routeData = { route: r2, data: rd.data }; }
+          } catch (err) { console.warn('Altitudes de la carte non appliquées :', err); }
+        }
+      }
       const t0 = performance.now();
-      const L = this.L = new B3D.Landscape(route, seed);
+      const L = this.L = new B3D.Landscape(route, seed, { dem });
+      if (this.wantsRealRelief() && !L.dem) L.realReliefFailed = true;
+      this.reliefNote = L.realReliefFailed ? 'Relief réel indisponible (connexion ?) : relief inventé.' : '';
       this.seed = seed;
       if (this.ext) this.ext.onLandscape(L); // sprints, côtes et ravitaillements de la course pilotée
       this.setLoading(0.15, 'Rivières, lacs et falaises…');

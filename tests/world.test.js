@@ -177,6 +177,16 @@ test('vue 3D : message du parcours (empreinte stable, même graine pour tous) et
   assert.equal(a.cp, 260);
   const other = setupFor(makeProfile([{ len: 4000, grade: 0.03 }])).course;
   assert.notEqual(V3.courseKey(other), a.key, 'autre relief, autre empreinte');
+  // relief du paysage choisi sur la page Jeu : inventé par défaut ; le relief réel reconstruit la vue, dans le même monde
+  assert.equal(a.relief, 'procedural');
+  const was = PYR.store;
+  PYR.store = { state: { game: { view3dRelief: 'real' } } };
+  try {
+    const r = V3.courseMessage(course, cps, [{ s: 2500, end: 3000 }], { name: 'Hugo' });
+    assert.equal(r.relief, 'real');
+    assert.notEqual(r.key, a.key, 'relief réel : la vue se reconstruit…');
+    assert.equal(r.seed, a.seed, '… avec la même graine');
+  } finally { PYR.store = was; }
 
   const f = V3.frameMessage({
     course, t: 12.345, k: 5, run: true,

@@ -4,7 +4,7 @@ Petit jeu de vélo en 3D, style cartoon avec cel shading, qui tourne entièremen
 
 C'est aussi **l'univers 3D du jeu de PaceYourRide** : ce dossier (`VirtualRide3D/univers/`) est rangé dans le site de PaceYourRide (voir le [README à la racine](../../../README.md)), dont l'écran de course `VirtualRide3D/` montre la course dans ce paysage, et dont le magasin montre le vélo dans la vitrine `showroom.html`.
 
-On importe un tracé **GPX** : une route en 3D est construite à partir du tracé. Ensuite, chaque clic sur **« Modéliser en 3D »** génère un nouveau paysage aléatoire autour de cette route : relief, falaises dans les cols, forêts, prés, champs, vignes, garrigue, rivières avec leurs ponts, lacs et mares, villages, animaux, spectateurs… On recommence jusqu'à trouver un paysage qui plaît, on le **valide**, puis on roule dessus, seul ou au milieu d'un peloton, avec des sprints, des cols classés, un ravitaillement et toute la caravane, comme sur une vraie course.
+On importe un tracé **GPX** : une route en 3D est construite à partir du tracé. Ensuite, chaque clic sur **« Modéliser en 3D »** génère un nouveau paysage aléatoire autour de cette route : relief (inventé, ou **réel** : celui de la carte autour du vrai parcours), falaises dans les cols, forêts, prés, champs, vignes, garrigue, rivières avec leurs ponts, lacs et mares, villages, animaux, spectateurs… On recommence jusqu'à trouver un paysage qui plaît, on le **valide**, puis on roule dessus, seul ou au milieu d'un peloton, avec des sprints, des cols classés, un ravitaillement et toute la caravane, comme sur une vraie course.
 
 ## Lancer le jeu
 
@@ -52,7 +52,7 @@ Techniquement, `index.html?pyr` ouvre Bike3D en vue pilotée (`js/bridge.js`) : 
 ## Déroulement
 
 1. **Importer un GPX** (clic ou glisser-déposer), ou choisir un parcours de démo. Les fichiers `samples/*.gpx` permettent de tester l'import.
-2. Consulter le profil du parcours (distance, D+, montées détectées et classées), puis choisir le maillot, le nombre d'autres coureurs (seul, 5, 10, 20 ou 40), la qualité graphique, le cycliste (homme ou femme : une femme court contre des coureuses) et le niveau de détail des cyclistes (Auto, Simple, Détaillé, Réaliste).
+2. Consulter le profil du parcours (distance, D+, montées détectées et classées), puis choisir le maillot, le nombre d'autres coureurs (seul, 5, 10, 20 ou 40), la qualité graphique, le **relief** (Inventé, ou Réel : celui de la carte, voir [Relief réel](#relief-réel)), le cycliste (homme ou femme : une femme court contre des coureuses) et le niveau de détail des cyclistes (Auto, Simple, Détaillé, Réaliste).
 3. **Modéliser en 3D** : un paysage aléatoire est généré. Un survol automatique le présente : on peut tourner autour à la souris, zoomer à la molette, et se déplacer le long du parcours avec le curseur.
 4. Cliquer à nouveau sur **Modéliser en 3D** pour en obtenir un autre, autant de fois que voulu.
 5. **Valider ce paysage** : 3, 2, 1… partez !
@@ -188,7 +188,7 @@ Tous les sons sont synthétisés dans le navigateur (Web Audio), sans fichier au
 ## Ce que fait le générateur
 
 - **Route** : le tracé GPX est projeté en mètres, rééchantillonné tous les ~5 m et lissé (bruit GPS, altitude). Si le GPX n'a pas d'altitudes, un relief doux est inventé.
-- **Relief** : un versant est ajusté localement sur les altitudes de la route (les lacets s'inscrivent dans une pente), puis des montagnes et des collines sont ajoutées par bruit procédural, selon l'altitude et le dénivelé du parcours. Le terrain est aplani sous la route, avec des talus raides qui deviennent des falaises rocheuses dans les cols.
+- **Relief** : un versant est ajusté localement sur les altitudes de la route (les lacets s'inscrivent dans une pente), puis des montagnes et des collines sont ajoutées par bruit procédural, selon l'altitude et le dénivelé du parcours. Le terrain est aplani sous la route, avec des talus raides qui deviennent des falaises rocheuses dans les cols. Avec le **relief réel**, le terrain est celui de la carte (voir plus bas).
 - **Eau** : rivières qui suivent les fonds de vallée (ponts automatiques aux croisements), lacs placés à l'écart de la route et petites mares bordées de roseaux, avec nénuphars et canards.
 - **Sol et végétation** : prés fleuris, parcelles de champs avec haies (labours, lavande, tournesols, citrouilles), forêts de feuillus ou de sapins selon l'altitude, alpages, neige sur les sommets, rochers, bottes de foin.
 - **Biomes** : selon la région et le tirage, le paysage peut contenir des vignes en rangs, des vergers, de la garrigue (pins parasols, oliviers, cyprès), des landes de bruyère, des zones humides (saules, roseaux, hérons) et des bois de bouleaux.
@@ -200,6 +200,18 @@ Tous les sons sont synthétisés dans le navigateur (Web Audio), sans fichier au
 
 Le terrain est découpé en tuiles chargées autour du cycliste, ce qui permet de rouler sur des parcours longs.
 
+### Relief réel
+
+L'option **Relief : Réel (carte)** du menu (`relief: 'real'` dans les réglages, ou `relief` du message `course` de PaceYourRide) remplace le relief inventé par **le vrai relief autour du parcours** (`js/dem.js`). Il demande une connexion.
+
+- **Source** : le modèle numérique de terrain des [Terrain Tiles d'AWS](https://registry.opendata.aws/terrain-tiles/), en tuiles Terrarium (images PNG dont la couleur code l'altitude). On charge les tuiles d'un couloir de 1,2 km de part et d'autre du tracé, prolongements compris, au zoom le plus fin (14 au plus, ≈ 7 m par pixel) qui tient en 150 tuiles. Le zoom ne dépend que du tracé : en course en direct, tous les joueurs ont le même relief.
+- **Recalage sur la route** : la route garde l'altitude du GPX (ou du parcours de PaceYourRide). On mesure l'écart entre la route et la carte sous chaque point du tracé, on le filtre par une médiane glissante sur ±500 m (un viaduc ou un tunnel ne soulève ni ne creuse la vallée), et il décale tout le terrain autour de la route. Un altimètre mal calé décale donc le relief sans enterrer la route. Les talus habituels raccordent les derniers mètres.
+- **GPX sans altitudes** : la route prend celles de la carte.
+- **Le reste ne change pas** : montagnes et collines procédurales disparaissent, et seul un léger modelé garde l'aspect cartoon. Rivières, lacs, villages, forêts, champs, public et ambiance restent tirés de la graine et se posent sur le vrai relief. La neige et la limite des arbres suivent les vraies altitudes. L'aperçu indique « Relief : réel (carte) · 1 766 – 3 167 m ».
+- **Tuiles en mémoire** : « 🎲 Modéliser en 3D » sur le même parcours ne recharge rien.
+- **Cas où l'option ne s'applique pas** : sans connexion, ou s'il manque une tuile sous la route (ou plus d'une sur dix), le paysage revient au relief inventé et le signale. Les parcours de démonstration n'ont pas de relief réel, leur tracé étant inventé.
+- **Limites** : les montagnes lointaines (au-delà de 3 km) restent stylisées. Les rivières et les lacs ne suivent pas l'hydrographie réelle. La mer n'est pas dessinée : elle devient une plaine au niveau 0.
+
 ## Organisation du code
 
 | Fichier | Rôle |
@@ -207,7 +219,8 @@ Le terrain est découpé en tuiles chargées autour du cycliste, ce qui permet d
 | `index.html`, `css/style.css` | interface (menus, HUD) |
 | `js/gpx.js` | lecture / écriture GPX |
 | `js/route.js` | tracé en mètres, lissage, index spatial, détection des montées |
-| `js/landscape.js` | relief, rivières, lacs et mares, biomes, occupation du sol |
+| `js/landscape.js` | relief (inventé, ou réel recalé sur la route), rivières, lacs et mares, biomes, occupation du sol |
+| `js/dem.js` | relief réel : tuiles Terrarium du couloir du parcours (choix du zoom, téléchargement, décodage, cache), altitude à une latitude et une longitude |
 | `js/tiles.js` | tuiles de terrain, végétation et animaux instanciés |
 | `js/road.js` | chaussée (revêtements et largeur des portions de PaceYourRide, bas-côtés, panneaux de secteur), glissières, panneaux, arches, supporters et camping-cars |
 | `js/race.js` | sprints, GPM, ravitaillement : placement, arches, soigneurs, rivaux virtuels et points |

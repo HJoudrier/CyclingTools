@@ -71,6 +71,7 @@
       skyMode: 'game', skyWeather: 'random', skyWind: 'random', skyFlow: 1,
       view3dQuality: 'medium', // VirtualRide3D : qualité du parcours (paysage) dans la vue 3D : 'low' rapide, 'medium' normale, 'high' belle
       view3dDetail: 'auto',    // VirtualRide3D : niveau de détail des cyclistes : 'auto' (suit la qualité), 'simple', 'detailed', 'realistic'
+      view3dRelief: 'procedural', // VirtualRide3D : relief du paysage : 'procedural' inventé, 'real' celui de la carte autour du vrai parcours
       display: '2d',           // écran de course : '2d' la carte (VirtualRide2D), '3d' l'univers de Bike3D (VirtualRide3D)
       // limites en « Dans les roues » / « Suivre les attaques » (en %) : on se laisse décrocher plutôt que de passer sous ce W′ (0 : aucune limite)
       // ou de dépasser cette part de la courbe de puissance record (100 : aucune limite)
