@@ -187,7 +187,7 @@
 
     /** Importe un défi reçu : fusion des résultats si on le connaît déjà. */
     importObject(obj) {
-      if (!obj || obj.kind !== 'challenge' || !obj.course) throw new Error('Ce n\'est pas un défi PaceYourRide.');
+      if (!obj || obj.kind !== 'challenge' || !obj.course) throw new Error('Ce n\'est pas un défi Wattlas.');
       const incoming = unpackChallenge(obj);
       const known = get(incoming.id);
       let ch = incoming;

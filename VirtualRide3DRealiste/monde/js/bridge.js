@@ -80,10 +80,10 @@ export class Bridge {
     this.app.setSound(false);
     $('hud').classList.toggle('hidden', true);
     if (!this.hostWin) {
-      this.app.progress(0, 'Cette vue s\'ouvre depuis l\'écran de course de Virtual Ride 3D Réaliste (PaceYourRide).');
+      this.app.progress(0, 'Cette vue s\'ouvre depuis l\'écran de course de Course 3D réaliste (Wattlas).');
       return;
     }
-    this.app.progress(0, 'En attente du parcours de PaceYourRide…');
+    this.app.progress(0, 'En attente du parcours de Wattlas…');
     const hello = () => { if (!this.key) { this.post({ type: 'hello' }); setTimeout(hello, 1000); } };
     hello();
   }
@@ -143,7 +143,7 @@ export class Bridge {
     const points = m.lat.map((lat, i) => ({ lat: +lat, lon: +m.lng[i], ele: Number.isFinite(+ele[i]) && ele[i] !== null ? +ele[i] : null }));
     if (m.me && m.me.gear) this.gear = m.me.gear;
     const course = {
-      name: String(m.name || 'Parcours PaceYourRide').slice(0, 80), points, seed, length: num(m.length, 0),
+      name: String(m.name || 'Parcours Wattlas').slice(0, 80), points, seed, length: num(m.length, 0),
       surfaces: m.surfaces, roadW: m.roadW, cps: m.cps, feed: m.feed, me: Object.assign({}, m.me || {}, { gear: this.gear }),
     };
     // l'heure de départ sans météo datée : tirée de la graine (la même pour tous les joueurs d'une course en direct)

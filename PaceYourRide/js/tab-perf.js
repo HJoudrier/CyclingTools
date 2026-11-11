@@ -65,7 +65,7 @@
 
   /** Envoie le projet et son plan à Dropbox, puis ouvre l'application (jeu ou compteur) qui le lira. */
   async function openApp(page) {
-    if (!PYR.cloud.status().connected) { D.toast("Connecte Dropbox depuis l'accueil de PaceYourRide : c'est par lui que le plan arrive dans le jeu et le compteur.", 'error', 7000); return; }
+    if (!PYR.cloud.status().connected) { D.toast("Connecte Dropbox depuis l'accueil de Wattlas : c'est par lui que le plan arrive dans le jeu et le compteur.", 'error', 7000); return; }
     D.toast('Envoi du plan à Dropbox…');
     store.saveNow();
     await PYR.cloud.sync(true);
@@ -407,7 +407,7 @@
 
     /** Tronçons à exporter : ceux du découpage choisi, sinon le découpage automatique de l'export. */
     exportOpts() {
-      return { name: 'Plan PaceYourRide', ftp: store.get('rider.ftp'), start: Math.floor(Date.now() / 60000) * 60000, cuts: cuts || undefined };
+      return { name: 'Plan Wattlas', ftp: store.get('rider.ftp'), start: Math.floor(Date.now() / 60000) * 60000, cuts: cuts || undefined };
     },
 
     /** Limites du découpage automatique (au plus 50 tronçons, la limite des compteurs pour un entraînement). */
@@ -476,7 +476,7 @@
       const plan = store.plan;
       if (!plan) return;
       const { gpx, sections } = PYR.planGpx.build(plan, T.exportOpts());
-      D.download('plan-paceyourride.gpx', gpx, 'application/gpx+xml');
+      D.download('plan-wattlas.gpx', gpx, 'application/gpx+xml');
       T.showSections(sections, 'GPX');
       D.toast(`Plan exporté : ${sections.length} repères de puissance le long du parcours.`);
     },
@@ -486,7 +486,7 @@
       const plan = store.plan;
       if (!plan) return;
       const { tcx, sections } = PYR.planGpx.buildTcx(plan, T.exportOpts());
-      D.download('plan-paceyourride.tcx', tcx, 'application/vnd.garmin.tcx+xml');
+      D.download('plan-wattlas.tcx', tcx, 'application/vnd.garmin.tcx+xml');
       T.showSections(sections, 'TCX');
       D.toast(`Plan exporté (TCX) : ${sections.length} tronçons avec puissance cible, vitesse moyenne et temps.`);
     },
@@ -502,17 +502,17 @@
           return;
         }
         const { fit, sections } = W.buildFit(plan, opts);
-        D.download('plan-paceyourride.fit', new Blob([fit], { type: 'application/octet-stream' }));
+        D.download('plan-wattlas.fit', new Blob([fit], { type: 'application/octet-stream' }));
         T.showSections(sections, 'FIT');
         D.toast(`Entraînement FIT exporté : ${sections.length} étapes avec puissance cible et distance.`);
       } else if (kind === 'zwo') {
         const { zwo, steps } = W.buildZwo(plan, opts);
-        D.download('plan-paceyourride.zwo', zwo, 'application/xml');
+        D.download('plan-wattlas.zwo', zwo, 'application/xml');
         T.showSections(steps.map((s) => s.g), 'ZWO');
         D.toast(`Entraînement ZWO exporté : ${steps.length} étapes, puissances en % de la PMA (${Math.round(opts.ftp)} W).`);
       } else {
         const { mrc, steps } = W.buildMrc(plan, opts);
-        D.download('plan-paceyourride.mrc', mrc, 'text/plain;charset=utf-8');
+        D.download('plan-wattlas.mrc', mrc, 'text/plain;charset=utf-8');
         T.showSections(steps.map((s) => s.g), 'MRC');
         D.toast(`Entraînement MRC exporté : ${steps.length} étapes, puissances en % de la PMA (${Math.round(opts.ftp)} W).`);
       }
@@ -532,7 +532,7 @@
         if (ph) row.push(num(ph.cpK[t] * plan.cpRef, 0), num(ph.Tc[t], 2));
         lines.push(row.join(';'));
       }
-      D.download('strategie-paceyourride.csv', '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+      D.download('strategie-wattlas.csv', '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
     },
   };
 

@@ -49,7 +49,7 @@ test('cloud : pull sans fichier rend null ; un autre fichier ou un fichier illis
   mock(() => reply(409, '{}'));
   assert.equal(await C.pull(), null);
   mock(() => reply(200, JSON.stringify({ app: 'Autre' })));
-  await assert.rejects(C.pull(), /n'est pas un fichier PaceYourRide/);
+  await assert.rejects(C.pull(), /n'est pas un fichier Wattlas/);
   mock(() => reply(200, 'pas du json'));
   await assert.rejects(C.pull(), /illisible/);
   mock(() => { throw new TypeError('network'); });

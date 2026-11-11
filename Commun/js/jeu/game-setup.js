@@ -51,7 +51,7 @@
     C.state.busy = true; renderCloud();
     try {
       const r = await C.refresh();
-      if (r === 'vide') C.state.error = "Ton Dropbox ne contient encore rien : ajoute un parcours et un athlète ici, ou ouvre PaceYourRide.";
+      if (r === 'vide') C.state.error = "Ton Dropbox ne contient encore rien : ajoute un parcours et un athlète ici, ou ouvre Plan.";
     } catch (e) { /* le message est dans C.state.error */ }
     C.state.busy = false;
     renderAll();
@@ -253,8 +253,8 @@
     const rw = (find('route', pickId('route')) || { data: {} }).data.weather;
     const has = !!(rw && (rw.snapshot || rw.source === 'custom'));
     $('#gs-wx-course-note').textContent = has
-      ? (rw.source === 'custom' ? 'Température, pluie et vent décrits sur la page Parcours de PaceYourRide, appliqués à partir de la date et de l\'heure de départ.' : 'Les prévisions enregistrées avec le parcours, rejouées à partir de la date et de l\'heure de départ.')
-      : "Ce parcours n'a pas de météo enregistrée : décris-en une, ou récupère des prévisions, sur la page Parcours de PaceYourRide. En attendant, le ciel du jeu est utilisé.";
+      ? (rw.source === 'custom' ? 'Température, pluie et vent décrits sur la page Parcours de Plan, appliqués à partir de la date et de l\'heure de départ.' : 'Les prévisions enregistrées avec le parcours, rejouées à partir de la date et de l\'heure de départ.')
+      : "Ce parcours n'a pas de météo enregistrée : décris-en une, ou récupère des prévisions, sur la page Parcours de Plan. En attendant, le ciel du jeu est utilisé.";
     $('#gs-wx-course-sum').textContent = has && w.snapshot ? `${fmt(Math.min(...[].concat(...w.snapshot.T)))} à ${fmt(Math.max(...[].concat(...w.snapshot.T)))} °C` : '';
   }
 

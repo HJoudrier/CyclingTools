@@ -1,0 +1,2279 @@
+{
+ "source": "Commun/js/engine (physics.js, catalog.js, sim.js, physio.js)",
+ "densite": [
+  {
+   "alt": 0,
+   "t": -5,
+   "rho": 1.3163799531800062
+  },
+  {
+   "alt": 0,
+   "t": 15,
+   "rho": 1.2250122659906946
+  },
+  {
+   "alt": 0,
+   "t": 32,
+   "rho": 1.156766457300405
+  },
+  {
+   "alt": 500,
+   "t": -5,
+   "rho": 1.2401947024838633
+  },
+  {
+   "alt": 500,
+   "t": 15,
+   "rho": 1.1541149035955158
+  },
+  {
+   "alt": 500,
+   "t": 32,
+   "rho": 1.0898188086876877
+  },
+  {
+   "alt": 1500,
+   "t": -5,
+   "rho": 1.0985226829164363
+  },
+  {
+   "alt": 1500,
+   "t": 15,
+   "rho": 1.022276097255049
+  },
+  {
+   "alt": 1500,
+   "t": 32,
+   "rho": 0.9653247826447398
+  },
+  {
+   "alt": 2800,
+   "t": -5,
+   "rho": 0.9342311311995782
+  },
+  {
+   "alt": 2800,
+   "t": 15,
+   "rho": 0.8693877419093073
+  },
+  {
+   "alt": 2800,
+   "t": 32,
+   "rho": 0.8209538844213236
+  }
+ ],
+ "densiteHumide": [
+  {
+   "alt": 0,
+   "t": 20,
+   "rh": 50,
+   "p": 1013.25,
+   "rho": 1.1988666562603643
+  },
+  {
+   "alt": 1200,
+   "t": 8,
+   "rh": 90,
+   "p": 1020,
+   "rho": 1.0895971261293331
+  },
+  {
+   "alt": 2500,
+   "t": 30,
+   "rh": 10,
+   "p": 1005,
+   "rho": 0.8493993240204918
+  },
+  {
+   "alt": 300,
+   "t": 25,
+   "rh": 100,
+   "p": 998,
+   "rho": 1.111232323453881
+  }
+ ],
+ "surfaceFrontale": [
+  {
+   "taille": 160,
+   "masse": 55,
+   "a": 0.2866084119164196
+  },
+  {
+   "taille": 160,
+   "masse": 72,
+   "a": 0.3140418538554912
+  },
+  {
+   "taille": 160,
+   "masse": 90,
+   "a": 0.3392737741696617
+  },
+  {
+   "taille": 178,
+   "masse": 55,
+   "a": 0.30478596733852403
+  },
+  {
+   "taille": 178,
+   "masse": 72,
+   "a": 0.33442389366012515
+  },
+  {
+   "taille": 178,
+   "masse": 90,
+   "a": 0.361683389456707
+  },
+  {
+   "taille": 192,
+   "masse": 55,
+   "a": 0.3185755757484813
+  },
+  {
+   "taille": 192,
+   "masse": 72,
+   "a": 0.3498858378531428
+  },
+  {
+   "taille": 192,
+   "masse": 90,
+   "a": 0.3786834652232411
+  }
+ ],
+ "reglages": [
+  {
+   "selection": {},
+   "cycliste": {
+    "weight": 72,
+    "height": 178,
+    "position": "hoods"
+   },
+   "mass": 82.86,
+   "massEff": 84.828,
+   "wheelMass": 2.46,
+   "aRef": 0.33442389366012515,
+   "cda": 0.3611778051529352,
+   "crr": 0.0038,
+   "eta": 0.975,
+   "fMax": 317.73546,
+   "vSpin": 18.055555555555554
+  },
+  {
+   "selection": {
+    "frame": "aero",
+    "wheels": "c45",
+    "tires": "race",
+    "kit": "aero",
+    "helmet": "aero",
+    "glasses": "shield",
+    "socks": "aero",
+    "shoes": "carbon",
+    "drivetrain": "wax"
+   },
+   "cycliste": {
+    "weight": 58,
+    "height": 165,
+    "position": "drops"
+   },
+   "mass": 66.46,
+   "massEff": 67.988,
+   "wheelMass": 1.91,
+   "aRef": 0.29699217522262517,
+   "cda": 0.24023280120481516,
+   "crr": 0.003,
+   "eta": 0.9899249999999998,
+   "fMax": 255.953565,
+   "vSpin": 18.055555555555554
+  },
+  {
+   "selection": {
+    "frame": "tt",
+    "wheels": "disc",
+    "tires": "tubeless",
+    "suit": "tt",
+    "helmet": "tt",
+    "shoes": "aero",
+    "shave": "full"
+   },
+   "cycliste": {
+    "weight": 85,
+    "height": 190,
+    "position": "tt_pro"
+   },
+   "mass": 95.10000000000001,
+   "massEff": 97.18,
+   "wheelMass": 2.6,
+   "aRef": 0.36869538558951775,
+   "cda": 0.17233895448908165,
+   "crr": 0.0032,
+   "eta": 0.9798749999999998,
+   "fMax": 375.1043625,
+   "vSpin": 18.055555555555554
+  },
+  {
+   "selection": {
+    "frame": "gravel",
+    "wheels": "gravel",
+    "tires": "gravel",
+    "kit": "loose",
+    "helmet": "city",
+    "glasses": "none",
+    "socks": "short",
+    "shoes": "mtb"
+   },
+   "cycliste": {
+    "weight": 66,
+    "height": 172,
+    "position": "upright"
+   },
+   "mass": 77.60000000000001,
+   "massEff": 79.72000000000001,
+   "wheelMass": 2.65,
+   "aRef": 0.31799173065816067,
+   "cda": 0.471288836388517,
+   "crr": 0.0055,
+   "eta": 0.9652499999999999,
+   "fMax": 291.257505,
+   "vSpin": 18.055555555555554
+  },
+  {
+   "selection": {
+    "frame": "climber",
+    "wheels": "climb",
+    "tires": "road",
+    "suit": "road",
+    "shave": "legs"
+   },
+   "cycliste": {
+    "weight": 72,
+    "height": 178,
+    "position": "hoods"
+   },
+   "mass": 79.31,
+   "massEff": 80.758,
+   "wheelMass": 1.81,
+   "aRef": 0.33442389366012515,
+   "cda": 0.34317780515293517,
+   "crr": 0.0038,
+   "eta": 0.975,
+   "fMax": 317.73546,
+   "vSpin": 18.055555555555554
+  }
+ ],
+ "puissance": [
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -109.36600583320765
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -80.78591083307244
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 15.502032061618001
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 44.09635178182435
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 90.47132307520158
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 119.06051575698564
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 214.854218857817
+  },
+  {
+   "reglage": 0,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 243.41222922244287
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -193.84684574970765
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -76.82565326232462
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 139.13458863649404
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 256.1937137107335
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 339.05269800605026
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 456.09815097783024
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 670.7404200930246
+  },
+  {
+   "reglage": 0,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 787.7027202190495
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -77.3975345034428
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 139.04891061609734
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 422.0746170758597
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 638.5779610756845
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 721.951781130194
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 938.4346169763295
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1219.4833642606557
+  },
+  {
+   "reglage": 0,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1435.8414708381586
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 173.30294849273724
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 476.3751846667195
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 797.6431379668654
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1100.7864977412034
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1172.4895930347834
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1475.60731761701
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1794.4040719478605
+  },
+  {
+   "reglage": 0,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 2097.3658849442963
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -88.78482394572045
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -70.41972975973974
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 9.856828558242297
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 28.230794286330013
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 69.08200262049436
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 87.45277076458605
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 167.34669423615404
+  },
+  {
+   "reglage": 1,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 185.6980148805214
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -172.69259664504037
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -96.98558178970944
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 90.35181003219358
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 166.0824823331432
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 248.28560753153243
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 324.00775294182597
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 510.32478517329156
+  },
+  {
+   "reglage": 1,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 585.9950705843202
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -119.25649378163882
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 21.107588652722676
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 275.3101162342121
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 415.70968483700165
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 512.2108124832204
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 652.5975907500256
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 905.269578945859
+  },
+  {
+   "reglage": 1,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1045.5785672137674
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 27.841484273883665
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 224.5969195275033
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 521.0497467936973
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 717.8495397578521
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 817.1756171049576
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1013.9594221491321
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1308.499075183256
+  },
+  {
+   "reglage": 1,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1505.1856427288087
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -130.61209314888444
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -111.49835388878331
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 11.986192368131778
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 31.113611424723004
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 97.60256777846982
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 116.72505620430955
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 239.65363969603445
+  },
+  {
+   "reglage": 2,
+   "v": 3,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 258.7461403435081
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -301.86698855764
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -231.52220715750002
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 78.39510615440325
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 148.77636701185017
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 306.70544058197135
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 377.0735530907476
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 685.5082990288103
+  },
+  {
+   "reglage": 2,
+   "v": 8,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 755.7964441286103
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -351.4944613687105
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -226.55165330096077
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 218.8986806993544
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 343.89620795306456
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 561.3641823407066
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 686.3419870714107
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1129.568470010965
+  },
+  {
+   "reglage": 2,
+   "v": 12,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1254.4263236282047
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": -311.1526432907677
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": -0.05,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": -139.5369115394274
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 401.8387842943134
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 573.5229150281042
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 829.9206613460036
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0.03,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1001.580138926037
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "P": 1540.1760209338267
+  },
+  {
+   "reglage": 2,
+   "v": 15,
+   "pente": 0.08,
+   "crrK": 2.2,
+   "rho": 1.1,
+   "ventFace": 3,
+   "ventTravers": 2,
+   "P": 1711.6855596220296
+  }
+ ],
+ "vitesse": [
+  {
+   "reglage": 0,
+   "P": 100,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 13.143092548274034
+  },
+  {
+   "reglage": 0,
+   "P": 100,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 7.080343723012879
+  },
+  {
+   "reglage": 0,
+   "P": 100,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 2.182326907451918
+  },
+  {
+   "reglage": 0,
+   "P": 250,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 14.689963102387747
+  },
+  {
+   "reglage": 0,
+   "P": 250,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 9.996672770355826
+  },
+  {
+   "reglage": 0,
+   "P": 250,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 4.979894295616274
+  },
+  {
+   "reglage": 0,
+   "P": 400,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 15.905725578621482
+  },
+  {
+   "reglage": 0,
+   "P": 400,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 11.83726012678494
+  },
+  {
+   "reglage": 0,
+   "P": 400,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 7.148998087348353
+  },
+  {
+   "reglage": 1,
+   "P": 100,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 14.7435504735869
+  },
+  {
+   "reglage": 1,
+   "P": 100,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 8.354715669925774
+  },
+  {
+   "reglage": 1,
+   "P": 100,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 2.781012311477131
+  },
+  {
+   "reglage": 1,
+   "P": 250,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 16.59051284505862
+  },
+  {
+   "reglage": 1,
+   "P": 250,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 11.659916171282166
+  },
+  {
+   "reglage": 1,
+   "P": 250,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 6.19613332463258
+  },
+  {
+   "reglage": 1,
+   "P": 400,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 18.027014339080083
+  },
+  {
+   "reglage": 1,
+   "P": 400,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 13.757568327472047
+  },
+  {
+   "reglage": 1,
+   "P": 400,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 8.73724184385583
+  },
+  {
+   "reglage": 2,
+   "P": 100,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 19.654335249000724
+  },
+  {
+   "reglage": 2,
+   "P": 100,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 8.8906147764617
+  },
+  {
+   "reglage": 2,
+   "P": 100,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 1.961929272673089
+  },
+  {
+   "reglage": 2,
+   "P": 250,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 21.23062433249914
+  },
+  {
+   "reglage": 2,
+   "P": 250,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 12.676731223705037
+  },
+  {
+   "reglage": 2,
+   "P": 250,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 4.726851837146954
+  },
+  {
+   "reglage": 2,
+   "P": 400,
+   "pente": -0.04,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 22.54431735626659
+  },
+  {
+   "reglage": 2,
+   "P": 400,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 15.055856740185618
+  },
+  {
+   "reglage": 2,
+   "P": 400,
+   "pente": 0.05,
+   "crrK": 1,
+   "rho": 1.18,
+   "ventFace": 0,
+   "ventTravers": 0,
+   "v": 7.157348114243657
+  }
+ ],
+ "acceleration": [
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.04214870454515563
+  },
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.6157998075620642
+  },
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.406005206899178
+  },
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 2.83235410388227
+  },
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.703494950851647
+  },
+  {
+   "reglage": 0,
+   "v": 0,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.1298438478347377
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.044677817765564495
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.6183289207824731
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.4034760936787696
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 2.8298249906618613
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.700965837631238
+  },
+  {
+   "reglage": 0,
+   "v": 0.3,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.127314734614329
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.1443350972889483
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.7179862003058569
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 0.20048029385548513
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.3731708091614234
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 1.9245572495776522
+  },
+  {
+   "reglage": 0,
+   "v": 5,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 1.350906146560744
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.4355663166087574
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -1.0092174196256658
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.2788320479067422
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.8524831509236508
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 0.5048392956033337
+  },
+  {
+   "reglage": 0,
+   "v": 11,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.0688118074135749
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.033528919200836914
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.6076197595060836
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.7311584520999808
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.1570676117947336
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.7311584520999808
+  },
+  {
+   "reglage": 1,
+   "v": 0,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.1570676117947336
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.0356277937656963
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.6097186340709431
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.729059577535122
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.1549687372298747
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.729059577535122
+  },
+  {
+   "reglage": 1,
+   "v": 0.3,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 3.1549687372298747
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.11833193192242844
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.6924227722276751
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 0.3184767696131366
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.2556140706921102
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 2.502520277290962
+  },
+  {
+   "reglage": 1,
+   "v": 5,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 1.9284294369857147
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 0,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.36002051817896424
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 0,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.9341113584842109
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 150,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.16147110839007106
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 150,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": -0.7355619486953178
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 900,
+   "pente": 0,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 0.831275940554395
+  },
+  {
+   "reglage": 1,
+   "v": 11,
+   "P": 900,
+   "pente": 0.06,
+   "crrK": 1,
+   "rho": 1.2,
+   "ventFace": 1.5,
+   "ventTravers": 0,
+   "a": 0.2571851002491483
+  }
+ ],
+ "roulage": [
+  {
+   "reglage": 0,
+   "P": 250,
+   "pente": 0,
+   "ventFace": 0,
+   "sousPas": 4,
+   "v0": 0,
+   "duree": 120,
+   "points": [
+    {
+     "t": 1,
+     "v": 2.2838612428540728,
+     "s": 1.4145048168546044
+    },
+    {
+     "t": 10,
+     "v": 6.822751307392568,
+     "s": 47.107056083473246
+    },
+    {
+     "t": 60,
+     "v": 9.887859175679365,
+     "s": 506.75631248687125
+    },
+    {
+     "t": 120,
+     "v": 9.94292413079177,
+     "s": 1102.6699613427181
+    }
+   ]
+  },
+  {
+   "reglage": 1,
+   "P": 400,
+   "pente": 0.02,
+   "ventFace": 2,
+   "sousPas": 4,
+   "v0": 5,
+   "duree": 120,
+   "points": [
+    {
+     "t": 1,
+     "v": 5.7462952006651165,
+     "s": 5.386693321963258
+    },
+    {
+     "t": 10,
+     "v": 8.908498634547195,
+     "s": 74.3295507980576
+    },
+    {
+     "t": 60,
+     "v": 10.520312555808179,
+     "s": 585.8709677726894
+    },
+    {
+     "t": 120,
+     "v": 10.528131552819637,
+     "s": 1217.4856878571097
+    }
+   ]
+  },
+  {
+   "reglage": 0,
+   "P": 180,
+   "pente": 0.08,
+   "ventFace": 0,
+   "sousPas": 2,
+   "v0": 3,
+   "duree": 120,
+   "points": [
+    {
+     "t": 1,
+     "v": 2.882287983819331,
+     "s": 2.93927664272844
+    },
+    {
+     "t": 10,
+     "v": 2.5531699338998903,
+     "s": 26.79693381903314
+    },
+    {
+     "t": 60,
+     "v": 2.533624446840643,
+     "s": 153.5371144952554
+    },
+    {
+     "t": 120,
+     "v": 2.533624445710421,
+     "s": 305.5545812412777
+    }
+   ]
+  },
+  {
+   "reglage": 2,
+   "P": 0,
+   "pente": -0.06,
+   "ventFace": 0,
+   "sousPas": 4,
+   "v0": 8,
+   "duree": 120,
+   "points": [
+    {
+     "t": 1,
+     "v": 8.471906393261307,
+     "s": 8.23659941501646
+    },
+    {
+     "t": 10,
+     "v": 12.310365821015454,
+     "s": 102.33176185018111
+    },
+    {
+     "t": 60,
+     "v": 21.441606303278675,
+     "s": 1014.7084244668217
+    },
+    {
+     "t": 120,
+     "v": 22.546532078114858,
+     "s": 2348.235600548898
+    }
+   ]
+  },
+  {
+   "reglage": 0,
+   "P": 15,
+   "pente": 0.12,
+   "ventFace": 0,
+   "sousPas": 4,
+   "v0": 2,
+   "duree": 120,
+   "points": [
+    {
+     "t": 1,
+     "v": 0.941300527645521,
+     "s": 1.4626652059000629
+    },
+    {
+     "t": 10,
+     "v": 0,
+     "s": 1.95914434086453
+    },
+    {
+     "t": 60,
+     "v": 0,
+     "s": 1.95914434086453
+    },
+    {
+     "t": 120,
+     "v": 0,
+     "s": 1.95914434086453
+    }
+   ]
+  }
+ ],
+ "wprime": [
+  {
+   "avant": 20000,
+   "P": 400,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19880
+  },
+  {
+   "avant": 19880,
+   "P": 400,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19760
+  },
+  {
+   "avant": 19760,
+   "P": 380,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19660
+  },
+  {
+   "avant": 19660,
+   "P": 150,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19662.027132831914
+  },
+  {
+   "avant": 19662.027132831914,
+   "P": 150,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19664.04217958289
+  },
+  {
+   "avant": 19664.04217958289,
+   "P": 0,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19668.34156880638
+  },
+  {
+   "avant": 19668.34156880638,
+   "P": 300,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19648.34156880638
+  },
+  {
+   "avant": 19648.34156880638,
+   "P": 250,
+   "cp": 280,
+   "w0": 20000,
+   "dt": 1,
+   "recF": 0.92,
+   "apres": 19648.826522746247
+  }
+ ],
+ "recuperation": [
+  {
+   "age": 18,
+   "recF": 1.096
+  },
+  {
+   "age": 30,
+   "recF": 1
+  },
+  {
+   "age": 45,
+   "recF": 0.88
+  },
+  {
+   "age": 70,
+   "recF": 0.6799999999999999
+  },
+  {
+   "age": 0,
+   "recF": 0.96
+  }
+ ]
+}

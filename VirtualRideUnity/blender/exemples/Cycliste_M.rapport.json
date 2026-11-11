@@ -1,0 +1,314 @@
+{
+  "nom": "Cycliste_M",
+  "parametres": {
+    "nom": null,
+    "sexe": "m",
+    "taille_cycliste": null,
+    "peau": "#C99A7A",
+    "cheveux": "#4A3423",
+    "maillot": "#C8102E",
+    "maillot_accent": "#F2F2F2",
+    "cuissard": "#16161A",
+    "gants": "#16161A",
+    "couleur_chaussettes": "#F2F2F2",
+    "couleur_casque": "#F2F2F2",
+    "couleur_chaussures": "#F2F2F2",
+    "motif": "bande",
+    "tenue": "fitted",
+    "chaussettes": "classic",
+    "casque": "road",
+    "lunettes": "sport",
+    "chaussures": "road",
+    "velo": {},
+    "lods": [
+      0,
+      1,
+      2
+    ],
+    "formats": [
+      "fbx"
+    ],
+    "sortie": "sortie",
+    "apercu": false,
+    "avec_velo": true
+  },
+  "velo": {
+    "parametres": {
+      "nom": null,
+      "cadre": "aero",
+      "roues": "c45",
+      "pneus": "road",
+      "taille_cm": 56,
+      "geometrie": {},
+      "couleur": "#C8102E",
+      "accent": "#F2F2F2",
+      "hauteur_selle": 0.7477,
+      "potence": 0.1,
+      "angle_potence": -6.0,
+      "entretoises": 0.02,
+      "largeur_cintre": 0.42,
+      "reach_cintre": 0.08,
+      "drop_cintre": 0.125,
+      "manivelle": 0.1725,
+      "plateaux": [
+        52,
+        36
+      ],
+      "cassette": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        17,
+        19,
+        21,
+        24,
+        27,
+        30
+      ],
+      "pignon_chaine": 17,
+      "bidons": 1,
+      "lods": [
+        0,
+        1,
+        2
+      ],
+      "formats": [
+        "glb",
+        "fbx"
+      ],
+      "sortie": "sortie",
+      "apercu": false
+    },
+    "hauteur_selle": 0.7477
+  },
+  "morphologie": {
+    "f": false,
+    "epaule": 0.19,
+    "hanche": 0.092,
+    "bras": 0.3,
+    "avant_bras": 0.285,
+    "cuisse": 0.46,
+    "jambe": 0.45,
+    "torse": 0.59,
+    "poitrine_l": 0.175,
+    "poitrine_p": 0.115,
+    "taille_l": 0.135,
+    "bassin_l": 0.15,
+    "fessier": 0.088,
+    "r_bras": 0.042,
+    "r_cuisse": 0.082,
+    "r_mollet": 0.056,
+    "tete": 1.0,
+    "k": 1.0
+  },
+  "os": [
+    {
+      "nom": "Hips",
+      "parent": null
+    },
+    {
+      "nom": "Spine",
+      "parent": "Hips"
+    },
+    {
+      "nom": "Head",
+      "parent": "Spine"
+    },
+    {
+      "nom": "LeftUpperArm",
+      "parent": "Spine"
+    },
+    {
+      "nom": "LeftLowerArm",
+      "parent": "LeftUpperArm"
+    },
+    {
+      "nom": "LeftHand",
+      "parent": "LeftLowerArm"
+    },
+    {
+      "nom": "RightUpperArm",
+      "parent": "Spine"
+    },
+    {
+      "nom": "RightLowerArm",
+      "parent": "RightUpperArm"
+    },
+    {
+      "nom": "RightHand",
+      "parent": "RightLowerArm"
+    },
+    {
+      "nom": "LeftUpperLeg",
+      "parent": "Hips"
+    },
+    {
+      "nom": "LeftLowerLeg",
+      "parent": "LeftUpperLeg"
+    },
+    {
+      "nom": "LeftFoot",
+      "parent": "LeftLowerLeg"
+    },
+    {
+      "nom": "RightUpperLeg",
+      "parent": "Hips"
+    },
+    {
+      "nom": "RightLowerLeg",
+      "parent": "RightUpperLeg"
+    },
+    {
+      "nom": "RightFoot",
+      "parent": "RightLowerLeg"
+    }
+  ],
+  "clips": [
+    {
+      "nom": "Pedalage_upright",
+      "position": "upright",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Pedalage_tops",
+      "position": "tops",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Pedalage_hoods",
+      "position": "hoods",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Pedalage_hoods_bent",
+      "position": "hoods_bent",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Pedalage_drops",
+      "position": "drops",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Pedalage_forearms",
+      "position": "forearms",
+      "danseuse": false,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Danseuse_hoods",
+      "position": "hoods",
+      "danseuse": true,
+      "images": 37,
+      "images_par_seconde": 36
+    },
+    {
+      "nom": "Danseuse_drops",
+      "position": "drops",
+      "danseuse": true,
+      "images": 37,
+      "images_par_seconde": 36
+    }
+  ],
+  "rangees": [
+    "tronc",
+    "tete",
+    "bras",
+    "avantbras",
+    "main",
+    "cuisse",
+    "jambe",
+    "casque",
+    "jugulaire",
+    "verre",
+    "monture",
+    "chaussure",
+    "semelle",
+    "couvre_chaussure",
+    "cheveux",
+    "oeil"
+  ],
+  "triangles": {
+    "LOD0": {
+      "Corps_LOD0": 14000,
+      "Casque_road_LOD0": 2400,
+      "Casque_city_LOD0": 2400,
+      "Casque_aero_LOD0": 2400,
+      "Casque_tt_LOD0": 2400,
+      "Lunettes_sport_LOD0": 500,
+      "Lunettes_shield_LOD0": 500,
+      "Yeux_LOD0": 160,
+      "ChaussureG_road_LOD0": 900,
+      "ChaussureG_carbon_LOD0": 900,
+      "ChaussureG_mtb_LOD0": 900,
+      "ChaussureG_flat_LOD0": 900,
+      "ChaussureG_aero_LOD0": 900,
+      "ChaussureD_road_LOD0": 900,
+      "ChaussureD_carbon_LOD0": 900,
+      "ChaussureD_mtb_LOD0": 900,
+      "ChaussureD_flat_LOD0": 900,
+      "ChaussureD_aero_LOD0": 900,
+      "total_visible": 18860
+    },
+    "LOD1": {
+      "Corps_LOD1": 4500,
+      "Casque_road_LOD1": 900,
+      "Casque_city_LOD1": 898,
+      "Casque_aero_LOD1": 900,
+      "Casque_tt_LOD1": 898,
+      "Lunettes_sport_LOD1": 200,
+      "Lunettes_shield_LOD1": 200,
+      "Yeux_LOD1": 60,
+      "ChaussureG_road_LOD1": 350,
+      "ChaussureG_carbon_LOD1": 350,
+      "ChaussureG_mtb_LOD1": 350,
+      "ChaussureG_flat_LOD1": 350,
+      "ChaussureG_aero_LOD1": 350,
+      "ChaussureD_road_LOD1": 350,
+      "ChaussureD_carbon_LOD1": 350,
+      "ChaussureD_mtb_LOD1": 350,
+      "ChaussureD_flat_LOD1": 350,
+      "ChaussureD_aero_LOD1": 350,
+      "total_visible": 6360
+    },
+    "LOD2": {
+      "Corps_LOD2": 1400,
+      "Casque_road_LOD2": 300,
+      "Casque_city_LOD2": 300,
+      "Casque_aero_LOD2": 300,
+      "Casque_tt_LOD2": 300,
+      "ChaussureG_road_LOD2": 118,
+      "ChaussureG_carbon_LOD2": 118,
+      "ChaussureG_mtb_LOD2": 120,
+      "ChaussureG_flat_LOD2": 120,
+      "ChaussureG_aero_LOD2": 120,
+      "ChaussureD_road_LOD2": 118,
+      "ChaussureD_carbon_LOD2": 118,
+      "ChaussureD_mtb_LOD2": 120,
+      "ChaussureD_flat_LOD2": 120,
+      "ChaussureD_aero_LOD2": 120,
+      "total_visible": 1936
+    }
+  },
+  "ancre_yeux_unity": [
+    0.0,
+    1.5955,
+    0.3983
+  ],
+  "fichiers": [
+    "Cycliste_M.fbx"
+  ]
+}

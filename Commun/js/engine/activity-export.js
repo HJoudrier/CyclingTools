@@ -74,12 +74,12 @@
    * glycogène dans l'espace pyr:.
    */
   function gpx(sess, name) {
-    const d = prepare(sess), T = d.T, title = xml(name || 'Sortie PaceYourRide');
+    const d = prepare(sess), T = d.T, title = xml(name || 'Sortie Wattlas');
     const ns = ['xmlns="http://www.topografix.com/GPX/1/1"', 'xmlns:gpxpx="http://www.garmin.com/xmlschemas/PowerExtension/v1"', `xmlns:pyr="${NS_PYR}"`];
     if (d.hasHr || d.hasCad) ns.push('xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"');
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      `<gpx version="1.1" creator="PaceYourRide" ${ns.join(' ')}>`,
+      `<gpx version="1.1" creator="Wattlas" ${ns.join(' ')}>`,
       `  <metadata><name>${title}</name><time>${iso(d.startMs)}</time></metadata>`,
       `  <trk><name>${title}</name><type>cycling</type><trkseg>`,
     ];
@@ -123,7 +123,7 @@
         + `<pyr:WPrimeBalance>${Math.round(T.wbal[k])}</pyr:WPrimeBalance><pyr:GlycogenBurned>${f(T.gBurned[k], 2)}</pyr:GlycogenBurned><pyr:GlycogenStock>${f(T.gStock[k], 1)}</pyr:GlycogenStock></Extensions></Trackpoint>`);
     }
     lines.push('        </Track>',
-      `        <Notes>${xml(name || 'Sortie PaceYourRide')}</Notes>`,
+      `        <Notes>${xml(name || 'Sortie Wattlas')}</Notes>`,
       `        <Extensions><ns3:LX><ns3:AvgSpeed>${f(S.avgSpeed, 2)}</ns3:AvgSpeed><ns3:AvgWatts>${Math.round(S.avgPower)}</ns3:AvgWatts><ns3:MaxWatts>${Math.round(S.maxPower)}</ns3:MaxWatts></ns3:LX></Extensions>`,
       '      </Lap>', '    </Activity>', '  </Activities>', '</TrainingCenterDatabase>');
     return lines.join('\n');
@@ -268,7 +268,7 @@
     const lapRow = [0, t1, 9, 1, t0, lat0, lng0, ms(n), ms(n), cm(S.distance), S.kcal, clamp16(S.avgSpeed * 1000), clamp16(S.maxSpeed * 1000), hrOrNull(S.avgHr), hrOrNull(S.maxHr),
       d.hasCad ? clamp8(S.avgCad) : null, d.hasCad ? clamp8(S.maxCad) : null, clamp16(S.avgPower), clamp16(S.maxPower), clamp16(S.ascent), clamp16(S.descent), 2];
     const entries = [
-      { def: fileId, rows: [[4, 255, 0, 1, t0, 'PaceYourRide']] },
+      { def: fileId, rows: [[4, 255, 0, 1, t0, 'Wattlas']] },
       { def: devData, rows: [[Array.from(new TextEncoder().encode('PaceYourRide')), Array.from(new TextEncoder().encode('PaceYourRide.activity')), 255, 0, 1]] },
       { def: devDesc, rows: DEV_FIELDS.map(([id, nm, unit]) => [0, id, 0x88, nm, unit]) },
       { def: event, rows: [[t0, 0, 0, null]] },                                   // début du chronomètre
@@ -280,7 +280,7 @@
       { def: activity, rows: [[t1, ms(n), 1, 0, 26, 1]] },
     ];
     // le nom de la sortie : champ 8 du fichier (product_name)
-    entries[0].rows[0][5] = name || 'Sortie PaceYourRide';
+    entries[0].rows[0][5] = name || 'Sortie Wattlas';
     return encodeFit(entries);
   }
 

@@ -235,7 +235,7 @@
   function toGpx(name, lat, lng, ele, n) {
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      '<gpx version="1.1" creator="PaceYourRide" xmlns="http://www.topografix.com/GPX/1/1">',
+      '<gpx version="1.1" creator="Wattlas" xmlns="http://www.topografix.com/GPX/1/1">',
       `  <metadata><name>${xmlEscape(name)}</name></metadata>`,
       `  <trk><name>${xmlEscape(name)}</name><trkseg>`,
     ];

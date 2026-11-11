@@ -10,7 +10,7 @@
     const st = PYR.cloud.status();
     $('#po-cloud-txt').textContent = st.connected
       ? 'Dropbox : connecté' + (st.lastSync ? ' (dernière lecture ' + new Date(st.lastSync).toLocaleString('fr-FR') + ').' : '.')
-      : 'Dropbox : non connecté. Connecte-toi une fois, dans PaceYourRide, les jeux ou le compteur.';
+      : 'Dropbox : non connecté. Connecte-toi une fois, dans Plan, Course ou Compteur.';
     const btn = $('#po-cloud-btn');
     btn.textContent = st.connected ? 'Se déconnecter' : 'Se connecter à Dropbox';
     btn.className = st.connected ? 'btn' : 'btn primary';

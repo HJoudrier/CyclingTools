@@ -124,7 +124,11 @@ button, input, select { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; color: var(--accent); white-space: nowrap; }
 .brand span { color: var(--ink); }
-.brand svg { width: 26px; height: 26px; }
+.brand svg, .brand img { width: 26px; height: 26px; flex: none; }
+/* nom de l'appli à côté de « Wattlas », dans la couleur de son icône (Commun/img/marque/) */
+.brand-app { padding: 0 7px; border: 1.5px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 700; line-height: 1.5; color: var(--series-1); }
+.brand-app[data-app="course"] { color: var(--series-2); }
+.brand-app[data-app="compteur"] { color: var(--series-3); }
 .brand { text-decoration: none; }
 /* arrivée depuis la page d'accueil (?go=…&focus=…) : le champ visé clignote un instant */
 .deeplink-flash { animation: deeplink-flash 1.1s ease-in-out 2; border-radius: 8px; }
@@ -1105,7 +1109,7 @@ body[data-view3d="on"] #map, body[data-view3d="on"] .route-tools { visibility: h
 /* très petit écran : les icônes de l'en-tête tiennent encore sur la ligne */
 @media (max-width: 420px) {
   .topbar { padding-left: max(4px, env(safe-area-inset-left)); padding-right: max(4px, env(safe-area-inset-right)); gap: 2px; }
-  .brand svg { width: 24px; height: 24px; }
+  .brand svg, .brand img { width: 24px; height: 24px; }
   .top-actions { gap: 0; }
   .top-actions .btn { padding: 7px 3px; min-width: 0; }
   .burger { padding: 7px 4px; min-width: 0; }

@@ -48,7 +48,7 @@ function project() {
 test('parcours complet : export puis import redonnent tracé, tronçons, points en jeu, portions et météo', () => {
   const { state, profile } = project();
   const gpx = RF.build(state, profile, Date.UTC(2026, 9, 28));
-  assert.match(gpx, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<gpx version="1.1" creator="PaceYourRide"/);
+  assert.match(gpx, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<gpx version="1.1" creator="Wattlas"/);
   assert.ok(gpx.includes('<name>Tour &lt;des&gt; « lacs » &amp; cols</name>'));
   assert.ok(!gpx.includes('pas exporté'), 'le cycliste ne fait pas partie du parcours');
   // des points lisibles par les autres applis : sprint, sommet, ravitaillement

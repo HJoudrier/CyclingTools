@@ -174,7 +174,7 @@
           stat('', 'Altitude min', p.hasEle ? fmt(Math.min.apply(null, p.ele)) + ' m' : '—'),
           stat('', 'Altitude max', p.hasEle ? fmt(Math.max.apply(null, p.ele)) + ' m' : '—')),
         profileBox(p, it),
-        it.project ? h('span', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours de PaceYourRide') : null,
+        it.project ? h('span', { class: 'gs-route-tag' }, o.projectLabel || 'Projet en cours de Plan') : null,
         actionsEl(it, o.actions)));
       card.addEventListener('click', () => { if (vis.dataset.dragged === '1') { vis.dataset.dragged = ''; return; } o.onPick(it.id); });
       track.appendChild(card);
@@ -457,7 +457,7 @@
     name,
     h('div', { class: 'grid2' }, h('div', { class: 'field' }, h('label', { for: 'lp-sex' }, 'Sexe (références de niveau)'), sex), inp('lp-birth', 'Date de naissance', { type: 'date', min: '1900-01-01', max: day(8), value: day(35) })),
     h('div', { class: 'grid3' }, inp('lp-weight', 'Poids (kg)', { type: 'number', min: '25', max: '200', step: '0.1', value: '72' }), inp('lp-height', 'Taille (cm)', { type: 'number', min: '120', max: '230', step: '1', value: '178' }), inp('lp-ftp', 'FTP (W)', { type: 'number', min: '50', max: '600', step: '1', value: '250' })),
-    h('p', { class: 'hint' }, 'La puissance critique, le W′ et la courbe de puissance record se règlent ensuite dans PaceYourRide (page Athlète).'),
+    h('p', { class: 'hint' }, 'La puissance critique, le W′ et la courbe de puissance record se règlent ensuite dans Plan (page Athlète).'),
     err,
     h('div', { class: 'modal-actions' }, h('button', { class: 'btn', type: 'button', onclick: () => dlg.close() }, 'Annuler'), h('button', { class: 'btn primary', type: 'submit' }, 'Ajouter à ma bibliothèque')));
     const dlg = h('dialog', { class: 'modal gs-dlg', 'aria-label': 'Ajouter un athlète' }, form);
@@ -491,7 +491,7 @@
       ['2d', '3d'].map((v) => h('button', { type: 'button', role: 'radio', dataset: { view: v }, 'aria-pressed': String(v === view),
         title: v === '2d' ? 'Le tracé sur le fond de carte' : 'Le tracé en 3D, posé à son altitude : glisse pour le faire tourner', onclick: () => setView(v) }, v === '2d' ? '2D' : '3D')));
     const bar = h('div', { class: 'gs-add' },
-      o.onAdd ? h('button', { class: 'btn', type: 'button', title: 'Ajouter un parcours à ta bibliothèque : un fichier GPX, ou un parcours complet exporté par PaceYourRide', onclick: o.onAdd }, '＋ Ajouter un parcours (GPX)') : null,
+      o.onAdd ? h('button', { class: 'btn', type: 'button', title: 'Ajouter un parcours à ta bibliothèque : un fichier GPX, ou un parcours complet exporté par Wattlas', onclick: o.onAdd }, '＋ Ajouter un parcours (GPX)') : null,
       (o.extra || []).map((b) => h('button', { class: 'btn', type: 'button', title: b.title || b.label, onclick: b.fn }, b.label)), seg);
     host.append(bar, area);
     function draw() {

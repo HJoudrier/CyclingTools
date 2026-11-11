@@ -64,7 +64,7 @@
   function build(state, profile, now) {
     const r = state.route;
     if (!profile) throw new Error('Aucun parcours à exporter');
-    const name = String(r.name || '').trim().slice(0, 60) || 'Parcours PaceYourRide';
+    const name = String(r.name || '').trim().slice(0, 60) || 'Parcours Wattlas';
     const tr = trackOf(r);
     const data = { app: 'PaceYourRide', kind: 'route', version: VERSION, route: { name, mode: r.mode } };
     if (tr.fixed) data.route.fixed = { step: r.fixed.step };
@@ -77,7 +77,7 @@
     const Cl = PYR.classif, s = profile.stats;
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      `<gpx version="1.1" creator="PaceYourRide" xmlns="http://www.topografix.com/GPX/1/1" xmlns:pyr="${NS}">`,
+      `<gpx version="1.1" creator="Wattlas" xmlns="http://www.topografix.com/GPX/1/1" xmlns:pyr="${NS}">`,
       '  <metadata>',
       `    <name>${text(name)}</name>`,
       `    <desc>${text([`${U.fmt(s.length / 1000, 1)} km, D+ ${U.fmt(s.up, 0)} m, D− ${U.fmt(s.down, 0)} m`, summary(data)].filter(Boolean).join(' · '))}</desc>`,

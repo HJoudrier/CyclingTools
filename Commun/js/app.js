@@ -150,7 +150,7 @@
   /** Projet : export / import / réinitialisation (boutons de l'en-tête, sur toutes les pages). */
   function bindProject() {
     const exp = $('#btn-export-project'), imp = $('#input-import-project'), reset = $('#btn-reset');
-    if (exp) exp.addEventListener('click', () => D.download('projet-paceyourride.json', store.exportProject(), 'application/json'));
+    if (exp) exp.addEventListener('click', () => D.download('projet-wattlas.json', store.exportProject(), 'application/json'));
     if (imp) {
       imp.addEventListener('change', async (e) => {
         const f = e.target.files[0];

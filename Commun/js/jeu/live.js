@@ -806,8 +806,8 @@
     tools.appendChild(h('button', { class: 'btn', onclick: async () => { D.download(kind === 'answer' ? 'reponse-course.png' : 'invitation-course.png', await PYR.qr.png(qrText)); } }, 'Image du QR code'));
     if (navigator.share) {
       const data = kind === 'answer'
-        ? { title: 'Réponse PaceYourRide', text: code }
-        : link ? { title: 'Course PaceYourRide', text: `Rejoins ma course « ${S.race.title} » sur PaceYourRide`, url: link } : { title: 'Invitation PaceYourRide', text: code };
+        ? { title: 'Réponse Wattlas', text: code }
+        : link ? { title: 'Course Wattlas', text: `Rejoins ma course « ${S.race.title} » sur Wattlas`, url: link } : { title: 'Invitation Wattlas', text: code };
       tools.appendChild(h('button', { class: 'btn', onclick: () => navigator.share(data).catch(() => {}) }, 'Partager…'));
     }
     return tools;
@@ -1116,7 +1116,7 @@
     if (!S || S.role !== 'host') renderRoom(); // masque la carte de la salle d'attente
     if (!S) {
       box.appendChild(h('p', { class: 'hint' }, PYR.liveHost && PYR.liveHost.joinOnly
-        ? 'Rejoins une partie Virtual Ride : scanne le QR code (ou colle le lien) de l\'organisateur et attends sa validation. Ton GPS te place sur le parcours de la partie, ta puissance vient du capteur, et les autres joueurs te voient rouler.'
+        ? 'Rejoins une partie de Course : scanne le QR code (ou colle le lien) de l\'organisateur et attends sa validation. Ton GPS te place sur le parcours de la partie, ta puissance vient du capteur, et les autres joueurs te voient rouler.'
         : 'Roulez en même temps, chacun chez soi : l\'organisateur partage un QR code (ou un lien), chaque joueur le scanne et attend que l\'organisateur valide son inscription. Départ à l\'heure fixée par l\'organisateur.'));
       // le Compteur rejoint seulement : l'organisateur est une partie Virtual Ride
       box.appendChild(h('div', { class: 'toolbar' },
