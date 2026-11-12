@@ -283,6 +283,28 @@
     });
   }
 
+  /* ---------- niveau de réalisme (Course 3D : #gs-realism) ---------- */
+
+  const REALISM_NOTE = {
+    arcade: 'Arcade : tu règles l\'intensité de l\'effort (en % de ta PC) ; deux barres comptent, l\'endurance (glycogène : mange pour la recharger) et l\'effort court (W′, au-dessus de 100 %). Ni chaleur, ni courbe de puissance record, ni hydratation.',
+    simulation: 'Simulation : le modèle complet. La courbe de puissance record limite tes efforts, la chaleur et l\'hydratation comptent avec l\'alimentation, et le modèle physiologique détaillé si tu le coches.',
+  };
+
+  /** En Arcade, l'alimentation est imposée et les options du modèle complet (alimentation, modèle physiologique, durée tenable) sont masquées. */
+  function renderRealism() {
+    if (!$('#gs-realism')) return;
+    const r = store.state.game.realism === 'arcade' ? 'arcade' : 'simulation';
+    $$('#gs-realism [data-realism]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.realism === r)));
+    for (const id of ['g-fuel', 'g-physio', 'g-tte']) { const el = $('#' + id); if (el && el.closest('label')) el.closest('label').hidden = r === 'arcade'; }
+    $('#gs-realism-note').textContent = REALISM_NOTE[r];
+  }
+
+  function initRealism() {
+    if (!$('#gs-realism')) return;
+    $$('#gs-realism [data-realism]').forEach((b) => b.addEventListener('click', () => { store.set('game.realism', b.dataset.realism); renderRealism(); }));
+    renderRealism();
+  }
+
   /* ---------- départ ---------- */
 
   function renderSummary() {
@@ -319,6 +341,7 @@
       S.mode = st.game.weatherMode === 'date' ? 'date' : 'random';
       C.load();
       if (ownSky()) initSky(); else renderWeatherPanel();
+      initRealism();
       $('#g-go').addEventListener('click', () => start());
       $('#g-live-create').addEventListener('click', () => start({ do: 'live-create' }));
       $('#g-live-join').addEventListener('click', () => start({ do: 'live-join' }));
