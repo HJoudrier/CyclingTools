@@ -205,6 +205,7 @@ body[data-h3-off~="riders"] .h3-w-riders, body[data-h3-off~="banner"] .hud-banne
 /* ---------- menu (Échap) ---------- */
 dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3-menu .h3-tabs { margin: 0 0 12px; }
+.h3-menu-body { min-height: 180px; }
 .h3-menu .h3-pane[hidden] { display: none; }
 .h3-menu .h3-pane-profile .bottom-view { display: flex; }
 .h3-menu .h3-pane-profile .chart-box { flex: none; height: min(300px, 45vh); }
