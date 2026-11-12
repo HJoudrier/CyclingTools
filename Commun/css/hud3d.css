@@ -260,6 +260,8 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 /* en haut à gauche */
 .h3p-tl { position: absolute; left: var(--h3p-l); top: var(--h3-top); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .h3p-row { display: flex; gap: 6px; align-items: center; }
+/* seul (pas d'équipe) : la trajectoire reste sous la hauteur de la barre du haut */
+.h3p-tl > .h3p-sq[hidden] + .h3p-row { margin-top: 48px; }
 .h3p-sq { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .h3p-sq[aria-expanded="true"], .h3p-sq[aria-pressed="true"] { background: var(--h3-effort); color: #111; border-color: transparent; }
 .h3p-sq .h3-ico { width: 20px; height: 20px; }

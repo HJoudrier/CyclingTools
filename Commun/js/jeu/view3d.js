@@ -218,7 +218,7 @@
   /**
    * Image de la course pour la vue. o : {course, cps, feed, t (temps de course), k (secondes de course par seconde réelle), run,
    * me : {id, name, color, kind, s, y, v, P, w, dr, st, fin, cp, hr, e, own}, others : [{id, name, color, kind, s, y, v, P, st, fin, own, e, w}],
-   * fx : réglages d'immersion de Course 3D {mk (marqueurs des coéquipiers), br (respiration)}}. own : coureur de ton équipe ; e : aérobie
+   * fx : réglages d'immersion de Course 3D {mk (marqueurs des coéquipiers), br (respiration)}, guide : aide à la trajectoire (steer.guide)}. own : coureur de ton équipe ; e : aérobie
    * (glycogène, 0 à 1) ; w : anaérobie (W′, 0 à 1) ; hr : FC (bpm).
    * Fonction pure (testée) : rien n'est envoyé.
    */
@@ -240,6 +240,11 @@
     const riders = [rider(o.me)].concat((o.others || []).map(rider));
     const msg = { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.sky ? skyEnv(o.course, o.me.s || 0, o.t || 0, o.sky) : o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
     if (o.fx) msg.fx = { mk: o.fx.mk ? 1 : 0, br: o.fx.br ? 1 : 0 };
+    // aide à la trajectoire : s0 (distance du coureur au calcul), points [d, y, v], virage annoncé [d, v]
+    if (o.guide && Array.isArray(o.guide.pts) && o.guide.pts.length) {
+      const p0 = o.guide.pts[0];
+      msg.guide = { s0: r2(p0.s - p0.d), pts: o.guide.pts.map((p) => [r2(p.d), r2(p.y), r2(p.v)]), corner: o.guide.corner ? [r2(o.guide.corner.d), r2(o.guide.corner.v)] : null };
+    }
     return msg;
   }
 

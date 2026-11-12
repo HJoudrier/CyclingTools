@@ -231,3 +231,46 @@ test('frein du joueur aussi en trajectoire automatique (bouton Freiner) ; les co
   drive(c, 3, null, () => 1);
   assert.ok(Math.abs(c.r.st.v - b.r.st.v) < 0.01, 'un coureur non piloté ne freine pas');
 });
+
+/* ---------- aide à la trajectoire (steer.guide) ---------- */
+// parcours synthétique : 300 m droits, un virage à droite de 30 m de rayon sur 60 m, puis tout droit
+function corner30() {
+  const step = 5, n = 200, kappa = new Float64Array(n), width = new Float64Array(n).fill(6);
+  for (let i = 0; i < n; i++) kappa[i] = i * step >= 300 && i * step < 360 ? 1 / 30 : 0;
+  return { length: n * step, step, n, kappa, width, aLat: 4.4, aBrake: 3.5 };
+}
+
+test('aide à la trajectoire : un point tous les 4 m sur 80 m, la corde dans le virage, rien en ligne droite', () => {
+  const C = corner30();
+  const far = Steer.guide(C, 100, { maxHalf: 3 });
+  assert.equal(far.pts.length, 20);
+  assert.deepEqual([far.pts[0].d, far.pts[19].d], [4, 80]);
+  assert.ok(far.pts.every((p) => p.y === 0 && p.v === Steer.V_FREE), 'ligne droite : au milieu, sans limite');
+  assert.equal(far.corner, null);
+  const g = Steer.guide(C, 290, { maxHalf: 3 });
+  const apex = g.pts.find((p) => p.s === 330);
+  assert.ok(apex.y > 2 && apex.y <= 3 - 0.6 + 1e-9, `corde à droite (κ > 0), contre le bord moins 0,6 m : ${apex.y}`);
+  // à gauche : la corde change de côté
+  const L = corner30(); for (let i = 0; i < L.n; i++) L.kappa[i] = -L.kappa[i];
+  assert.ok(Steer.guide(L, 290, { maxHalf: 3 }).pts.find((p) => p.s === 330).y < -2);
+});
+
+test('aide à la trajectoire : vitesse conseillée à la limite d\'adhérence du virage, freinage anticipé, virage annoncé', () => {
+  const C = corner30(), cond = { brakeK: 1 };
+  const g = Steer.guide(C, 290, { maxHalf: 3, cond });
+  const grip = Steer.gripOf(C, cond), apex = g.pts.find((p) => p.s === 330);
+  // à la corde, la courbure est plus serrée : v² · κ / (1 − y·κ) ≤ adhérence, à 95 %
+  const lim = 0.95 * Math.sqrt(grip * (1 - apex.y / 30) * 30);
+  assert.ok(Math.abs(apex.v - lim) < 0.05, `${apex.v} ≈ ${lim}`);
+  assert.ok(g.corner && Math.abs(g.corner.v - lim) < 0.05 && g.corner.d <= 20);
+  // en approche, la vitesse conseillée descend vers celle du virage (on freine à temps), jamais plus vite que v² = vc² + 2·a·d
+  const app = Steer.guide(C, 220, { maxHalf: 3, cond });
+  const vs = app.pts.map((p) => p.v);
+  for (let i = 1; i < vs.length; i++) if (app.pts[i].s <= 300) assert.ok(vs[i] <= vs[i - 1] + 1e-9, 'décroissante avant le virage');
+  const p = app.pts.find((x) => x.s === 260);
+  assert.ok(p.v <= Math.sqrt(lim * lim + 2 * 3.5 * 45) + 0.2 && p.v > lim);
+  // route mouillée : moins d'adhérence, plus lent
+  assert.ok(Steer.guide(C, 290, { maxHalf: 3, cond: { brakeK: 0.7 } }).corner.v < g.corner.v);
+  // au-delà de la fin du parcours : plus de points
+  assert.equal(Steer.guide(C, C.length - 10, {}).pts.length, 2);
+});

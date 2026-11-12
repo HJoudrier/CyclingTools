@@ -533,3 +533,8 @@ body.pyr #screen-loading { background: #cfe9fb; }
 .pyr-mark.act b { background: #ffd23f; color: #111; }
 .pyr-mark.act .bars { display: none; }
 .pyr-mark.out { opacity: 0.45; }
+/* Course 3D (Wattlas), trajectoire manuelle : annonce du virage de l'aide à la trajectoire (bridge.js, drawGuide) */
+.pyr-turn { position: fixed; left: 0; top: 0; z-index: 29; padding: 3px 10px; border-radius: 999px; background: rgba(14, 17, 22, 0.78); color: #fff;
+  font: 800 13px/1.2 system-ui, sans-serif; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); border: 2px solid #ffd23f; }
+.pyr-turn[hidden] { display: none; }
+.pyr-turn.fast { background: #e5484d; border-color: #fff; }

@@ -1110,7 +1110,12 @@
         G.feel = { at: nowMs, hr: fs && Number.isFinite(fs.hr) ? fs.hr : undefined, e: fs ? fs.energy : undefined, mates };
       }
       const mate = (id) => G.feel.mates.get(id);
+      // aide à la trajectoire (trajectoire manuelle) : la corde et la vitesse conseillée sur les 80 m à venir
+      const guideOn = PYR.hud3d && PYR.hud3d.fx && T.steerable() && me.lat && me.lat.manual && !me.incident && !me.finished && (PYR.hud3d.fx() || {}).gd;
+      if (!guideOn) G.guide = null;
+      else if (!G.guide || nowMs - G.guide.at > 200) G.guide = Object.assign(PYR.steer.guide(G.ctx.course, me.st.s, { cond: me.cond, maxHalf: me.lat.edgeMax }), { at: nowMs });
       PYR.view3d.publish({
+        guide: G.guide || undefined,
         fx: PYR.hud3d && PYR.hud3d.fx ? PYR.hud3d.fx() : undefined,
         course: G.ctx.course, cps: G.cps, feed: G.feed, t, sky: PYR.view3d.skySettings(store.state),
         k: T.effScale(timeScale()),

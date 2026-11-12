@@ -10,7 +10,10 @@
  *   - bord de la chaussée (edgeOf), puis bas-côté (VERGE) : on y roule plus lentement (roulement ×3) et on risque la chute, d'autant plus
  *     qu'on va vite (vergeRisk) ; au-delà, c'est la sortie de route (exitRisk). Traverser un coureur tombé : pileupRisk.
  * Les entrées (touches, manette, gyroscope, contrôleurs VR) sont mises en forme ici (axis, keyRamp, tiltAxis) ; elles sont lues dans
- * Commun/js/jeu/steer-input.js. Sans DOM : testé dans tests/steer.test.js. */
+ * Commun/js/jeu/steer-input.js.
+ * Aide à la trajectoire (guide) : sur les 80 m à venir, la corde (lissée, contre le bord intérieur dans les virages serrés) et la vitesse
+ * conseillée (la limite d'adhérence à la corde, avec le freinage nécessaire en amont) ; la vue 3D la dessine en chevrons sur la route.
+ * Sans DOM : testé dans tests/steer.test.js. */
 (function (PYR) {
   'use strict';
 
@@ -23,6 +26,16 @@
   const VERGE = 1.5;        // m : largeur du bas-côté au-delà de la chaussée
   const HALF_3D = 3;        // m : demi-largeur de la plateforme de route de la vue 3D (landscape.js, roadHalf)
   const SUB_DT = 0.05;      // s : sous-pas d'intégration
+  // aide à la trajectoire
+  const GUIDE_LEN = 80;     // m : longueur du guide devant le coureur
+  const GUIDE_STEP = 4;     // m : un point (un chevron) tous les 4 m
+  const GUIDE_EXTRA = 150;  // m : on regarde aussi les virages au-delà, pour freiner à temps
+  const LINE_R0 = 300, LINE_R1 = 90; // m : rayon au-delà duquel on ne prend pas la corde, en deçà duquel on la prend à fond (peloton.js)
+  const LINE_EDGE = 0.6;    // m : la corde passe à cette distance du bord intérieur
+  const LINE_SMOOTH = 15;   // m : la courbure est moyennée sur ± 15 m (on entre et on sort de la corde progressivement)
+  const GUIDE_SAFE = 0.95;  // vitesse conseillée : 95 % de la limite d'adhérence
+  const V_FREE = 30;        // m/s : vitesse conseillée sans virage (pas de limite)
+  const CORNER_V = 18;      // m/s : un virage dont la limite est sous 65 km/h est annoncé (« Virage 32 km/h »)
 
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const kmh = (v) => v * 3.6;
@@ -87,6 +100,44 @@
     return L.y;
   }
 
+  /** Corde (m, du signe de κ à l'intérieur) à la distance s : nulle en ligne droite, contre le bord intérieur (moins LINE_EDGE) dans un virage serré. */
+  function lineAt(course, s, maxHalf) {
+    let k = 0, n = 0;
+    for (let e = -LINE_SMOOTH; e <= LINE_SMOOTH; e += 3) { k += kappaAt(course, s + e); n++; }
+    k /= n;
+    const a0 = 1 / LINE_R0, a1 = 1 / LINE_R1, t = clamp((Math.abs(k) - a0) / (a1 - a0), 0, 1);
+    return Math.sign(k) * t * t * (3 - 2 * t) * Math.max(0, edgeOf(course, s, maxHalf) - LINE_EDGE);
+  }
+
+  /**
+   * Aide à la trajectoire depuis la distance s0 : {pts : [{d (m devant), s, y (corde), v (vitesse conseillée, m/s)}], corner : {d, v} | null}.
+   * La vitesse conseillée est la limite d'adhérence du virage à la corde (v² · κ à la position ≤ gripOf), réduite du freinage
+   * (course.aBrake, moins sur route mouillée) pour les virages plus loin ; corner : le virage le plus lent du guide, s'il est sous 65 km/h.
+   * o : {cond (conditions : brakeK), maxHalf (demi-largeur bornée, Course 3D), len, step}.
+   */
+  function guide(course, s0, o) {
+    o = o || {};
+    const L = course && course.length > 0 ? course.length : 0;
+    if (!L) return { pts: [], corner: null };
+    const len = o.len > 0 ? o.len : GUIDE_LEN, st = o.step > 0 ? o.step : GUIDE_STEP;
+    const g = gripOf(course, o.cond), bk = o.cond && o.cond.brakeK > 0 ? o.cond.brakeK : 1;
+    const aB = (course.aBrake > 0 ? course.aBrake : 3.5) * bk;
+    const h = Math.max(2, course.step || 5), n = Math.ceil((len + GUIDE_EXTRA) / h) + 2;
+    const raw = new Float64Array(n), vc = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = Math.min(L, s0 + i * h), k = kappaAt(course, s), x = clamp(lineAt(course, s, o.maxHalf) * k, -X_MAX, X_MAX);
+      raw[i] = Math.abs(k) > 1e-5 ? Math.min(V_FREE, GUIDE_SAFE * Math.sqrt(g * (1 - x) / Math.abs(k))) : V_FREE;
+      vc[i] = raw[i];
+    }
+    for (let i = n - 2; i >= 0; i--) vc[i] = Math.min(vc[i], Math.sqrt(vc[i + 1] * vc[i + 1] + 2 * aB * h));
+    const at = (d) => { const f = d / h, i = Math.min(n - 2, Math.floor(f)); return vc[i] + (vc[i + 1] - vc[i]) * (f - i); };
+    const pts = [];
+    for (let d = st; d <= len + 1e-6 && s0 + d <= L; d += st) pts.push({ d, s: s0 + d, y: lineAt(course, s0 + d, o.maxHalf), v: at(d) });
+    let corner = null;
+    for (let i = 0; i * h <= len; i++) if (raw[i] < CORNER_V && (!corner || raw[i] < corner.v)) corner = { d: i * h, v: raw[i] };
+    return { pts, corner };
+  }
+
   /** Où est le coureur : 'road' (sur la chaussée), 'verge' (sur le bas-côté) ou 'out' (hors de la route). */
   function zone(y, edge) {
     const a = Math.abs(y);
@@ -135,5 +186,5 @@
     return Math.sign(deg) * Math.min(1, (a - 3) / 19);
   }
 
-  PYR.steer = { TAU, VY_MAX, GRIP_K, VERGE, HALF_3D, vyMax, edgeOf, kappaAt, gripOf, init, step, zone, vergeRisk, exitRisk, pileupRisk, axis, keyRamp, tiltAxis };
+  PYR.steer = { TAU, VY_MAX, GRIP_K, VERGE, HALF_3D, GUIDE_LEN, GUIDE_STEP, V_FREE, vyMax, edgeOf, kappaAt, gripOf, lineAt, guide, init, step, zone, vergeRisk, exitRisk, pileupRisk, axis, keyRamp, tiltAxis };
 })(globalThis.PYR = globalThis.PYR || {});

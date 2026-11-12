@@ -326,6 +326,82 @@
       return { rate: 15 + 35 * Math.max(byHr, eff / 1.4, pant * 0.9), level: clamp(0.25 + 0.55 * eff + 0.3 * pant, 0, 1), pant };
     },
 
+    // après la caméra, à chaque image : ce qui se place d'après elle
+    overlay() {
+      this.drawGuide();
+      this.marks();
+    },
+
+    // Aide à la trajectoire (trajectoire manuelle) : des chevrons posés sur la route le long de la corde, tous les 4 m sur 80 m, colorés
+    // d'après ta vitesse et la vitesse conseillée (vert : ça passe ; jaune, orange, rouge : ralentis, freine) ; « Virage N km/h » au-dessus
+    // du virage annoncé. La trame porte {s0, pts : [d, y, v], corner : [d, v]} (steer.guide, calculé 5 fois par seconde).
+    drawGuide() {
+      const g = this.game, F = this.fr, G = F && F.guide;
+      const meO = F ? F.riders.find((o) => o.id === F.me) : null;
+      const on = !!(G && meO && this.ready && Array.isArray(G.pts) && G.pts.length && !meO.st && !meO.fin);
+      if (!on) { if (this.gd) { this.gd.mesh.visible = false; this.gd.label.hidden = true; } return; }
+      if (!this.gd) {
+        const sh = new THREE.Shape();
+        // chevron allongé, pointe vers l'avant (+y du dessin, +z après rotation) : 1,6 m de large, 2,8 m de long. La caméra de poursuite
+        // voit la route de très bas : la longueur s'écrase, la largeur reste ; plus petit, il ne serait qu'un trait
+        sh.moveTo(0, 1.8); sh.lineTo(0.8, 0.3); sh.lineTo(0.8, -1.0); sh.lineTo(0, 0.6); sh.lineTo(-0.8, -1.0); sh.lineTo(-0.8, 0.3); sh.closePath();
+        const geo = new THREE.ShapeGeometry(sh);
+        geo.rotateX(Math.PI / 2);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+        const mesh = new THREE.InstancedMesh(geo, mat, 24);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 5;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        const label = document.createElement('div');
+        label.className = 'pyr-turn';
+        label.hidden = true;
+        document.body.appendChild(label);
+        this.gd = { mesh, label, o: new THREE.Object3D(), c: new THREE.Color(), q: {}, v: new THREE.Vector3() };
+      }
+      const D = this.gd, mesh = D.mesh, route = g.route, q = D.q, o = D.o;
+      if (mesh.parent !== g.scene) g.scene.add(mesh);
+      mesh.visible = true;
+      const vNow = Math.max(0, num(meO.v, 0)), sNow = num(meO.s, 0), pts = G.pts, s0 = num(G.s0, 0);
+      // couleur d'après le rapport vitesse / vitesse conseillée : vert sous 90 %, rouge au-delà de 115 %
+      const tint = (vAdv) => { const t = clamp((vNow / Math.max(1, vAdv) - 0.9) / 0.25, 0, 1); return D.c.setHSL(0.33 * (1 - t), 1, 0.55 - 0.07 * t); };
+      let n = 0;
+      for (let i = 0; i < pts.length && n < mesh.count; i++) {
+        const [d, y, v] = pts[i], s = s0 + d;
+        if (s < sNow + 2.5) continue; // sous le coureur ou déjà dépassé
+        const p = pts[i - 1] || pts[i], nx = pts[i + 1] || pts[i];
+        const slope = (nx[0] - p[0]) > 0 ? (nx[1] - p[1]) / (nx[0] - p[0]) : 0;
+        route.sample(this.toS(s), q);
+        o.position.set(q.x + q.rx * y, q.y + 0.12, q.z + q.rz * y); // au-dessus de la chaussée (bombée), comme les marquages peints
+        o.rotation.set(-Math.atan(q.grade || 0), Math.atan2(q.tx + q.rx * slope, q.tz + q.rz * slope), 0, 'YXZ');
+        o.scale.setScalar(1);
+        o.updateMatrix();
+        mesh.setMatrixAt(n, o.matrix);
+        mesh.setColorAt(n, tint(v));
+        n++;
+      }
+      // les chevrons inutilisés : à l'échelle zéro
+      o.scale.setScalar(0); o.updateMatrix();
+      for (let i = n; i < mesh.count; i++) mesh.setMatrixAt(i, o.matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      // « Virage N km/h » au-dessus du virage annoncé (pas en VR)
+      const L = D.label, c = G.corner;
+      const cs = c ? s0 + c[0] : 0;
+      if (!c || cs < sNow - 5 || (g.vr && g.vr.presenting)) { L.hidden = true; return; }
+      const near = pts.reduce((a, p) => (Math.abs(s0 + p[0] - cs) < Math.abs(s0 + a[0] - cs) ? p : a), pts[0]);
+      route.sample(this.toS(cs), q);
+      const v = D.v.set(q.x + q.rx * near[1], q.y + 1.2, q.z + q.rz * near[1]).project(g.camera);
+      if (!(v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1)) { L.hidden = true; return; }
+      L.hidden = false;
+      // « freine ! » : quand tu vas déjà plus vite que la vitesse conseillée là où tu es (le premier chevron devant toi)
+      const ahead = pts.find((p) => s0 + p[0] >= sNow + 1.5) || pts[pts.length - 1];
+      const kmh = Math.round(c[1] * 3.6), fast = vNow > ahead[2] * 1.03;
+      const text = 'Virage ' + kmh + ' km/h' + (fast ? ' · freine !' : '');
+      if (L.textContent !== text) L.textContent = text;
+      L.classList.toggle('fast', fast);
+      L.style.transform = 'translate(' + ((v.x + 1) / 2 * window.innerWidth).toFixed(1) + 'px,' + ((1 - v.y) / 2 * window.innerHeight).toFixed(1) + 'px) translate(-50%, -100%)';
+    },
+
     // Marqueurs des coéquipiers (mode équipe) au-dessus de leur tête : losange aux couleurs de l'équipe, initiales, aérobie et anaérobie ;
     // le coureur piloté en jaune. Un toucher fait piloter ce coureur (message « pick »). Appelée après la caméra, à chaque image.
     marks() {

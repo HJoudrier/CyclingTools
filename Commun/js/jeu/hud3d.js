@@ -46,6 +46,7 @@
     { id: 'markers', label: 'Marqueurs des coéquipiers dans la vue 3D (touche-les pour les piloter)' },
     { id: 'breath', label: 'Respiration du coureur (son de la vue 3D)' },
     { id: 'vibe', label: 'Vibrations (téléphone Android : battements, bas-côté, chute, freinage)' },
+    { id: 'guide', label: 'Aide à la trajectoire en manuelle : chevrons sur la route (corde, vitesse conseillée : rouge, freine !)' },
   ];
   const EDGE_FROM = 0.4, VIBE_FROM = 0.2; // anaérobie (W′) : le bord rougit sous 40 %, le téléphone bat sous 20 %
 
@@ -419,7 +420,7 @@
     if (f.wf < VIBE_FROM && f.hr > 0 && now >= S.beatAt) { vibrate([22, 110, 14]); S.beatAt = now + 60000 / f.hr; }
   }
   /** Réglages d'immersion pour la vue 3D (trame de view3d.js) : marqueurs des coéquipiers, respiration. */
-  function fx() { return S.mode ? { mk: feelOn('markers'), br: feelOn('breath') } : null; }
+  function fx() { return S.mode ? { mk: feelOn('markers'), br: feelOn('breath'), gd: feelOn('guide') } : null; }
 
   /** Vignette d'un coureur : identité, effort, endurance, effort court, actions. */
   function card(r) {

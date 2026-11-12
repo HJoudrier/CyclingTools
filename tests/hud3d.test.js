@@ -79,7 +79,7 @@ test('actions des vignettes : chacune est un ordre du moteur (ou manger), avec u
 
 test('éléments du HUD : ceux du menu « Affichage » (éléments, sensations) sont ceux de l\'état par défaut, tous actifs sauf le temps et la météo', () => {
   const widgets = idsOf('WIDGETS'), feel = [...HUD.slice(HUD.indexOf('const FEEL = ['), HUD.indexOf('];', HUD.indexOf('const FEEL = ['))).matchAll(/\{ id: '([a-zA-Z]+)'/g)].map((m) => m[1]);
-  assert.deepEqual(feel, ['redEdge', 'markers', 'breath', 'vibe']);
+  assert.deepEqual(feel, ['redEdge', 'markers', 'breath', 'vibe', 'guide']);
   const m = read('Commun/js/core/store.js').match(/hud3d: \{([^}]+)\}/);
   assert.ok(m, 'ui.hud3d dans store.js');
   const def = Object.fromEntries([...m[1].matchAll(/(\w+): (true|false)/g)].map((x) => [x[1], x[2] === 'true']));
@@ -138,9 +138,25 @@ test('sensations (maquette I) : bord rouge et cœur au rythme de la FC, vibratio
   const br = read('VirtualRide3D/univers/js/bridge.js');
   assert.match(br, /this\.post\(\{ type: 'pick', id: el\.dataset\.id \}\)/);
   assert.match(br, /g\.sound\.breathe\(dt, this\.breathOf\(\)\)/);
-  assert.match(read('VirtualRide3D/univers/js/game.js'), /if \(this\.ext\.marks\) this\.ext\.marks\(\);/);
+  assert.match(read('VirtualRide3D/univers/js/game.js'), /if \(this\.ext\.overlay\) this\.ext\.overlay\(\);/);
+  assert.match(br, /\n    overlay\(\) \{\n      this\.drawGuide\(\);\n      this\.marks\(\);/);
   assert.match(read('VirtualRide3D/univers/js/audio.js'), /\n    breathe\(dt, B\) \{/);
   assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-mark \{/);
+});
+
+test('aide à la trajectoire : calculée en trajectoire manuelle, envoyée dans la trame, dessinée en chevrons dans la vue', () => {
+  const tg = read('Commun/js/jeu/tab-game.js');
+  assert.match(tg, /me\.lat && me\.lat\.manual && !me\.incident && !me\.finished && \(PYR\.hud3d\.fx\(\) \|\| \{\}\)\.gd/);
+  assert.match(tg, /PYR\.steer\.guide\(G\.ctx\.course, me\.st\.s, \{ cond: me\.cond, maxHalf: me\.lat\.edgeMax \}\)/);
+  const V3 = PYR.view3d;
+  const f = V3.frameMessage({ t: 1, me: { id: 'a', s: 100 }, others: [], guide: { pts: [{ d: 4, s: 104, y: 1.234, v: 12.345 }, { d: 8, s: 108, y: 2, v: 11 }], corner: { d: 40, v: 9.87 } } });
+  assert.deepEqual(f.guide, { s0: 100, pts: [[4, 1.23, 12.35], [8, 2, 11]], corner: [40, 9.87] });
+  assert.equal(V3.frameMessage({ t: 1, me: { id: 'a' }, others: [], guide: { pts: [], corner: null } }).guide, undefined);
+  const br = read('VirtualRide3D/univers/js/bridge.js');
+  assert.match(br, /new THREE\.InstancedMesh\(geo, mat, 24\)/);
+  assert.match(br, /mesh\.setColorAt\(n, tint\(v\)\)/);
+  assert.match(br, /'Virage ' \+ kmh \+ ' km\/h' \+ \(fast \? ' · freine !' : ''\)/);
+  assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-turn\.fast \{/);
 });
 
 test('niveau de réalisme : Arcade ou Simulation sur la page de choix de Course 3D, Arcade par défaut dans Course 3D seulement', () => {
