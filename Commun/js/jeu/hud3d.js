@@ -11,8 +11,12 @@
  * game-mobile.js garde la machine d'états de l'écran de course (enter, leave, sync, téléphone ou grand écran) et délègue ici le montage et
  * l'affichage ; la logique reste dans tab-game.js (setPct, act, togglePause, switchRider). Actif seulement sur VirtualRide3D/course.html
  * (body data-hud="overlay").
- * Trajectoire (vignette du coureur piloté, touche V) : automatique à la corde, automatique large, ou manuelle (← → et F, manette, gyroscope,
- * contrôleurs VR : jeu/steer-input.js) ; en manuel, sur téléphone, un bouton « Frein » à maintenir et le gyroscope. */
+ * Trajectoire (vignette du coureur piloté, touche V) : automatique (à la corde) ou manuelle (← → et F, manette, gyroscope, contrôleurs VR :
+ * jeu/steer-input.js).
+ * Téléphone (paysage) : une autre disposition (doc/maquettes-course3d, D, F et I). En haut, le coureur actif (◀ ▶ vers le coéquipier le
+ * plus proche derrière ou devant), sa puissance (éclair), sa vitesse et sa FC (cœur) ; à gauche, l'équipe et la trajectoire ; à droite, la
+ * radio d'équipe (les actions du coureur actif, en liste) et le menu. En bas, Freiner, l'effort (aspiration, aérobie, anaérobie) et
+ * Accélérer (à tapoter). */
 (function (PYR) {
   'use strict';
 
@@ -27,6 +31,7 @@
   /** Éléments du HUD qu'on peut masquer (onglet « Affichage » du menu), dans l'ordre de l'onglet. */
   const WIDGETS = [
     { id: 'power', label: 'Puissance' }, { id: 'speed', label: 'Vitesse' }, { id: 'hr', label: 'Fréquence cardiaque' },
+    { id: 'draft', label: 'Aspiration (watts économisés)' },
     { id: 'grade', label: 'Pente' }, { id: 'togo', label: 'Distance restante' }, { id: 'time', label: 'Temps de course' },
     { id: 'next', label: 'Prochain point (sprint, sommet, arrivée)' }, { id: 'wx', label: 'Météo à ta position' },
     { id: 'banner', label: 'Alertes de course (fringale, chute, W′ épuisé…)' }, { id: 'rank', label: 'Classement de l\'étape' },
@@ -51,7 +56,15 @@
     minus: ['M5 12h14'], plus: ['M5 12h14', 'M12 5v14'],
     brake: ['M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18', 'M8 12h8'],
     tilt: ['M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z', 'M3 9l2 3-2 3', 'M21 9l-2 3 2 3'],
+    team: ['M9 11a4 4 0 1 0 0-8 4 4 0 1 0 0 8', 'M2 21v-1a6 6 0 0 1 12 0v1', 'M16 3.5a4 4 0 0 1 0 7.5', 'M22 21v-1a6 6 0 0 0-4-5.6'],
+    left: ['M15 6l-6 6 6 6'], right: ['M9 6l6 6-6 6'],
+    bolt: ['M13 2 4 14h7l-1 8 9-12h-7z'],
+    accel: ['M5 13l7-7 7 7', 'M5 20l7-7 7 7'],
+    // radio d'équipe : un casque à micro (les consignes du directeur sportif)
+    radio: ['M4 14v-2a8 8 0 0 1 16 0v2', 'M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2', 'M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2', 'M18 16v1a4 4 0 0 1-4 4h-2'],
+    rotate: ['M4 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M16 3a5 5 0 0 1 5 5', 'M19 8l2 0 0-2'],
   };
+  const HEART = 'M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z';
   /** Trajectoire du coureur piloté : automatique à la corde, automatique large, manuelle. */
   const STEERS = [
     { id: 'auto', label: 'Auto', help: 'Pilote automatique : il prend les virages à la corde, s\'écarte pour remonter, évite les chutes et freine pour toi' },
@@ -61,7 +74,8 @@
 
   const H = {};
   const E = {};                                  // éléments construits par build()
-  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [] };
+  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [], pos: new Map(), pop: null, locked: false };
+  const P = {};                                  // téléphone : éléments construits par buildPhone()
   let T = null, G = null;
 
   const on = () => PYR.appId === 'jeu3d' && document.body.dataset.hud === 'overlay';
@@ -130,7 +144,8 @@
     E.wx = chip('wx', 'Météo à ta position : température, vent sur ton cap, pluie');
     E.top = h('div', { class: 'h3-top' },
       h('div', { class: 'h3-stats' }, E.power.el, E.speed.el, E.hr.el),
-      h('div', { class: 'h3-chips' }, E.grade, E.togo, E.time, E.next, E.wx, E.steer = chip('steer', 'Trajectoire du coureur piloté (touche V : automatique ↔ manuelle)')));
+      h('div', { class: 'h3-chips' }, E.draft = chip('draft', 'Watts que tu n\'as pas à dépenser grâce à l\'aspiration (dans les roues)'), E.grade, E.togo, E.time, E.next, E.wx,
+        E.steer = chip('steer', 'Trajectoire du coureur piloté (touche V : automatique ↔ manuelle)')));
     E.menuBtn = h('button', { class: 'h3-tool', type: 'button', title: 'Menu (Échap) : reprendre, profil de l\'étape, classements, affichage, quitter', 'aria-label': 'Menu', onclick: () => H.menu() }, icon(ICON.menu));
     E.tools = h('div', { class: 'h3-tools' }, E.menuBtn);
     E.rankList = h('ol', { class: 'h3-rank-list' });
@@ -162,6 +177,200 @@
     E.drive = h('div', { class: 'h3-drive', hidden: true }, E.tiltBtn, E.brake);
     E.root = h('div', { class: 'h3', hidden: true }, E.top, E.tools, E.rank, E.dock, E.dots, E.drive);
     $('.map-wrap').append(E.root);
+    buildPhone();
+  }
+
+  /* ---------- téléphone en paysage : la disposition D (haut et bas), la liste d'actions de F ---------- */
+  function svgHeart() {
+    const s = document.createElementNS(SVG, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('class', 'h3p-heart');
+    const pa = document.createElementNS(SVG, 'path');
+    pa.setAttribute('d', HEART);
+    s.appendChild(pa);
+    return s;
+  }
+
+  function buildPhone() {
+    const btn = (cls, title, kids, onclick) => h('button', { class: cls, type: 'button', title, 'aria-label': title, onclick }, ...kids);
+    // en haut à gauche : l'équipe, la trajectoire (auto / manuelle), le gyroscope (manuelle)
+    P.teamBtn = btn('h3p-sq', 'Ton équipe : choisis le coureur à piloter', [icon(ICON.team)], (e) => { e.stopPropagation(); togglePop('team'); });
+    P.steerBtns = STEERS.map((m) => h('button', { type: 'button', 'data-steer': m.id, title: m.help, 'aria-pressed': 'false', onclick: () => { T.setSteer(m.id); update(true); } }, m.label));
+    P.steer = h('div', { class: 'h3p-seg', role: 'group', 'aria-label': 'Trajectoire' }, h('span', { class: 'h3-lbl' }, 'Traj.'), ...P.steerBtns);
+    P.gyro = btn('h3p-sq h3p-gyro', 'Gyroscope : incline le téléphone pour piloter', [icon(ICON.tilt)], async () => {
+      const ok = await PYR.steerInput.setTilt(!PYR.steerInput.tiltOn);
+      if (!ok && !PYR.steerInput.tiltOn) D.toast('Gyroscope indisponible (capteur absent ou permission refusée).', 'error');
+      update(true);
+    });
+    P.tl = h('div', { class: 'h3p-tl' }, P.teamBtn, h('div', { class: 'h3p-row' }, P.steer, P.gyro));
+    // en haut au centre : le coureur actif ; ◀ ▶ : le coéquipier le plus proche derrière ou devant
+    const near = (dir) => (e) => { e.stopPropagation(); const n = T.nearRider(dir); if (n) T.switchRider(n.r.id); update(true); };
+    P.prevL = h('small'); P.nextL = h('small');
+    P.prev = btn('h3p-nav', 'Coéquipier le plus proche derrière', [icon(ICON.left), P.prevL], near(-1));
+    P.next = btn('h3p-nav', 'Coéquipier le plus proche devant', [icon(ICON.right), P.nextL], near(1));
+    P.tag = h('i', { class: 'h3p-tag' });
+    P.name = h('strong', { class: 'h3p-name' });
+    P.sub = h('span', { class: 'h3p-sub' });
+    P.pw = h('b'); P.sp = h('b'); P.hr = h('b');
+    P.heart = svgHeart();
+    P.top = h('div', { class: 'h3p-top' }, P.prev,
+      h('div', { class: 'h3p-mid' },
+        h('div', { class: 'h3p-who' }, P.tag, P.name, P.sub),
+        h('div', { class: 'h3p-stats' },
+          h('span', { class: 'h3p-pw h3-w-power', title: 'Puissance' }, icon(ICON.bolt), P.pw, h('em', null, 'W')),
+          h('span', { class: 'h3-w-speed', title: 'Vitesse' }, P.sp, h('em', null, 'km/h')),
+          h('span', { class: 'h3p-hrbox h3-w-hr', title: 'Fréquence cardiaque' }, P.heart, P.hr))),
+      P.next);
+    P.warn = h('div', { class: 'h3p-warn', hidden: true });
+    // en haut à droite (avec le menu) : la radio d'équipe, qui ouvre les actions du coureur actif
+    P.radio = btn('h3-tool h3p-radio phone-only', 'Radio d\'équipe : les actions du coureur actif', [icon(ICON.radio)], (e) => { e.stopPropagation(); togglePop('acts'); });
+    E.tools.prepend(P.radio);
+    // en bas : Freiner (on le tient), l'effort, Accélérer (on le tapote)
+    P.brake = h('button', { class: 'h3p-round h3p-brake', type: 'button', 'aria-label': 'Freiner (maintiens appuyé)' }, h('span', { class: 'in' }, icon(ICON.brake), 'FREINER'));
+    const brake = (on) => (e) => { if (e.cancelable) e.preventDefault(); PYR.steerInput.setBrakeButton(on); P.brake.classList.toggle('on', on); };
+    P.brake.addEventListener('pointerdown', brake(true));
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) P.brake.addEventListener(ev, brake(false));
+    P.accel = h('button', { class: 'h3p-round h3p-accel', type: 'button', 'aria-label': 'Accélérer (tapote à répétition)' },
+      h('span', { class: 'in' }, icon(ICON.accel), 'ACCÉLÉRER', h('small', null, 'tapote !')));
+    P.accel.addEventListener('pointerdown', (e) => { if (e.cancelable) e.preventDefault(); T.sprintTap(); update(true); });
+    P.fill = h('i', { class: 'h3-fill' });
+    P.boost = h('i', { class: 'h3p-boost' });
+    P.now = h('i', { class: 'h3-now' });
+    P.track = h('div', { class: 'h3-track', role: 'slider', tabindex: '0', 'aria-label': 'Effort du coureur actif (% de la PC)', 'aria-valuemin': '0', 'aria-valuemax': String(PCT_MAX) },
+      P.fill, P.boost, h('i', { class: 'h3-cp', style: `left:${(100 / PCT_MAX * 100).toFixed(2)}%` }), P.now);
+    bindTrack({ get r() { return G.me; }, track: P.track });
+    P.val = h('b', { class: 'h3-pct' }, '–');
+    P.minus = h('button', { class: 'h3-step', type: 'button', 'aria-label': 'Effort −5 %', onclick: () => nudge(G.me, -PCT_STEP) }, icon(ICON.minus));
+    P.plus = h('button', { class: 'h3-step', type: 'button', 'aria-label': 'Effort +5 %', onclick: () => nudge(G.me, PCT_STEP) }, icon(ICON.plus));
+    P.draft = h('span', { class: 'h3p-draft h3-w-draft', title: 'Watts que tu n\'as pas à dépenser grâce à l\'aspiration' });
+    P.aer = h('i'); P.ana = h('i');
+    P.aerRow = h('div', { class: 'h3p-m h3p-aer', title: 'Aérobie : le glycogène (endurance). Manger la recharge.' }, h('span', null, 'Aérobie'), h('div', { class: 'h3-gauge' }, P.aer));
+    P.anaRow = h('div', { class: 'h3p-m h3p-ana', title: 'Anaérobie : la réserve W′ (efforts au-dessus de 100 % de la PC)' }, h('span', null, 'Anaérobie'), h('div', { class: 'h3-gauge' }, P.ana));
+    P.low = h('div', { class: 'h3p-low' },
+      h('div', { class: 'h3p-effort' }, h('span', { class: 'h3-lbl' }, 'Effort'), P.minus, P.track, P.plus, P.val),
+      h('div', { class: 'h3p-meters' }, P.draft, P.aerRow, P.anaRow));
+    // fenêtres : l'équipe (à gauche), les actions (à droite)
+    P.popTeam = h('div', { class: 'h3p-pop h3p-pop-team', hidden: true, role: 'dialog', 'aria-label': 'Ton équipe' });
+    P.popActs = h('div', { class: 'h3p-pop h3p-pop-acts', hidden: true, role: 'dialog', 'aria-label': 'Actions du coureur actif' });
+    P.edge = h('div', { class: 'h3p-edge', 'aria-hidden': 'true' });
+    P.rotate = h('div', { class: 'h3p-rotate' }, icon(ICON.rotate), h('p', null, 'Tourne ton téléphone : la course se joue en paysage.'));
+    P.root = h('div', { class: 'h3p' }, P.edge, P.tl, P.top, P.warn, P.low, P.brake, P.accel, P.popTeam, P.popActs, P.rotate);
+    E.root.appendChild(P.root);
+    // un toucher ailleurs ferme les fenêtres ; le premier toucher demande le plein écran et le paysage (quand le navigateur le permet)
+    document.addEventListener('pointerdown', (e) => {
+      if (S.mode !== 'phone') return;
+      if (S.pop && !P.popTeam.contains(e.target) && !P.popActs.contains(e.target) && !P.teamBtn.contains(e.target) && !P.radio.contains(e.target)) togglePop(null);
+      lockLandscape();
+    }, true);
+  }
+
+  /** Plein écran et paysage, au premier toucher (un geste est nécessaire) ; sans effet si le navigateur ne le permet pas (iPhone). */
+  function lockLandscape() {
+    if (S.locked) return;
+    S.locked = true;
+    const el = document.documentElement;
+    const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* refusé */ } };
+    try {
+      if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(lock, () => {});
+      else lock();
+    } catch (e) { /* refusé */ }
+  }
+
+  /** Ouvre la fenêtre 'team' ou 'acts' (une seule à la fois) ; null ou la même : ferme. */
+  function togglePop(which) {
+    S.pop = which && S.pop !== which ? which : null;
+    P.popTeam.hidden = S.pop !== 'team';
+    P.popActs.hidden = S.pop !== 'acts';
+    P.teamBtn.setAttribute('aria-expanded', String(S.pop === 'team'));
+    P.radio.setAttribute('aria-expanded', String(S.pop === 'acts'));
+    if (S.pop) renderPops();
+  }
+
+  /** Contenu des fenêtres : l'équipe (un toucher pilote le coureur), les actions du coureur actif (une colonne). */
+  function renderPops() {
+    if (S.pop === 'team' && G.team) {
+      D.clear(P.popTeam);
+      P.popTeam.appendChild(h('div', { class: 'h3p-pophead' }, 'Ton équipe · touche un coureur pour le piloter'));
+      for (const r of G.team.own) {
+        const en = r.fuel ? Fu.status(r.fuel).energy : 0, w = U.clamp(r.st.wbal / Math.max(1, Sim.w0Of(r.ctx, r.st)), 0, 1);
+        const ph = tint(h('span', { class: 'tg-photo h3-photo' }, initials(r.name)), r.color || G.team.teams[0].color);
+        photo(ph, r.name);
+        const p = S.pos.get(r.id);
+        P.popTeam.appendChild(h('button', {
+          class: 'h3p-rider' + (r === G.me ? ' on' : ''), type: 'button', disabled: r.finished ? true : undefined,
+          onclick: () => { T.switchRider(r.id); togglePop(null); update(true); },
+        }, ph, h('span', { class: 'h3p-rn' }, h('strong', null, r.name), h('small', null, [r.strat ? r.strat.label : '', p ? `${p}ᵉ` : '', r === G.me ? 'actif' : r.finished ? 'arrivé' : ''].filter(Boolean).join(' · '))),
+        h('span', { class: 'h3p-minibars' }, h('i', { class: 'e', style: `width:${(en * 100).toFixed(0)}%` }), h('i', { class: 'w', style: `width:${(w * 100).toFixed(0)}%` }))));
+      }
+    } else if (S.pop === 'acts') {
+      D.clear(P.popActs);
+      const me = G.me, mode = me.tac.mode, lay = Tac.layersOf(me);
+      P.popActs.appendChild(h('div', { class: 'h3p-pophead' }, `Radio : ${G.team ? me.name.split(' ')[0] : 'ton coureur'}`));
+      for (const a of ACTIONS) {
+        const on = a.id === 'relay' ? lay.relay : a.id === 'cover' ? lay.cover : a.id === 'follow' ? mode === 'follow' && !lay.cover && !lay.relay : a.id === mode;
+        const extra = a.id === 'eat' && me.fuel ? `${Fu.count(me.fuel, 'gel') + Fu.count(me.fuel, 'bar')} en poche` : '';
+        P.popActs.appendChild(h('button', {
+          class: 'h3p-act' + (on ? ' on' : ''), type: 'button', title: a.help, disabled: me.finished || (a.id === 'eat' && !me.fuel) ? true : undefined,
+          onclick: () => { T.act(a.id, me); togglePop(null); update(true); },
+        }, icon(a.d), h('span', null, a.label), extra ? h('small', null, extra) : null));
+      }
+    }
+  }
+
+  /** Le téléphone, à chaque mise à jour du HUD. */
+  function renderPhone(s) {
+    const me = G.me;
+    if (!s || !me) return;
+    const team = !!G.team;
+    // le coureur actif, sa place, ce qu'il fait
+    P.name.textContent = team ? me.name : (store.state.rider.name || 'Toi');
+    P.tag.style.background = me.color || (team ? G.team.teams[0].color : '#e8791d');
+    const p = S.pos.get(me.id) || s.rank;
+    const what = me.incident ? (me.incident.type === 'crash' ? 'chute !' : 'crevaison !') : G.auto ? 'pilote automatique' : (Tac.LABELS[me.tac.mode] || '');
+    P.sub.textContent = [p && s.total ? `${p}ᵉ/${s.total}` : '', what].filter(Boolean).join(' · ');
+    P.pw.textContent = fmt(s.p, 0);
+    P.sp.textContent = fmt(s.v, 1);
+    P.hr.textContent = Number.isFinite(s.hrBpm) ? fmt(s.hrBpm, 0) : '–';
+    // ◀ ▶ : coéquipiers les plus proches (mode équipe)
+    const b = team ? T.nearRider(-1) : null, a = team ? T.nearRider(1) : null;
+    const short = (r) => String(r.name).split(/\s+/)[0];
+    P.prev.hidden = P.next.hidden = !team;
+    P.prev.disabled = !b; P.next.disabled = !a;
+    const gap = (d, sign) => (Math.abs(d) < 0.5 ? '0 m' : `${sign}${fmt(Math.abs(d), 0)} m`);
+    P.prevL.textContent = b ? `${short(b.r)} ${gap(b.d, '−')}` : '—';
+    P.nextL.textContent = a ? `${short(a.r)} ${gap(a.d, '+')}` : '—';
+    P.teamBtn.hidden = !team;
+    // trajectoire
+    const ok = T.steerable(), manual = ok && T.steerMode() === 'manual';
+    P.steer.hidden = !ok;
+    for (const x of P.steerBtns) x.setAttribute('aria-pressed', String(x.dataset.steer === T.steerMode()));
+    P.gyro.hidden = !manual;
+    P.gyro.setAttribute('aria-pressed', String(PYR.steerInput.tiltOn));
+    P.warn.hidden = !S.steerWarn;
+    if (S.steerWarn) P.warn.textContent = S.steerWarn;
+    // effort : consigne, ce qu'ajoute Accélérer, puissance produite
+    const set = T.pctOf(me), cur = T.pctNow(me), base = set === null ? cur : set;
+    P.fill.style.width = (U.clamp(base / PCT_MAX, 0, 1) * 100).toFixed(1) + '%';
+    P.fill.classList.toggle('auto', set === null);
+    const over = s.boost > 0 ? Math.max(0, cur - base) : 0;
+    P.boost.style.left = (U.clamp(base / PCT_MAX, 0, 1) * 100).toFixed(1) + '%';
+    P.boost.style.width = (U.clamp(over / PCT_MAX, 0, 1) * 100).toFixed(1) + '%';
+    P.now.style.left = (U.clamp(cur / PCT_MAX, 0, 1) * 100).toFixed(1) + '%';
+    P.track.setAttribute('aria-valuenow', String(Math.round(base)));
+    P.val.textContent = `${fmt(base, 0)} %`;
+    P.val.classList.toggle('auto', set === null);
+    // aspiration, aérobie, anaérobie
+    const dr = Number(s.draft) || 0;
+    P.draft.textContent = dr >= 3 ? `Aspiration −${fmt(dr, 0)} W` : 'Aspiration –';
+    P.draft.classList.toggle('zero', dr < 3);
+    P.aerRow.hidden = !s.fuel;
+    if (s.fuel) { P.aer.style.width = (U.clamp(s.fuel.energy, 0, 1) * 100).toFixed(1) + '%'; P.aerRow.classList.toggle('low', s.fuel.energy < 0.2); }
+    P.ana.style.width = (U.clamp(s.wf, 0, 1) * 100).toFixed(1) + '%';
+    P.anaRow.classList.toggle('low', s.wf < 0.2);
+    // Accélérer : l'anneau se remplit à chaque appui et se vide en une seconde
+    P.accel.style.setProperty('--fill', (U.clamp(s.boost || 0, 0, 1) * 360).toFixed(0) + 'deg');
+    if (S.pop) renderPops();
   }
 
   /** Vignette d'un coureur : identité, effort, endurance, effort court, actions. */
@@ -201,7 +410,7 @@
     c.auto = h('button', { class: 'h3-mini', type: 'button', title: 'Rendre ce coureur à la stratégie de son rôle (ses propres décisions)', onclick: (e) => { e.stopPropagation(); T.act('auto', r); update(true); } }, icon(ICON.auto), 'Auto');
     c.pilot = h('button', { class: 'h3-mini', type: 'button', title: 'Piloter ce coureur : la caméra le suit, le clavier le commande', onclick: (e) => { e.stopPropagation(); T.switchRider(r.id); } }, icon(ICON.cam), 'Piloter');
     c.mates = h('div', { class: 'h3-mates' }, c.auto, c.pilot);
-    // trajectoire (coureur piloté) : corde, large ou manuelle
+    // trajectoire (coureur piloté) : automatique ou manuelle
     c.steerBtns = STEERS.map((m) => h('button', {
       type: 'button', 'data-steer': m.id, 'aria-pressed': 'false', title: m.help,
       onclick: (e) => { e.stopPropagation(); T.setSteer(m.id); update(true); },
@@ -313,21 +522,24 @@
     }
     mirror(E.next, $('#hud-next'));
     mirror(E.wx, $('#hud-wx'));
+    if (s) { const dr = Number(s.draft) || 0; E.draft.hidden = dr < 3; if (dr >= 3) E.draft.textContent = `Aspiration −${fmt(dr, 0)} W`; }
     // téléphone : frein, gyroscope et classement se posent au-dessus de la vignette (sa hauteur change avec son contenu)
     if (S.mode === 'phone') E.root.style.setProperty('--h3-dock-h', E.dock.offsetHeight + 'px');
     renderSteer();
-    for (const c of S.cards.values()) renderCard(c);
     if (now - S.rankAt > RANK_MS || force) { S.rankAt = now; renderRank(); }
+    if (S.mode === 'phone') { renderPhone(s); return; }
+    for (const c of S.cards.values()) renderCard(c);
   }
 
   /** Trajectoire : la puce du haut (mode, source des commandes, alertes de bas-côté et de virage trop rapide), frein et gyroscope (téléphone). */
   function renderSteer() {
     const me = G.me, ok = T.steerable(), L = ok ? me.lat : null, manual = !!(L && L.manual);
-    E.drive.hidden = !manual || S.mode !== 'phone' || S.page === 1; // pas sur la vue de l'équipe
+    E.drive.hidden = true; // (ancienne disposition du téléphone : le frein et le gyroscope sont maintenant dans buildPhone)
     E.steer.hidden = !ok;
+    S.steerWarn = '';
     if (!ok) return;
     let text, warn = false;
-    if (!manual) text = T.steerMode() === 'wide' ? 'Trajectoire auto · large' : 'Trajectoire auto · corde';
+    if (!manual) text = 'Trajectoire auto';
     else {
       const inp = G.steerIn || PYR.steerInput.read(0);
       text = `Trajectoire manuelle ${SRC_ICON[inp.source] || ''}`;
@@ -339,6 +551,7 @@
     }
     if (E.steer.textContent !== text) E.steer.textContent = text;
     E.steer.classList.toggle('warn', warn);
+    if (warn) S.steerWarn = text;
     E.tiltBtn.setAttribute('aria-pressed', String(PYR.steerInput.tiltOn));
   }
 
@@ -413,7 +626,7 @@
       return '+' + U.fmtClock(Math.max(0, lead.dt - x.dt));
     };
     // place de chaque coureur des vignettes
-    const pos = new Map(rows.map((x, i) => [x.me ? G.me.id : x.id, i + 1]));
+    const pos = S.pos = new Map(rows.map((x, i) => [x.me ? G.me.id : x.id, i + 1]));
     for (const c of S.cards.values()) { const p = pos.get(c.r.id); c.place.textContent = p ? `${p}ᵉ` : ''; }
     const show = new Set(rows.slice(0, phone ? 3 : 5));
     for (const x of rows) if (mineRow(x)) show.add(x);
@@ -432,6 +645,7 @@
   /** Ouvre le menu sur l'onglet tab ('race', 'profile', 'classif', 'display', 'result'). La course est mise en pause, sauf en direct. */
   H.menu = function (tab) {
     if (!S.mode) return;
+    if (S.pop) togglePop(null);
     if (S.menu && !S.menu.closed) { S.menu.close(); return; }
     S.pausedByMenu = false;
     if (G.running && !G.finished && G.mode !== 'live') { T.togglePause(); S.pausedByMenu = true; }
@@ -571,6 +785,7 @@
     applyPrefs();
     ensureCards();
     placeCards();
+    if (S.pop) togglePop(null);
     update(true);
   };
 

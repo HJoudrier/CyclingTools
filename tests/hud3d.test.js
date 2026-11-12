@@ -95,6 +95,26 @@ test('feuille de style : les classes h3-* que dessine le module existent', () =>
   for (const cls of used) assert.ok(CSS.includes('.' + cls), `.${cls}`);
 });
 
+test('téléphone en paysage : haut et bas (maquette D), radio d\'équipe et liste d\'actions en une colonne (F), paysage demandé', () => {
+  // la couche du téléphone n'apparaît qu'en mode « phone » ; elle remplace les vignettes, le défileur et l'ancienne cellule Frein
+  assert.match(CSS, /\.h3\[data-mode="phone"\] \.h3p \{ display: block;/);
+  assert.match(CSS, /\.h3\[data-mode="phone"\] \.h3-dock,/);
+  assert.match(HUD, /if \(S\.mode === 'phone'\) \{ renderPhone\(s\); return; \}/);
+  // les éléments : équipe, trajectoire, ◀ ▶, éclair, cœur, Freiner, Accélérer (tapoté), effort, aspiration, aérobie, anaérobie
+  for (const cls of ['h3p-tl', 'h3p-top', 'h3p-nav', 'h3p-heart', 'h3p-brake', 'h3p-accel', 'h3p-low', 'h3p-draft', 'h3p-aer', 'h3p-ana', 'h3p-pop-acts', 'h3p-pop-team', 'h3p-rotate'])
+    assert.ok(HUD.includes(cls) && CSS.includes('.' + cls), cls);
+  for (const k of ['team', 'bolt', 'radio', 'accel', 'rotate']) assert.match(HUD, new RegExp(`\\n    ${k}: \\[`), k);
+  assert.match(HUD, /P\.accel\.addEventListener\('pointerdown', \(e\) => \{ if \(e\.cancelable\) e\.preventDefault\(\); T\.sprintTap\(\);/);
+  assert.match(HUD, /PYR\.steerInput\.setBrakeButton\(on\)/);
+  assert.match(HUD, /T\.nearRider\(dir\)/);
+  // actions du coureur actif, toutes (une colonne), et l'équipe : un toucher pilote le coureur
+  assert.match(HUD, /for \(const a of ACTIONS\) \{\n\s+const on = /);
+  assert.match(HUD, /onclick: \(\) => \{ T\.switchRider\(r\.id\); togglePop\(null\);/);
+  // paysage : plein écran et verrouillage au premier toucher, message en portrait
+  assert.match(HUD, /o\.lock\('landscape'\)/);
+  assert.match(CSS, /@media \(orientation: portrait\) \{\n\s+\.h3\[data-mode="phone"\] \.h3p-rotate/);
+});
+
 test('niveau de réalisme : Arcade ou Simulation sur la page de choix de Course 3D, Arcade par défaut dans Course 3D seulement', () => {
   const html = read('VirtualRide3D/index.html');
   assert.match(html, /id="gs-realism"/);

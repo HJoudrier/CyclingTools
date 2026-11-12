@@ -1891,7 +1891,9 @@
       Tac.sprintTap(me, me.st.t, line);
       if (!G.sprintHinted) {
         G.sprintHinted = true;
-        D.toast('Appuie plusieurs fois sur Sprint pour monter et maintenir l\'effort : chaque appui ajoute 20 % de l\'écart entre le haut de la zone PMA et ton record de puissance.', undefined, 6000);
+        D.toast(PYR.appId === 'jeu3d'
+          ? 'Tapote Accélérer (touche 7, gâchette RT) pour monter et garder l\'effort au-dessus de ta consigne : il retombe dès que tu arrêtes.'
+          : 'Appuie plusieurs fois sur Sprint pour monter et maintenir l\'effort : chaque appui ajoute 20 % de l\'écart entre le haut de la zone PMA et ton record de puissance.', undefined, 6000);
       }
       T.renderTactics();
       if (G.ctx) T.renderGauge(PYR.sim.availablePower(G.ctx, G.st).cap);
