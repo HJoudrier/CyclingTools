@@ -1101,12 +1101,23 @@
     /** Vue 3D (view3d.js) : la place de chacun à cette image ; la vue lit aussi la météo à la position du joueur. */
     publish3d(s, y, others, t) {
       const me = G.me;
+      // Course 3D, mode équipe : réserves des coéquipiers (marqueurs dans la vue) et FC du coureur piloté (respiration), deux fois par seconde
+      const nowMs = performance.now();
+      if (!G.feel || nowMs - G.feel.at > 500) {
+        const fs = me.fuel ? Fu.status(me.fuel) : null;
+        const mates = new Map();
+        if (G.team) for (const r of G.team.own) mates.set(r.id, { e: r.fuel ? Fu.status(r.fuel).energy : undefined, w: r.st.wbal / Math.max(1, PYR.sim.w0Of(r.ctx, r.st)) });
+        G.feel = { at: nowMs, hr: fs && Number.isFinite(fs.hr) ? fs.hr : undefined, e: fs ? fs.energy : undefined, mates };
+      }
+      const mate = (id) => G.feel.mates.get(id);
       PYR.view3d.publish({
+        fx: PYR.hud3d && PYR.hud3d.fx ? PYR.hud3d.fx() : undefined,
         course: G.ctx.course, cps: G.cps, feed: G.feed, t, sky: PYR.view3d.skySettings(store.state),
         k: T.effScale(timeScale()),
         run: G.running && !G.finished && performance.now() >= G.holdUntil,
         me: {
           id: meId(), name: myName(), color: G.team ? G.me.color : ME_COLOR, kind: source(), s, y, v: me.incident ? 0 : me.st.v, P: G.lastP, w: me.st.wbal / G.ctx.w0,
+          hr: G.feel.hr, e: G.feel.e, own: !!G.team,
           dr: me.draft && me.draft.k > 0 && me.draft.k < 1 ? 1 - me.draft.k : 0, st: !!me.incident, fin: !!me.finished, cp: G.ctx.cp,
           free: me.lat && me.lat.manual ? 1 : 0, // trajectoire manuelle : la vue le laisse aller sur le bas-côté
           // ton vélo et ta tenue en 3D, ceux de la vitrine du magasin
@@ -1118,6 +1129,7 @@
           return {
             id: o.id, name: o.name, color: o.color, kind: o.bot ? 'bot' : o.live ? o.kind || 'avatar' : 'ghost', s: o.s, y: o.y, P: o.P,
             v: ghost ? Math.max(0, R.tracePosAt(o.trace, t + 1) - o.s) : o.v, st: o.stopped, fin: ghost ? t >= o.time : o.time !== null && o.time !== undefined,
+            own: o.own && mate(o.id) ? true : undefined, e: o.own && mate(o.id) ? mate(o.id).e : undefined, w: o.own && mate(o.id) ? mate(o.id).w : undefined,
           };
         }),
       });

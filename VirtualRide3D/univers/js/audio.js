@@ -509,6 +509,33 @@
       osc.start(t); osc.stop(t + 0.5);
     }
 
+    // Respiration du coureur (Course 3D) : une inspiration (souffle plus aigu, qui monte) puis une expiration (plus grave, plus longue).
+    // B : {rate (respirations par minute, 15 à 50), level (0 à 1), pant (0 à 1 : halètement, réserve anaérobie vide)} ; null : silence.
+    breathe(dt, B) {
+      if (!this.ctx || this.muted || !B || !(B.rate > 0) || !(B.level > 0)) { this.breathT = 0; return; }
+      this.breathT = (this.breathT || 0) - dt;
+      if (this.breathT > 0) return;
+      const T = 60 / Math.max(10, Math.min(60, B.rate));
+      this.breathT = T * (0.94 + 0.12 * Math.random());
+      const ctx = this.ctx, t = ctx.currentTime + 0.02, pant = Math.max(0, Math.min(1, B.pant || 0));
+      const vol = (0.018 + 0.07 * Math.min(1, B.level)) * (1 + 0.5 * pant);
+      const part = (t0, dur, f0, f1, v, q) => {
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.Q.value = q;
+        bp.frequency.setValueAtTime(f0, t0);
+        bp.frequency.linearRampToValueAtTime(f1, t0 + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(v, t0 + dur * 0.35);
+        g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+        this._noise(t0, dur + 0.05).connect(bp);
+        bp.connect(g); g.connect(this.master);
+      };
+      const tin = T * (0.36 - 0.06 * pant), gap = T * 0.04, tout = T * (0.5 - 0.05 * pant);
+      part(t, tin, 1000 + 400 * pant, 1500 + 500 * pant, vol * 0.65, 1.3);
+      part(t + tin + gap, tout, 950 + 250 * pant, 620, vol, 1.0);
+    }
+
     silence() {
       if (!this.ctx) return;
       const t = this.ctx.currentTime;

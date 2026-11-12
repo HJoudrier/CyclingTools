@@ -517,3 +517,19 @@ body.pyr #screen-loading { background: #cfe9fb; }
 /* vue pilotée par Wattlas : bouton « VR » (le casque se lance d'un geste dans ce cadre) */
 .pyr-vr { position: fixed; right: 12px; bottom: 12px; z-index: 50; padding: 8px 14px; border: 0; border-radius: 10px; background: rgba(14, 17, 22, 0.7); color: #fff; font: 700 14px system-ui, sans-serif; cursor: pointer; }
 .pyr-vr.hidden { display: none; }
+
+/* Course 3D (Wattlas), mode équipe : marqueurs des coéquipiers au-dessus de leur tête (bridge.js, marks) ; un toucher pilote ce coureur */
+.pyr-marks { position: fixed; inset: 0; z-index: 30; pointer-events: none; overflow: hidden; }
+.pyr-marks[hidden], .pyr-mark[hidden] { display: none; }
+.pyr-mark { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 6px 6px; border: 0; background: none;
+  pointer-events: auto; cursor: pointer; touch-action: manipulation; transform-origin: 50% 100%; -webkit-tap-highlight-color: transparent; font: 800 11px/1 system-ui, sans-serif; color: #fff; }
+.pyr-mark .d { width: 16px; height: 16px; transform: rotate(45deg); border-radius: 3px; background: var(--tc, #d4202c); border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45); }
+.pyr-mark b { padding: 1px 5px; border-radius: 6px; background: rgba(14, 17, 22, 0.72); text-shadow: none; letter-spacing: 0.02em; }
+.pyr-mark .bars { display: grid; gap: 2px; width: 30px; }
+.pyr-mark .bars i { display: block; height: 3px; border-radius: 2px; min-width: 2px; }
+.pyr-mark .bars .e { background: #34b552; }
+.pyr-mark .bars .w { background: #e5484d; }
+.pyr-mark.act .d { background: #ffd23f; border-color: #111; }
+.pyr-mark.act b { background: #ffd23f; color: #111; }
+.pyr-mark.act .bars { display: none; }
+.pyr-mark.out { opacity: 0.45; }

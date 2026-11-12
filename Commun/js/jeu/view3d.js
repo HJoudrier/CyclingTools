@@ -217,7 +217,9 @@
 
   /**
    * Image de la course pour la vue. o : {course, cps, feed, t (temps de course), k (secondes de course par seconde réelle), run,
-   * me : {id, name, color, kind, s, y, v, P, w, dr, st, fin, cp}, others : [{id, name, color, kind, s, y, v, P, st, fin}]}.
+   * me : {id, name, color, kind, s, y, v, P, w, dr, st, fin, cp, hr, e, own}, others : [{id, name, color, kind, s, y, v, P, st, fin, own, e, w}],
+   * fx : réglages d'immersion de Course 3D {mk (marqueurs des coéquipiers), br (respiration)}}. own : coureur de ton équipe ; e : aérobie
+   * (glycogène, 0 à 1) ; w : anaérobie (W′, 0 à 1) ; hr : FC (bpm).
    * Fonction pure (testée) : rien n'est envoyé.
    */
   function frameMessage(o) {
@@ -230,10 +232,15 @@
       if (Number.isFinite(x.dr)) e.dr = r2(x.dr);
       if (x.st) e.st = true;
       if (x.fin) e.fin = true;
+      if (x.own) e.own = 1;
+      if (Number.isFinite(x.e)) e.e = r2(x.e);
+      if (Number.isFinite(x.hr)) e.hr = Math.round(x.hr);
       return e;
     };
     const riders = [rider(o.me)].concat((o.others || []).map(rider));
-    return { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.sky ? skyEnv(o.course, o.me.s || 0, o.t || 0, o.sky) : o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
+    const msg = { type: 'frame', t: r2(o.t || 0), k: o.k || 1, run: !!o.run, me: String(o.me.id), riders, env: o.sky ? skyEnv(o.course, o.me.s || 0, o.t || 0, o.sky) : o.course ? envAt(o.course, o.me.s || 0, o.t || 0) : {} };
+    if (o.fx) msg.fx = { mk: o.fx.mk ? 1 : 0, br: o.fx.br ? 1 : 0 };
+    return msg;
   }
 
   /**
@@ -292,6 +299,11 @@
     } else if (m.type === 'pad') {
       // manette (la vue a le focus) ou contrôleurs VR, dans la disposition standard
       if (PYR.steerInput) PYR.steerInput.padState(m);
+    } else if (m.type === 'pick') {
+      // marqueur d'un coéquipier touché dans la vue (Course 3D, mode équipe) : on pilote ce coureur
+      const G = PYR.tabGame && PYR.tabGame.state;
+      const r = G && G.team && typeof m.id === 'string' ? G.team.own.find((x) => String(x.id) === m.id) : null;
+      if (r && PYR.tabGame.switchRider(r.id) !== false && PYR.hud3d) PYR.hud3d.refresh();
     } else if (m.type === 'vr') {
       // casque mis ou retiré : la course continue même si le navigateur suspend les images de la page
       if (PYR.tabGame && PYR.tabGame.setVrLoop) PYR.tabGame.setVrLoop(!!m.on);

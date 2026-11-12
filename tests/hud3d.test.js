@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { PYR } = require('./helpers.js');
+require(path.join(__dirname, '..', 'Commun', 'js', 'jeu', 'view3d.js'));
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -76,12 +77,14 @@ test('actions des vignettes : chacune est un ordre du moteur (ou manger), avec u
   for (const id of ['moveup', 'front']) assert.ok(PYR.tactics.LABELS[id], id);
 });
 
-test('éléments du HUD : ceux du menu « Affichage » sont ceux de l\'état par défaut, tous affichés sauf le temps et la météo', () => {
-  const widgets = idsOf('WIDGETS');
+test('éléments du HUD : ceux du menu « Affichage » (éléments, sensations) sont ceux de l\'état par défaut, tous actifs sauf le temps et la météo', () => {
+  const widgets = idsOf('WIDGETS'), feel = [...HUD.slice(HUD.indexOf('const FEEL = ['), HUD.indexOf('];', HUD.indexOf('const FEEL = ['))).matchAll(/\{ id: '([a-zA-Z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(feel, ['redEdge', 'markers', 'breath', 'vibe']);
   const m = read('Commun/js/core/store.js').match(/hud3d: \{([^}]+)\}/);
   assert.ok(m, 'ui.hud3d dans store.js');
   const def = Object.fromEntries([...m[1].matchAll(/(\w+): (true|false)/g)].map((x) => [x[1], x[2] === 'true']));
-  assert.deepEqual(Object.keys(def).sort(), widgets.slice().sort());
+  assert.deepEqual(Object.keys(def).sort(), widgets.concat(feel).sort());
+  for (const f of feel) assert.equal(def[f], true, f);
   assert.equal(def.time, false);
   assert.equal(def.wx, false);
   for (const w of widgets) assert.ok(w === 'banner' || CSS.includes(`.h3-w-${w}`), `.h3-w-${w}`);
@@ -113,6 +116,31 @@ test('téléphone en paysage : haut et bas (maquette D), radio d\'équipe et lis
   // paysage : plein écran et verrouillage au premier toucher, message en portrait
   assert.match(HUD, /o\.lock\('landscape'\)/);
   assert.match(CSS, /@media \(orientation: portrait\) \{\n\s+\.h3\[data-mode="phone"\] \.h3p-rotate/);
+});
+
+test('sensations (maquette I) : bord rouge et cœur au rythme de la FC, vibrations, marqueurs touchables, respiration', () => {
+  assert.match(HUD, /P\.root\.style\.setProperty\('--beat'/);
+  assert.match(HUD, /U\.clamp\(\(EDGE_FROM - s\.wf\) \/ EDGE_FROM, 0, 1\)/);
+  assert.match(CSS, /\.h3p-edge\.on::after \{ animation: h3p-pulse var\(--beat\)/);
+  assert.match(CSS, /\.h3p-heart\.beat \{ animation: h3p-heart var\(--beat\)/);
+  assert.match(HUD, /navigator\.vibrate\(pattern\)/);
+  assert.match(HUD, /if \(w\.id === 'vibe' && !canVibrate\(\)\) continue;/);
+  // la vue 3D : réglages dans la trame, marqueurs (message « pick »), respiration
+  const V3 = PYR.view3d;
+  const f = V3.frameMessage({ t: 1, me: { id: 'a', s: 10, v: 9, hr: 151.4, e: 0.8, own: true }, others: [{ id: 'b', s: 12, own: true, e: 0.5, w: 0.25 }, { id: 'c', s: 3 }], fx: { mk: true, br: false } });
+  assert.deepEqual(f.fx, { mk: 1, br: 0 });
+  assert.equal(f.riders[0].hr, 151);
+  assert.equal(f.riders[1].own, 1);
+  assert.equal(f.riders[1].w, 0.25);
+  assert.equal(f.riders[2].own, undefined);
+  assert.equal(V3.frameMessage({ t: 0, me: { id: 'a' }, others: [] }).fx, undefined);
+  assert.match(read('Commun/js/jeu/view3d.js'), /m\.type === 'pick'/);
+  const br = read('VirtualRide3D/univers/js/bridge.js');
+  assert.match(br, /this\.post\(\{ type: 'pick', id: el\.dataset\.id \}\)/);
+  assert.match(br, /g\.sound\.breathe\(dt, this\.breathOf\(\)\)/);
+  assert.match(read('VirtualRide3D/univers/js/game.js'), /if \(this\.ext\.marks\) this\.ext\.marks\(\);/);
+  assert.match(read('VirtualRide3D/univers/js/audio.js'), /\n    breathe\(dt, B\) \{/);
+  assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-mark \{/);
 });
 
 test('niveau de réalisme : Arcade ou Simulation sur la page de choix de Course 3D, Arcade par défaut dans Course 3D seulement', () => {

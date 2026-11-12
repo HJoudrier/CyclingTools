@@ -1430,6 +1430,7 @@
         const dtr = Math.min(0.25, raw);
         this.ext.frame(dtr);
         if (vr) this.vr.updateRig(dtr); else this.updateRideCamera(dtr);
+        if (this.ext.marks) this.ext.marks();
         this.tiles.update(this.focusX, this.focusZ, vr ? 3 : 6);
       } else if (this.state === 'finished') {
         // le cycliste continue sur sa lancée ; les autres finissent leur course

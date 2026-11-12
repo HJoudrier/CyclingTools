@@ -16,7 +16,10 @@
  * Téléphone (paysage) : une autre disposition (doc/maquettes-course3d, D, F et I). En haut, le coureur actif (◀ ▶ vers le coéquipier le
  * plus proche derrière ou devant), sa puissance (éclair), sa vitesse et sa FC (cœur) ; à gauche, l'équipe et la trajectoire ; à droite, la
  * radio d'équipe (les actions du coureur actif, en liste) et le menu. En bas, Freiner, l'effort (aspiration, aérobie, anaérobie) et
- * Accélérer (à tapoter). */
+ * Accélérer (à tapoter).
+ * Sensations (maquette I, réglables dans l'onglet Affichage) : sur téléphone, le bord de l'écran rougit et bat au rythme du cœur quand
+ * l'anaérobie se vide, et le téléphone vibre (battements, bas-côté, chute, coup de frein) ; dans la vue 3D, les marqueurs des
+ * coéquipiers (un toucher pilote ce coureur) et la respiration (bridge.js, audio.js). */
 (function (PYR) {
   'use strict';
 
@@ -37,6 +40,14 @@
     { id: 'banner', label: 'Alertes de course (fringale, chute, W′ épuisé…)' }, { id: 'rank', label: 'Classement de l\'étape' },
     { id: 'riders', label: 'Vignettes des coureurs (effort, endurance, actions)' },
   ];
+  /** Sensations (onglet « Affichage », à part des éléments) : actives par défaut. */
+  const FEEL = [
+    { id: 'redEdge', label: 'Bord de l\'écran rouge qui bat au rythme du cœur quand l\'anaérobie se vide (téléphone)' },
+    { id: 'markers', label: 'Marqueurs des coéquipiers dans la vue 3D (touche-les pour les piloter)' },
+    { id: 'breath', label: 'Respiration du coureur (son de la vue 3D)' },
+    { id: 'vibe', label: 'Vibrations (téléphone Android : battements, bas-côté, chute, freinage)' },
+  ];
+  const EDGE_FROM = 0.4, VIBE_FROM = 0.2; // anaérobie (W′) : le bord rougit sous 40 %, le téléphone bat sous 20 %
 
   /** Actions d'un coureur (vignette), avec leur touche pour le coureur piloté et leur dessin (tracés d'une icône 24 × 24). */
   const ACTIONS = [
@@ -74,7 +85,8 @@
 
   const H = {};
   const E = {};                                  // éléments construits par build()
-  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [], pos: new Map(), pop: null, locked: false };
+  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [], pos: new Map(), pop: null, locked: false,
+    feel: { wf: 1, hr: 0, zone: 'road', v: 0, crash: false }, beatAt: 0, rumbleAt: 0, beat: 0, vibeTimer: null };
   const P = {};                                  // téléphone : éléments construits par buildPhone()
   let T = null, G = null;
 
@@ -228,7 +240,11 @@
     E.tools.prepend(P.radio);
     // en bas : Freiner (on le tient), l'effort, Accélérer (on le tapote)
     P.brake = h('button', { class: 'h3p-round h3p-brake', type: 'button', 'aria-label': 'Freiner (maintiens appuyé)' }, h('span', { class: 'in' }, icon(ICON.brake), 'FREINER'));
-    const brake = (on) => (e) => { if (e.cancelable) e.preventDefault(); PYR.steerInput.setBrakeButton(on); P.brake.classList.toggle('on', on); };
+    const brake = (on) => (e) => {
+      if (e.cancelable) e.preventDefault();
+      if (on && !P.brake.classList.contains('on')) vibrate(20);
+      PYR.steerInput.setBrakeButton(on); P.brake.classList.toggle('on', on);
+    };
     P.brake.addEventListener('pointerdown', brake(true));
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) P.brake.addEventListener(ev, brake(false));
     P.accel = h('button', { class: 'h3p-round h3p-accel', type: 'button', 'aria-label': 'Accélérer (tapote à répétition)' },
@@ -370,8 +386,40 @@
     P.anaRow.classList.toggle('low', s.wf < 0.2);
     // Accélérer : l'anneau se remplit à chaque appui et se vide en une seconde
     P.accel.style.setProperty('--fill', (U.clamp(s.boost || 0, 0, 1) * 360).toFixed(0) + 'deg');
+    // le cœur bat à la FC ; le bord de l'écran rougit quand l'anaérobie passe sous 40 % et bat avec lui
+    const hr = Number.isFinite(s.hrBpm) && s.hrBpm > 30 ? s.hrBpm : 0;
+    const beat = hr ? 60 / hr : 0;
+    if (Math.abs(beat - S.beat) > 0.03 * Math.max(beat, 0.1)) { S.beat = beat; P.root.style.setProperty('--beat', (beat || 1).toFixed(3) + 's'); }
+    P.heart.classList.toggle('beat', !!hr && !me.incident);
+    const red = feelOn('redEdge') && !me.finished ? U.clamp((EDGE_FROM - s.wf) / EDGE_FROM, 0, 1) : 0;
+    P.edge.style.setProperty('--edge', red.toFixed(2));
+    P.edge.classList.toggle('on', red > 0.02);
+    // pour les vibrations (vibeTick)
+    const L = T.steerable() ? me.lat : null;
+    S.feel.wf = s.wf; S.feel.hr = hr; S.feel.v = s.v;
+    S.feel.zone = L && L.manual ? Steer.zone(L.y, Steer.edgeOf(G.ctx.course, me.st.s, L.edgeMax)) : 'road';
+    const crash = !!(me.incident && me.incident.type === 'crash');
+    if (crash && !S.feel.crash) vibrate([220, 80, 320]);
+    S.feel.crash = crash;
     if (S.pop) renderPops();
   }
+
+  /* ---------- sensations : vibrations (navigator.vibrate : Android ; rien sur iPhone) ---------- */
+  const canVibrate = () => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+  const feelOn = (id) => prefs()[id] !== false;
+  function vibrate(pattern) {
+    if (S.mode !== 'phone' || !canVibrate() || !feelOn('vibe')) return;
+    try { navigator.vibrate(pattern); } catch (e) { /* refusé (pas encore de geste sur la page) */ }
+  }
+  /** Toutes les 50 ms, sur téléphone : battement de cœur (anaérobie sous 20 %), grondement sur le bas-côté ou hors de la route. */
+  function vibeTick() {
+    if (S.mode !== 'phone' || !G || !G.running || G.finished || document.hidden) return;
+    const f = S.feel, now = performance.now();
+    if (f.zone !== 'road' && f.v > 7 && now >= S.rumbleAt) { vibrate(f.zone === 'out' ? 60 : 35); S.rumbleAt = now + (f.zone === 'out' ? 140 : 200); return; }
+    if (f.wf < VIBE_FROM && f.hr > 0 && now >= S.beatAt) { vibrate([22, 110, 14]); S.beatAt = now + 60000 / f.hr; }
+  }
+  /** Réglages d'immersion pour la vue 3D (trame de view3d.js) : marqueurs des coéquipiers, respiration. */
+  function fx() { return S.mode ? { mk: feelOn('markers'), br: feelOn('breath') } : null; }
 
   /** Vignette d'un coureur : identité, effort, endurance, effort court, actions. */
   function card(r) {
@@ -743,7 +791,16 @@
       });
       box.appendChild(h('label', null, cb, ' ', w.label));
     }
-    return h('div', { class: 'h3-pane' }, h('p', { class: 'hint' }, 'Les éléments affichés par-dessus la vue 3D. La touche H masque ou affiche tout le HUD.'), box);
+    const feel = h('div', { class: 'field checks h3-display' });
+    for (const w of FEEL) {
+      if (w.id === 'vibe' && !canVibrate()) continue; // iPhone : pas de vibrations depuis une page web
+      const cb = h('input', { type: 'checkbox' });
+      cb.checked = p[w.id] !== false;
+      cb.addEventListener('change', () => { store.set('ui.hud3d', Object.assign(prefs(), { [w.id]: cb.checked }), true); update(true); });
+      feel.appendChild(h('label', null, cb, ' ', w.label));
+    }
+    return h('div', { class: 'h3-pane' }, h('p', { class: 'hint' }, 'Les éléments affichés par-dessus la vue 3D. La touche H masque ou affiche tout le HUD.'), box,
+      h('h4', { class: 'h3-feel-head' }, 'Sensations'), feel);
   }
 
   /* ---------- clavier (tab-game.onKey le passe ici d'abord ; vrai si la touche est prise) ---------- */
@@ -786,6 +843,8 @@
     ensureCards();
     placeCards();
     if (S.pop) togglePop(null);
+    clearInterval(S.vibeTimer);
+    S.vibeTimer = mode === 'phone' && canVibrate() ? setInterval(vibeTick, 50) : null;
     update(true);
   };
 
@@ -793,8 +852,10 @@
     if (S.menu && !S.menu.closed) S.menu.close();
     S.mode = null;
     E.root.hidden = true;
+    clearInterval(S.vibeTimer); S.vibeTimer = null;
     document.body.removeAttribute('data-h3-hidden');
   };
+  H.fx = fx;
 
   H.update = (s) => update(false);
   /** Effort du coureur piloté ±d % (manette). */

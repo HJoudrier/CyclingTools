@@ -346,8 +346,18 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3p-minibars > i.e { background: var(--h3-endu); }
 .h3p-minibars > i.w { background: var(--h3-anaer); }
 
-/* bord de l'écran (lot suivant : rouge quand l'anaérobie se vide) */
-.h3p-edge { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+/* bord de l'écran : rouge quand l'anaérobie se vide (--edge, 0 à 1), il bat au rythme du cœur (--beat : 60 / FC) ; le cœur de la barre du haut aussi */
+.h3p { --beat: 1s; }
+.h3p-edge { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: var(--edge, 0); transition: opacity 0.6s;
+  box-shadow: inset 0 0 40px 10px rgba(229, 72, 77, 0.65), inset 0 0 120px 30px rgba(229, 72, 77, 0.3); }
+.h3p-edge::after { content: ""; position: absolute; inset: 0; opacity: 0; box-shadow: inset 0 0 70px 26px rgba(255, 40, 50, 0.85); }
+.h3p-edge.on::after { animation: h3p-pulse var(--beat) ease-out infinite; }
+@keyframes h3p-pulse { 0% { opacity: 0.95; } 18% { opacity: 0.2; } 30% { opacity: 0.7; } 55%, 100% { opacity: 0; } }
+.h3p-heart { transform-origin: 50% 55%; }
+.h3p-heart.beat { animation: h3p-heart var(--beat) ease-out infinite; }
+@keyframes h3p-heart { 0% { transform: scale(1.18); } 15% { transform: scale(1); } 28% { transform: scale(1.1); } 50%, 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .h3p-edge.on::after, .h3p-heart.beat { animation: none; } }
+.h3-menu .h3-feel-head { margin: 14px 0 4px; font-size: 13px; }
 
 /* en portrait : on demande de tourner le téléphone */
 .h3p-rotate { display: none; }

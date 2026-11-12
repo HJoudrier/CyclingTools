@@ -123,7 +123,7 @@
       // magasin : le vélo en 3D (vitrine de Bike3D) ou en photos
       shopView: '3d',
       // Course 3D (cartoon) : éléments du HUD superposé à la vue 3D (Commun/js/jeu/hud3d.js), chacun désactivable dans le menu (Échap)
-      hud3d: { power: true, speed: true, hr: true, draft: true, grade: true, togo: true, time: false, banner: true, next: true, wx: false, rank: true, riders: true } },
+      hud3d: { redEdge: true, markers: true, breath: true, vibe: true, power: true, speed: true, hr: true, draft: true, grade: true, togo: true, time: false, banner: true, next: true, wx: false, rank: true, riders: true } },
   });
 
   const listeners = Object.create(null);

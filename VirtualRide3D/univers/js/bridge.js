@@ -310,6 +310,107 @@
       if (this.hudOn) this.updateHud();
       this.pollPad();
       this.watchVR();
+      g.sound.breathe(dt, this.breathOf());
+    },
+
+    // ------------------------------------------------------------ Course 3D : immersion
+    // Respiration du coureur piloté : rythme d'après sa FC et son effort, halètement quand sa réserve anaérobie (W′) se vide.
+    breathOf() {
+      const F = this.fr;
+      if (!F || !F.fx || !F.fx.br || !this.timeK) return null;
+      const me = F.riders.find((o) => o.id === F.me);
+      if (!me || me.st || me.fin || num(me.v, 0) < 1) return null;
+      const hr = num(me.hr, 0), eff = clamp(num(me.P, 0) / this.cpW(), 0, 1.4), w = clamp(num(me.w, 1), 0, 1);
+      const byHr = hr > 0 ? clamp((hr - 70) / (185 - 70), 0, 1) : clamp(eff / 1.2, 0, 1);
+      const pant = clamp((0.4 - w) / 0.4, 0, 1);
+      return { rate: 15 + 35 * Math.max(byHr, eff / 1.4, pant * 0.9), level: clamp(0.25 + 0.55 * eff + 0.3 * pant, 0, 1), pant };
+    },
+
+    // Marqueurs des coéquipiers (mode équipe) au-dessus de leur tête : losange aux couleurs de l'équipe, initiales, aérobie et anaérobie ;
+    // le coureur piloté en jaune. Un toucher fait piloter ce coureur (message « pick »). Appelée après la caméra, à chaque image.
+    marks() {
+      const g = this.game, F = this.fr;
+      const on = !!(F && F.fx && F.fx.mk && this.ready && !(g.vr && g.vr.presenting) && F.riders.some((o) => o.own && o.id !== F.me));
+      if (!on) { if (this.mk) this.mk.layer.hidden = true; return; }
+      if (!this.mk) {
+        const layer = document.createElement('div');
+        layer.className = 'pyr-marks';
+        document.body.appendChild(layer);
+        this.mk = { layer, els: new Map(), v: new THREE.Vector3() };
+      }
+      const M = this.mk, P = g.peloton, cam = g.camera, W = window.innerWidth, H = window.innerHeight;
+      M.layer.hidden = false;
+      const pos = new Map();
+      if (P) P.riders.forEach((r) => { if (r.pid !== undefined && r.pos) pos.set(r.pid, r.pos); });
+      pos.set(F.me, g.cyclist.root.position);
+      const seen = new Set(), placed = [];
+      for (const o of F.riders) {
+        if (!o.own) continue;
+        const p = pos.get(o.id);
+        if (!p) continue;
+        seen.add(o.id);
+        let el = M.els.get(o.id);
+        if (!el) {
+          el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'pyr-mark';
+          el.innerHTML = '<i class="d"></i><b></b><span class="bars"><i class="e"></i><i class="w"></i></span>';
+          el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.post({ type: 'pick', id: el.dataset.id }); });
+          M.layer.appendChild(el);
+          M.els.set(o.id, el);
+          el.dataset.id = o.id;
+          el.querySelector('b').textContent = String(o.name || '?').split(/\s+/).filter(Boolean).map((x) => x[0]).slice(-2).join('').toUpperCase();
+          el.title = 'Piloter ' + String(o.name || 'ce coureur');
+          el.setAttribute('aria-label', el.title);
+        }
+        const act = o.id === F.me;
+        const dist = p.distanceTo(cam.position);
+        const v = M.v.copy(p);
+        v.y += act ? 2.25 : 2.05;
+        v.project(cam);
+        const vis = v.z < 1 && v.x > -1.05 && v.x < 1.05 && v.y > -1.05 && v.y < 1.05 && dist < 160 && !(act && dist < 4);
+        el.hidden = !vis;
+        if (!vis) continue;
+        const k = clamp(1.2 - dist / 70, 0.55, 1.1); // plus petit au loin
+        placed.push({ el, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, k, dist });
+        el.style.setProperty('--tc', o.color || '#d4202c');
+        el.classList.toggle('act', act);
+        el.classList.toggle('out', !!(o.st || o.fin));
+        el.style.zIndex = String(1000 - Math.round(dist));
+        el.querySelector('.e').style.width = (clamp(num(o.e, 1), 0, 1) * 100).toFixed(0) + '%';
+        el.querySelector('.w').style.width = (clamp(num(o.w, 1), 0, 1) * 100).toFixed(0) + '%';
+      }
+      // coureurs groupés : les marqueurs qui se chevauchent forment une rangée serrée, centrée au-dessus du groupe ; deux rangées qui se
+      // touchent n'en font plus qu'une
+      for (const m of placed) { m.w = 40 * m.k; m.h = 44 * m.k; }
+      const rowOf = (gr) => {
+        const tot = gr.reduce((a, m) => a + m.w + 2, -2), cx = gr.reduce((a, m) => a + m.x, 0) / gr.length;
+        return { x0: cx - tot / 2, x1: cx + tot / 2, y: gr.length > 1 ? Math.min(...gr.map((m) => m.y)) : gr[0].y, h: Math.max(...gr.map((m) => m.h)) };
+      };
+      const groups = placed.map((m) => [m]);
+      for (let pass = 0; pass < 12 && groups.length > 1; pass++) {
+        const rows = groups.map(rowOf);
+        let hit = null;
+        for (let a = 0; a < rows.length && !hit; a++) {
+          for (let b = a + 1; b < rows.length; b++) {
+            const A = rows[a], B = rows[b];
+            if (A.x0 < B.x1 + 1 && B.x0 < A.x1 + 1 && Math.abs(A.y - B.y) < (A.h + B.h) / 2) { hit = [a, b]; break; }
+          }
+        }
+        if (!hit) break;
+        groups[hit[0]] = groups[hit[0]].concat(groups[hit[1]]).sort((a, b) => a.x - b.x);
+        groups.splice(hit[1], 1);
+      }
+      for (const gr of groups) {
+        const row = rowOf(gr);
+        let x = row.x0;
+        for (const m of gr) {
+          const px = gr.length > 1 ? x + m.w / 2 : m.x;
+          x += m.w + 2;
+          m.el.style.transform = 'translate(' + px.toFixed(1) + 'px,' + row.y.toFixed(1) + 'px) translate(-50%, -100%) scale(' + m.k.toFixed(2) + ')';
+        }
+      }
+      for (const [id, el] of M.els) if (!seen.has(id)) { el.remove(); M.els.delete(id); }
     },
 
     // ------------------------------------------------------------ manette et VR (trajectoire manuelle de Wattlas, steer-input.js)
