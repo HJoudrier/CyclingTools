@@ -373,7 +373,8 @@
 
     let Pcmd = 0;
     if (!c.stopped) {
-      if (r.bot) { if (race.rules.strategy) Strat.think(r, view, race); else Tac.think(r, view, race); }
+      // un ordre du joueur (mode équipe, Course 3D : giveOrder) suspend les décisions du coureur virtuel tant qu'il dure
+      if (r.bot && !r.order) { if (race.rules.strategy) Strat.think(r, view, race); else Tac.think(r, view, race); }
       // cycliste réel : ses watts mesurés (home-trainer) ; sur la route, ceux de son capteur
       Pcmd = r.driven ? (r.drive && Number.isFinite(r.drive.P) ? r.drive.P : 0) : r.measured ? Math.max(0, Number(r.tac.cmd) || 0) : Tac.command(r, view, race.rules);
       if (race.feed.length) {
@@ -415,6 +416,13 @@
     r.trace.P.push(P);
     r.lastP = P;
     r.lastPcmd = Pcmd;
+    // ordre ponctuel (attaquer, sprinter) terminé : l'ordre d'avant reprend, sinon le coureur revient à sa stratégie
+    if (r.order && r.order.once && r.tac.mode !== r.order.mode) {
+      const prev = r.order.prev;
+      r.order = null;
+      r.tac.nextThink = 0;
+      if (prev) giveOrder(race, r, prev);
+    }
     if (st.finished && !r.finished) {
       r.finished = true;
       r.time = st.tFinish;
@@ -477,15 +485,55 @@
     return r;
   }
 
-  /** Rend un coureur piloté à la stratégie (il reprend son plan et sa tactique de coureur virtuel). */
-  function releaseControl(race, r) {
+  /**
+   * Rend un coureur piloté à la stratégie (il reprend son plan et sa tactique de coureur virtuel). Avec `keep` (Course 3D), il garde plutôt
+   * sa tactique et son effort du moment, sous forme d'ordre (giveOrder) : le joueur qui passe à un autre coureur ne change rien à celui-ci.
+   */
+  function releaseControl(race, r, keep) {
     if (!r.human || !r.botProfile) return r;
+    const mode = r.tac.mode, cmd = r.tac.cmd;
     r.bot = r.botProfile;
     r.botProfile = null;
     r.human = false;
     r.tac.nextThink = 0;
     if (r.lat) r.lat.roam = true;
     Tac.setMode(r, 'follow', r.st.t);
+    if (keep) {
+      const m = mode === 'attack' || mode === 'sprint' ? 'follow' : ORDER_MODES.includes(mode) ? mode : 'manual';
+      giveOrder(race, r, { mode: m, pct: r.ctx.cp > 0 ? 100 * (Number(cmd) || 0) / r.ctx.cp : null });
+    }
+    return r;
+  }
+
+  /**
+   * Ordres du joueur à un coureur virtuel de son équipe (mode équipe, Course 3D) : une tactique (ORDER_MODES : allure libre, dans les
+   * roues, suivre les attaques, relais, remonter en tête, rouler en tête, attaquer, sprinter) et un effort en % de sa PC (pct, la jauge
+   * de sa vignette : allure libre, rouler en tête, relais). L'ordre suspend la stratégie du coureur ; attaquer et sprinter sont ponctuels :
+   * une fois l'effort fini, l'ordre d'avant reprend (ou la stratégie). Renvoie l'ordre, ou null si le coureur ne peut pas en recevoir.
+   */
+  const ORDER_MODES = ['manual', 'follow', 'cover', 'relay', 'moveup', 'front', 'attack', 'sprint'];
+  function giveOrder(race, r, o) {
+    if (!r || r.human || !r.bot || r.finished) return null;
+    o = o || {};
+    const t = r.st.t, mode = ORDER_MODES.includes(o.mode) ? o.mode : 'manual';
+    const once = mode === 'attack' || mode === 'sprint';
+    const pct = Number.isFinite(o.pct) ? Math.min(200, Math.max(0, o.pct)) : r.order && Number.isFinite(r.order.pct) ? r.order.pct : null;
+    const prev = once ? (r.order && !r.order.once ? r.order : r.order && r.order.prev) || null : null;
+    if (pct !== null) r.tac.cmd = pct / 100 * r.ctx.cp;
+    else if (mode === 'manual' || mode === 'front') r.tac.cmd = Math.round(r.lastP || 0);
+    if (mode !== r.tac.mode || once) Tac.setMode(r, mode, t, once ? Tac.lineFor(r, race.cps, mode) : undefined);
+    if (mode === 'relay' && pct !== null) r.tac.pull = r.tac.cmd;
+    r.order = { mode, pct, once, prev };
+    r.tac.nextThink = 0;
+    return r.order;
+  }
+
+  /** Lève l'ordre du joueur : le coureur virtuel reprend sa stratégie (son rôle dans l'équipe) dès la seconde suivante. */
+  function clearOrder(race, r) {
+    if (!r || !r.order) return r;
+    r.order = null;
+    r.tac.nextThink = 0;
+    if (r.bot) Tac.setMode(r, 'follow', r.st.t);
     return r;
   }
 
@@ -534,5 +582,5 @@
     return Cl.standings(race.cps, race.riders.map((r) => ({ id: r.id, splits: r.splits, s: r.st.s })));
   }
 
-  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, addPro, takeControl, releaseControl, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
+  PYR.race = { RULES, PUNCTURE_KM, punctureRisk, takeFeed, BOT_NAMES, MAX_BOTS, palette, normRules, create, addRider, addBots, addPro, takeControl, releaseControl, ORDER_MODES, giveOrder, clearOrder, incident, snapshot, step, runToEnd, results, standings, timeToExhaustion, np };
 })(globalThis.PYR = globalThis.PYR || {});

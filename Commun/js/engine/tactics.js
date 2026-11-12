@@ -38,7 +38,10 @@
     { id: 'relay', key: '9', label: 'Relayer' },
     { id: 'cover', key: 's', label: 'Suivre les attaques' },
   ];
-  const LABELS = Object.assign({ manual: 'Manuel', strat: 'Stratégie' }, ...MODES.map((m) => ({ [m.id]: m.label })));
+  // Course 3D (hors des touches communes aux jeux) : remonter aux premières places de son groupe (puis rester dans les roues),
+  // mener le groupe à l'effort de la jauge
+  const LABELS = Object.assign({ manual: 'Manuel', strat: 'Stratégie', moveup: 'Remonter en tête', front: 'Rouler en tête' },
+    ...MODES.map((m) => ({ [m.id]: m.label })));
 
   const FOLLOW_GAP = 0.6;    // m entre les roues, dans les roues
   // m/s² : accélération maximale pour tenir ou reprendre une roue (plus franche au démarrage)
@@ -288,6 +291,7 @@
     tac.target = burst(mode) && target > 0 ? target : null;
     tac.letGo = undefined;
     tac.front = undefined;
+    tac.oneShot = false; // sprint d'un seul appui (Course 3D) : à poser après setMode
     if (mode === 'relay' && !(tac.pull > 0)) tac.pull = levels(r).ftp * (r.bot ? 0.95 + 0.1 * r.bot.team : 1);
   }
 
@@ -327,7 +331,7 @@
    */
   function decayBoost(r, dt) {
     const tac = r.tac;
-    if (tac.mode !== 'sprint' || !r.human) return false;
+    if (tac.mode !== 'sprint' || !r.human || tac.oneShot) return false;
     tac.idle = (tac.idle || 0) + dt;
     if (tac.idle <= BOOST_GRACE) return false;
     tac.boost = (tac.boostFrom || 0) * (1 - (tac.idle - BOOST_GRACE) / (BOOST_RELEASE - BOOST_GRACE));
@@ -651,6 +655,36 @@
     return cap;
   }
 
+  /**
+   * « Remonter en tête » : on remonte le groupe (movePower) jusqu'à ses premières places, puis on y reste dans les roues (« Dans les
+   * roues »). Seul, sans personne devant à remonter, ou le W′ trop entamé : on passe tout de suite dans les roues.
+   */
+  function moveUpPower(r, view, rules) {
+    const info = view.info.get(r.id);
+    if (info && info.groupSize > 1 && info.rank > frontPlaces(info.groupSize) && wFrac(r) > MOVE_UP_MIN_W) {
+      const P = movePower(r, view, info);
+      if (P !== null) return r.bot ? P : withLimits(r, P);
+    }
+    setMode(r, 'follow', r.st.t);
+    return command(r, view, rules);
+  }
+
+  /**
+   * « Rouler en tête » : on remonte d'abord jusqu'à la tête de son groupe (au moins à l'effort de la jauge), puis on mène à cet effort
+   * (tac.cmd, 1 × FTP sans consigne), sans s'écarter : c'est aux autres de relayer. Comme le train d'une équipe (strategy.js, driveCmd).
+   */
+  function frontPower(r, view) {
+    const tac = r.tac, info = view.info.get(r.id);
+    const want = tac.cmd > 0 ? tac.cmd : levels(r).ftp;
+    if (info && info.groupSize > 1 && info.rank > 0 && wFrac(r) > 0.15) {
+      const P = movePower(r, view, info);
+      if (P !== null) return Math.max(P, want);
+    }
+    tac.phase = 'pull';
+    tac.wheel = null;
+    return want;
+  }
+
   /** Nombre de places de tête (après le meneur) d'un groupe de n coureurs. */
   function frontPlaces(n) {
     return clamp(Math.ceil(0.15 * n), 2, FRONT_MAX);
@@ -667,13 +701,17 @@
         const dt = t - tac.since, L = levels(r);
         if (dt < ATTACK_SURGE) { tac.phase = 'surge'; return 1.8 * L.pma; }
         if (dt < (tac.target !== null ? ATTACK_MAX : ATTACK_SURGE + ATTACK_HOLD)) { tac.phase = 'hold'; return 1.02 * L.pma; }
+        // le joueur reprend la tactique d'avant l'attaque (Course 3D) ; un coureur virtuel finit au seuil
+        if (r.human) { afterLine(r, t); return command(r, view, rules); }
         setMode(r, 'threshold', t);
         return steadyPower(r, 'threshold');
       }
       case 'sprint': {
         if (tac.target !== null && r.st.s >= tac.target) { afterLine(r, t); return command(r, view, rules); }
-        if (r.human) return boostPower(r); // joueur : consigne montée par les appuis, voir sprintTap
-        if (t - tac.since < SPRINT_MAX) return 1.5 * levels(r).pmax;
+        if (r.human && !tac.oneShot) return boostPower(r); // joueur : consigne montée par les appuis, voir sprintTap
+        // coureur virtuel, ou sprint d'un seul appui du joueur (Course 3D) : à fond jusqu'à la ligne, 35 s au plus
+        if (t - tac.since < SPRINT_MAX) { tac.phase = 'sprint'; return 1.5 * levels(r).pmax; }
+        if (r.human) { afterLine(r, t); return command(r, view, rules); }
         setMode(r, 'recover', t);
         return steadyPower(r, 'recover');
       }
@@ -701,6 +739,10 @@
         return relayPower(r, view, rules);
       case 'cover':
         return coverPower(r, view);
+      case 'moveup':
+        return moveUpPower(r, view, rules);
+      case 'front':
+        return frontPower(r, view);
       case 'strat': // stratégie d'un coureur virtuel (strategy.js) : placement, escorte, allure imposée
         return PYR.strategy ? PYR.strategy.command(r, view, rules) : steadyPower(r, 'tempo');
       default:
@@ -789,6 +831,9 @@
       if (tac.phase === 'swing') return `${label} : tu te laisses glisser en queue`;
       if (tac.phase === 'wheel') return `${label} : dans les roues, en attendant ton tour`;
     }
+    if (tac.mode === 'moveup') return tac.phase === 'move' ? `${label} : tu remontes le groupe` : label;
+    if (tac.mode === 'front') return tac.phase === 'move' ? `${label} : tu remontes vers la tête` : `${label} : tu mènes le groupe`;
+    if (tac.mode === 'sprint' && tac.oneShot) return `${label} : à fond${tac.target ? ' jusqu\'à la ligne' : ''} !`;
     if (tac.mode === 'follow' || tac.mode === 'cover') {
       const cover = lay.cover, d = r.draft || {};
       const place = cover && d.groupSize > 1 ? ` (place ${d.rank + 1}/${d.groupSize})` : '';

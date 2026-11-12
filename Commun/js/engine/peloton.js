@@ -57,7 +57,8 @@
   const GAP_MIN = 0.05;   // m : écart minimal entre la roue arrière de celui de devant et notre roue avant (contrainte stricte, resolve)
   const ROAM_FROM = 30;   // s : les coureurs virtuels commencent à remonter le groupe après le départ
   const CENTER_DRIFT = 0.1; // m/s : dérive vers le milieu de la route de celui qui n'est dans aucun sillage
-  const LAYER_MODES = ['follow', 'cover', 'relay'];
+  // tactiques où la voie est choisie pour le coureur (roues, relais, remonter, mener), même pour le joueur
+  const LAYER_MODES = ['follow', 'cover', 'relay', 'moveup', 'front'];
   const EDGE_R = 0.25;    // abri sous lequel le coureur contre le bord sous le vent est « en bordure »
   const R_NONE = 300, R_FULL = 90; // m : au-delà de R_NONE (rayon du tracé), pas de corde ; en deçà de R_FULL, on la prend à fond
   const LINE_LOOK = 5;    // s : on se place à la corde dès que le virage est à moins de 5 s

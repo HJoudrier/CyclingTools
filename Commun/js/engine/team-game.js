@@ -173,13 +173,15 @@
   }
 
   /** Passe le pilotage à un autre coureur de l'équipe (le précédent reprend son plan de coureur virtuel). Renvoie le coureur piloté, ou null. */
-  function switchTo(race, id) {
+  function switchTo(race, id, opts) {
     const tg = race.teamGame, Race = PYR.race;
     if (!tg) return null;
     const r = race.riders.find((x) => x.id === id && x.own);
     if (!r) return null;
     if (r.human) return r;
-    for (const o of race.riders) if (o.own && o.human) Race.releaseControl(race, o);
+    // keep (Course 3D) : celui qu'on quitte garde sa tactique et son effort, sous forme d'ordre (race.giveOrder)
+    for (const o of race.riders) if (o.own && o.human) Race.releaseControl(race, o, !!(opts && opts.keep));
+    r.order = null; // le coureur qu'on pilote n'obéit plus qu'au joueur
     return Race.takeControl(race, r);
   }
 
