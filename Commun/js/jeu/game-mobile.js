@@ -38,6 +38,8 @@
   let mode = null;           // écran de course affiché : null, 'phone' (plein écran) ou 'wide' (grand écran, page conservée)
   let inRace = false;        // téléphone : une course est en cours (ou vient de se terminer), on veut le plein écran
   let sheetTab = null;       // feuille ouverte (téléphone seulement) : null, 'prof' ou 'rank'
+  /** Course 3D (cartoon) : l'écran de jeu est le HUD superposé de hud3d.js ; ce module ne garde que la machine d'états (enter, leave, sync). */
+  const alt = () => !!(PYR.hud3d && PYR.hud3d.on());
   let detail = false;        // réserves : valeurs plutôt que pourcentages
   let edges = null, edgesKey = '';
   let ro = null;
@@ -803,6 +805,13 @@
 
   /* ---------- entrée / sortie du mode course ---------- */
   function mount() {
+    if (alt()) {
+      document.body.dataset.race = mode;
+      PYR.hud3d.mount(mode);
+      window.scrollTo(0, 0);
+      afterLayoutChange();
+      return;
+    }
     park($('#hud-banner'), E.chips);
     park($('.hud-chips'), E.chips);
     E.chips.prepend($('#hud-banner'));
@@ -843,6 +852,13 @@
   }
 
   function unmount() {
+    if (alt()) {
+      PYR.hud3d.unmount();
+      delete document.body.dataset.race;
+      PYR.map.followOffset = null;
+      afterLayoutChange();
+      return;
+    }
     unpark();
     E.charts.prepend(E.stats); // le bloc de statistiques revient dans la colonne de gauche (il n'a pas d'emplacement d'origine ailleurs)
     E.pocketsBtn.remove();
@@ -925,6 +941,7 @@
 
   /** Arrivée : le classement s'ouvre, avec Rejouer et Quitter. */
   M.finished = function () {
+    if (alt()) { PYR.hud3d.finished(); return; }
     if (mode === 'phone') openSheet('rank');
   };
 
@@ -933,7 +950,7 @@
 
   /** Décale le point suivi par la caméra pour que le cycliste reste dans la zone libre entre le HUD et les réserves. */
   function layout() {
-    if (!mode) return;
+    if (!mode || alt()) return;
     fitZoneLabels();
     const wr = $('.map-wrap').getBoundingClientRect();
     if (!wr.height || !wr.width) return;
@@ -1293,6 +1310,7 @@
 
   function update(s) {
     if (!mode || !s) return;
+    if (alt()) { PYR.hud3d.update(s); return; }
     renderPockets(s);
     E.v.textContent = fmt(s.v, 1);
     E.p.textContent = fmt(s.p, 0);
@@ -1453,6 +1471,7 @@
     TG = PYR.tabGame;
     G = TG.state;
     build();
+    if (alt()) PYR.hud3d.init();
     applyOrder();
     applyStatsView();
     const ct = $('#game-classif-title');

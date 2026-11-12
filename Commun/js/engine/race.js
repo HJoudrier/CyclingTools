@@ -500,7 +500,10 @@
     Tac.setMode(r, 'follow', r.st.t);
     if (keep) {
       const m = mode === 'attack' || mode === 'sprint' ? 'follow' : ORDER_MODES.includes(mode) ? mode : 'manual';
-      giveOrder(race, r, { mode: m, pct: r.ctx.cp > 0 ? 100 * (Number(cmd) || 0) / r.ctx.cp : null });
+      // l'effort ne compte que pour l'allure libre, « Rouler en tête » et le relais (sa puissance de tête)
+      const w = m === 'relay' ? r.tac.pull : cmd;
+      const pct = PCT_MODES.includes(m) && r.ctx.cp > 0 && Number(w) > 0 ? 100 * Number(w) / r.ctx.cp : null;
+      giveOrder(race, r, { mode: m, pct });
     }
     return r;
   }
@@ -512,15 +515,18 @@
    * une fois l'effort fini, l'ordre d'avant reprend (ou la stratégie). Renvoie l'ordre, ou null si le coureur ne peut pas en recevoir.
    */
   const ORDER_MODES = ['manual', 'follow', 'cover', 'relay', 'moveup', 'front', 'attack', 'sprint'];
+  const PCT_MODES = ['manual', 'front', 'relay'];   // ordres dont l'effort (pct) règle la puissance
+  const FRONT_PCT = 95;                             // « Rouler en tête » sans effort donné : 95 % de la PC
   function giveOrder(race, r, o) {
     if (!r || r.human || !r.bot || r.finished) return null;
     o = o || {};
     const t = r.st.t, mode = ORDER_MODES.includes(o.mode) ? o.mode : 'manual';
     const once = mode === 'attack' || mode === 'sprint';
-    const pct = Number.isFinite(o.pct) ? Math.min(200, Math.max(0, o.pct)) : r.order && Number.isFinite(r.order.pct) ? r.order.pct : null;
+    let pct = Number.isFinite(o.pct) ? Math.min(200, Math.max(0, o.pct)) : r.order && Number.isFinite(r.order.pct) ? r.order.pct : null;
+    if (mode === 'front' && !(pct > 0)) pct = FRONT_PCT;
     const prev = once ? (r.order && !r.order.once ? r.order : r.order && r.order.prev) || null : null;
     if (pct !== null) r.tac.cmd = pct / 100 * r.ctx.cp;
-    else if (mode === 'manual' || mode === 'front') r.tac.cmd = Math.round(r.lastP || 0);
+    else if (mode === 'manual') r.tac.cmd = Math.round(r.lastP || 0);
     if (mode !== r.tac.mode || once) Tac.setMode(r, mode, t, once ? Tac.lineFor(r, race.cps, mode) : undefined);
     if (mode === 'relay' && pct !== null) r.tac.pull = r.tac.cmd;
     r.order = { mode, pct, once, prev };

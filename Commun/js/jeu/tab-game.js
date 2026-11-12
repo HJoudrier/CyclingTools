@@ -1220,6 +1220,8 @@
         // vent au cycliste (conditions de la seconde écoulée) : vitesse du vent, direction où il souffle dans le repère du cycliste
         // (0° : vers l'avant, 180° : vers l'arrière, donc vent de face), vitesse du vent apparent, composantes de face et de côté
         wind: windOf(me), hr: fs && fs.phys ? fs.phys : null,
+        hrBpm: fs && Number.isFinite(fs.hr) ? fs.hr : null, // FC (bpm) : modèle physiologique, sinon la FC simple (fuel.js)
+        arcade: !!(G.rules && G.rules.arcade),
         team: G.team ? { i: G.team.own.indexOf(me) + 1, n: G.team.own.length } : null, // mode équipe : place du coureur piloté dans la liste
         northUp: !!store.state.game.northUp, peloton: !!me.lat, closeUp: !!G.closeUp, tiltable: 'DeviceOrientationEvent' in window, tilt: !!G.tiltOn, edge: !!(me.lat && me.draft && me.draft.edge),
         pullSec: G.race ? G.race.rules.pullSec : Number.isFinite(Number(store.state.game.pullSec)) ? Number(store.state.game.pullSec) : 30, pullFixed: G.mode !== 'solo',
@@ -1667,7 +1669,8 @@
       const id = typeof kind === 'string' ? kind : undefined;
       const what = Fu.eat(me.fuel, me.st.t, id, !!id);
       const food = Fu.FOOD_IDS.map((k) => ({ k, f: Fu.FOODS[k] })).find((x) => x.f.label === what);
-      if (what) {
+      if (what && me.fuel.arcade) D.toast(`Tu ${food.f.cat === 'gel' ? 'avales' : 'manges'} ${food.f.name.toLowerCase()} : ton endurance remonte.`);
+      else if (what) {
         const f = food.f, src = f.fructose > 0.2 ? 'double source' : f.fructose > 0 ? 'surtout du glucose' : 'glucose seul';
         D.toast(`Tu ${f.cat === 'gel' ? 'avales' : 'manges'} ${f.name.toLowerCase()} : ${f.carbs} g de glucides (${src}), la moitié a quitté l'estomac en ≈ ${U.fmt(Fu.halfMinutes(food.k), 0)} min.`);
       } else if (id && !(me.fuel.items[id] > 0)) D.toast('Plus de ' + Fu.FOODS[id].name.toLowerCase() + ' dans les poches !', 'error');
@@ -1837,12 +1840,106 @@
       if (me) {
         if (me.tac.mode === 'relay') me.tac.pull = G.cmd;
         else if (me.tac.mode === 'cover' && !Tac.layersOf(me).follow) me.tac.cmd = G.cmd; // « Suivre les attaques » seul : la jauge règle la puissance de base
-        else if (me.tac.mode !== 'manual') Tac.setMode(me, 'manual', me.st.t);
+        else if (me.tac.mode !== 'manual' && me.tac.mode !== 'front') Tac.setMode(me, 'manual', me.st.t); // « Rouler en tête » : la jauge règle l'allure de tête
         me.tac.cmd = G.cmd;
       }
       T.renderTactics();
       if (G.ctx) T.renderGauge(PYR.sim.availablePower(G.ctx, G.st).cap);
       T.renderLimits(); // durée tenable et bandes suivent aussitôt la consigne, même en pause
+    },
+
+    /* ---------- Course 3D (hud3d.js) : effort en % de la PC et actions de chaque coureur de l'équipe ---------- */
+
+    /** Consigne du coureur r en % de sa PC, ou null quand sa tactique règle la puissance (roues, suivre les attaques, attaque…). */
+    pctOf(r) {
+      r = r || G.me;
+      if (!r || !r.ctx || !(r.ctx.cp > 0)) return null;
+      const cp = r.ctx.cp, tac = r.tac;
+      if (r === G.me) {
+        if (G.auto || source() !== 'avatar') return null;
+        if (tac.mode === 'manual' || tac.mode === 'front') return 100 * G.cmd / cp;
+        if (tac.mode === 'relay') return 100 * (tac.pull || G.cmd) / cp;
+        if (tac.mode === 'cover' && !Tac.layersOf(r).follow) return 100 * (tac.cmd || 0) / cp;
+        return null;
+      }
+      if (!r.order) return null;
+      if (r.order.mode === 'manual' || r.order.mode === 'front') return 100 * (tac.cmd || 0) / cp;
+      if (r.order.mode === 'relay') return 100 * (tac.pull || tac.cmd || 0) / cp;
+      return null;
+    },
+
+    /** Puissance produite par r pendant la seconde écoulée, en % de sa PC. */
+    pctNow(r) {
+      r = r || G.me;
+      return r && r.ctx && r.ctx.cp > 0 ? 100 * (r.lastP || 0) / r.ctx.cp : 0;
+    },
+
+    /**
+     * Effort de r à pct % de sa PC (crans de 5 %, de 0 à 150 %). Coureur piloté : la jauge (setCmd). Équipier : un ordre (race.giveOrder),
+     * l'allure libre, ou l'allure de « Rouler en tête » ou du relais s'il en a reçu l'ordre.
+     */
+    setPct(pct, r) {
+      r = r || G.me;
+      if (!r || !r.ctx || G.finished) return;
+      const p = U.clamp(Math.round(pct / 5) * 5, 0, 150);
+      if (r === G.me) { T.setCmd(p / 100 * r.ctx.cp); return; }
+      if (!G.team || !r.own || r.human || r.finished) return;
+      const m = r.order && ['manual', 'front', 'relay'].includes(r.order.mode) ? r.order.mode : 'manual';
+      Race.giveOrder(G.race, r, { mode: m, pct: p });
+    },
+
+    /**
+     * Action de la vignette d'un coureur : 'moveup', 'attack', 'cover', 'sprint', 'front', 'relay', 'follow', 'eat', et pour un équipier
+     * 'auto' (rendre à la stratégie). Coureur piloté : sa tactique (la même action une seconde fois rend la main à la jauge) ; équipier :
+     * un ordre (la même action une seconde fois le rend à la stratégie).
+     */
+    act(action, r) {
+      r = r || G.me;
+      if (!r || !G.ready || G.finished || r.finished) return;
+      if (action === 'eat') { if (r === G.me) T.eat(); else T.eatFor(r); return; }
+      if (r !== G.me) {
+        if (!G.team || !r.own || r.human) return;
+        if (action === 'auto' || (r.order && r.order.mode === action && !r.order.once)) Race.clearOrder(G.race, r);
+        else Race.giveOrder(G.race, r, { mode: action });
+        return;
+      }
+      if (source() !== 'avatar' || action === 'auto') return;
+      const me = r, t = me.st.t, was = me.tac.mode;
+      if (G.auto) { G.auto = false; $('#g-auto').checked = false; }
+      const barW = was === 'manual' || was === 'front' ? G.cmd : Math.round(me.lastPcmd || G.cmd); // effort de la barre avant l'action
+      const toManual = () => { G.cmd = barW; Tac.setMode(me, 'manual', t); me.tac.cmd = G.cmd; };
+      if (action === 'attack' || action === 'sprint') {
+        if (was === action) Tac.afterLine(me, t); // une seconde fois : on arrête l'effort, la tactique d'avant reprend
+        else {
+          Tac.setMode(me, action, t, Tac.lineFor(me, G.cps, action));
+          if (action === 'sprint') me.tac.oneShot = true; // un seul appui : à fond jusqu'à la ligne (35 s au plus)
+        }
+      } else if (['follow', 'cover', 'relay', 'moveup', 'front'].includes(action)) {
+        const lay = Tac.layersOf(me);
+        const active = action === 'relay' ? lay.relay : action === 'cover' ? lay.cover : action === 'follow' ? was === 'follow' && !lay.cover && !lay.relay : was === action;
+        if (active) toManual();
+        else {
+          const pull = me.tac.pull;
+          Tac.setMode(me, action, t);
+          me.tac.cmd = barW; // allure de « Rouler en tête », puissance de base de « Suivre les attaques »
+          if (action === 'relay') { me.tac.pull = was === 'manual' || was === 'front' ? barW : pull > 0 ? pull : me.tac.pull; G.cmd = Math.round(me.tac.pull); }
+          if (action === 'front') { // depuis une tactique automatique (roues…), la tête se prend à 95 % de la PC ; sinon à l'effort de la barre
+            G.cmd = was === 'manual' || was === 'front' ? barW : Math.round(0.95 * me.ctx.cp);
+            me.tac.cmd = G.cmd;
+          }
+        }
+      } else return;
+      T.renderTactics();
+      if (G.ctx) T.renderGauge(PYR.sim.availablePower(G.ctx, G.st).cap);
+      T.renderLimits();
+    },
+
+    /** Un équipier mange (vignette, Course 3D). */
+    eatFor(r) {
+      if (!r || !r.fuel) return;
+      const what = Fu.eat(r.fuel, r.st.t);
+      if (what) D.toast(`${r.name} mange : ${what}.`);
+      else D.toast(Fu.count(r.fuel, 'gel') + Fu.count(r.fuel, 'bar') ? `${r.name} a mangé il y a moins de ${Fu.EAT_COOLDOWN} s.` : `${r.name} n'a plus rien à manger.`, 'error');
     },
 
     bindGauge() {
@@ -1864,6 +1961,8 @@
       const tag = (e.target.tagName || '').toLowerCase();
       if ((tag === 'input' || tag === 'select' || tag === 'textarea') && e.target.id !== 'gauge') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Course 3D : le HUD superposé prend d'abord ses touches (effort en % de la PC, actions, menu, Échap)
+      if (PYR.hud3d && PYR.hud3d.on() && PYR.hud3d.onKey(e)) { e.preventDefault(); return; }
       let handled = true;
       const mode = Tac.MODES.find((m) => m.key === e.key.toLowerCase());
       if (e.key === 'ArrowUp') T.setCmd(G.cmd + (e.shiftKey ? 50 : 10));
@@ -2098,12 +2197,19 @@
       if (r.finished) { D.toast(`${r.name} est déjà arrivé.`); return false; }
       // ce qu'on affichait pour celui qu'on quitte (courbe de puissance, moyennes lissées) est gardé pour son retour
       G.saved[G.me.id] = { pHist: G.pHist, savedHist: G.savedHist, best: G.best, cmd: G.cmd };
-      PYR.teamGame.switchTo(race, id);
+      // Course 3D : celui qu'on quitte garde sa tactique et son effort (ordre), celui qu'on prend reprend son ordre en cours
+      const keep = !!(PYR.hud3d && PYR.hud3d.on()), ord = keep && r.order && !r.order.once ? Object.assign({}, r.order) : null;
+      PYR.teamGame.switchTo(race, id, { keep });
       G.me = r; G.ctx = r.ctx; G.st = r.st;
       const sv = G.saved[id];
       G.pHist = sv ? sv.pHist : []; G.savedHist = sv ? sv.savedHist : [];
       G.best = sv ? sv.best : new Float64Array(CURVE_MAX); G.lastCurve = 0;
       G.cmd = Math.round(r.lastP || r.athlete.ftp * 0.75);
+      if (ord) {
+        if (Number.isFinite(ord.pct)) G.cmd = Math.round(ord.pct / 100 * r.ctx.cp);
+        Tac.setMode(r, ord.mode, r.st.t);
+        if (ord.mode === 'relay') r.tac.pull = G.cmd;
+      }
       r.tac.cmd = G.cmd;
       G.tteKey = null; G.tteVal = null; G.surfKey = undefined; G.boostT = 0;
       G.lastP = r.lastP; G.lastPcmd = r.lastPcmd;

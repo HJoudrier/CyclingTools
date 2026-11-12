@@ -56,7 +56,8 @@
         'PaceYourRide/js/calibration.js', 'PaceYourRide/js/tab-shop.js', 'PaceYourRide/js/tab-perf.js']),
     },
     jeu2d: { dir: 'VirtualRide2D', ns: 'paceyourride.jeu2d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
-    jeu3d: { dir: 'VirtualRide3D', ns: 'paceyourride.jeu3d', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
+    // Course 3D (cartoon) : en plus, l'écran de jeu plein écran et son HUD superposé (hud3d.js)
+    jeu3d: { dir: 'VirtualRide3D', ns: 'paceyourride.jeu3d', scripts: ENGINE.concat(SHARED_UI, GAME_UI, ['Commun/js/jeu/hud3d.js']) },
     jeu3dr: { dir: 'VirtualRide3DRealiste', ns: 'paceyourride.jeu3dr', scripts: ENGINE.concat(SHARED_UI, GAME_UI) },
     compteur: { dir: 'Compteur', ns: 'paceyourride.compteur', scripts: ENGINE.concat(SHARED_UI, ['Commun/vendor/qrcode-generator/qrcode.js', 'Commun/js/jeu/challenges.js', 'Commun/js/jeu/qr.js', 'Commun/js/jeu/relay.js', 'Commun/js/jeu/live.js', 'Compteur/js/tab-ride.js']) },
     // accueil de PaceYourRide : le projet en cours, le matériel, la météo, la stratégie et la bibliothèque (pas de Commun/js/app.js)
