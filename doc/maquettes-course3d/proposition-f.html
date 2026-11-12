@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition F « Barres aux pouces »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition F : onglet suspendu en haut, barres Aérobie / Anaérobie contre les boutons ---------- */
+  .F .tab { position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 470px; padding: 4px 10px 7px; border-top: 0; border-radius: 0 0 20px 20px; display: grid; gap: 2px; justify-items: center; }
+  .F .tab .who { display: flex; align-items: center; gap: 10px; }
+  .F .tab .nav { width: 30px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--h3-bg-2); }
+  .F .tab .nav .ico { width: 16px; height: 16px; }
+  .F .tab .who small { font-size: 10px; color: var(--h3-ink-2); font-weight: 700; }
+  .F .tab .stats { display: flex; align-items: baseline; gap: 16px; }
+  .F .tab .stats .big { font-size: 25px; }
+  /* barres verticales, contre les pouces */
+  .F .vbar { position: absolute; bottom: 16px; width: 16px; height: 100px; border-radius: 8px; background: rgba(255, 255, 255, 0.16); overflow: hidden; box-shadow: 0 0 0 1px var(--h3-line); }
+  .F .vbar i { position: absolute; left: 0; right: 0; bottom: 0; }
+  .F .vlabel { position: absolute; bottom: 122px; font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7); }
+  .F .eff { position: absolute; left: 184px; right: 158px; bottom: 18px; padding: 6px 10px; }
+  .F .eff .track { height: 20px; }
+</style>
+</head>
+<body class="F">
+<h1>Proposition F · Barres aux pouces</h1>
+<p class="lead">Le haut est un <b>onglet suspendu</b> au bord de l'écran, comme une encoche : le nom du coureur actif entre ◀ ▶ (coéquipier derrière / devant),
+puis puissance, vitesse, FC et l'aspiration. En bas, la barre d'effort, fine, entre les boutons ; et deux <b>jauges verticales sous les pouces</b> :
+<b>Aérobie</b> contre Freiner, <b>Anaérobie</b> contre Accélérer. On voit ce qu'on dépense là où l'on appuie.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Menu d'actions ouvert (il s'applique au coureur actif)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Quand on tapote Accélérer, on voit la jauge rouge d'à côté descendre : le geste et son coût sont au même endroit.</li>
+  <li>L'onglet du haut ne touche que le bord : le ciel et la route restent libres.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = () => `${M.chevrons('chase')}
+    <div class="ctl"><span class="sq glass">${ico('team')}</span><span class="pill glass" style="padding:0 4px 0 10px;height:30px"><span class="lbl">Traj.</span>${M.traj()}</span></div>
+    <div class="ctr"><span class="sq glass act">${ico('bolt')}</span><span class="sq glass">${ico('menu')}</span></div>
+    <div class="tab glass">
+      <div class="who"><span class="nav">${ico('left')}</span><small>Adam −30 m</small>${M.name()}<small>João +12 m</small><span class="nav">${ico('right')}</span></div>
+      <div class="stats"><span><span class="big">${D.P}</span><span class="unit">W</span></span><span><span class="big">${M.fr(D.v, 1)}</span><span class="unit">km/h</span></span><span><span class="big">${D.hr}</span><span class="unit">bpm</span></span>${M.draft()}</div>
+    </div>
+    <div class="rbtn brake"><div class="in">${ico('brake')}FREINER</div></div>
+    <div class="vbar" style="left:154px"><i style="height:${D.endu * 100}%;background:var(--h3-endu)"></i></div>
+    <div class="vlabel" style="left:140px;color:#8fe3a2">AÉROBIE</div>
+    <div class="rbtn accel" style="${M.ring(D.boost)}"><div class="in">${ico('accel')}ACCÉLÉRER<small>tapote !</small></div></div>
+    <div class="vbar" style="right:128px"><i style="height:${D.anaer * 100}%;background:var(--h3-anaer)"></i></div>
+    <div class="vlabel" style="right:108px;color:#ff9b9b">ANAÉROBIE</div>
+    <div class="eff glass">${M.effort(true)}</div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.actionsMenu('right:18px;top:58px;width:270px');
+</script>
+</body>
+</html>

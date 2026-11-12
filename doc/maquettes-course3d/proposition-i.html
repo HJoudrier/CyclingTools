@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition I « Sensations »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition I : on ressent l'effort plutôt qu'on ne le lit ---------- */
+  .I .edge { position: absolute; top: 0; bottom: 0; width: 120px; pointer-events: none; }
+  .I .edge.aer { left: 0; background: linear-gradient(90deg, rgba(52, 181, 82, 0.55), rgba(52, 181, 82, 0)); }
+  .I .edge.ana { right: 0; background: linear-gradient(270deg, rgba(229, 72, 77, 0.62), rgba(229, 72, 77, 0)); }
+  .I .edge.ana::after { content: ""; position: absolute; inset: 0; background: linear-gradient(270deg, rgba(229, 72, 77, 0.35), rgba(229, 72, 77, 0) 60%); transform: scaleX(1.25); transform-origin: right; }
+  .I .who { position: absolute; left: 44px; top: 12px; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); }
+  .I .who .l1 { display: flex; align-items: center; gap: 8px; }
+  .I .who .nav { width: 30px; height: 28px; border-radius: 9px; display: grid; place-items: center; }
+  .I .who .nav .ico { width: 16px; height: 16px; }
+  .I .who .l2 { margin: 3px 0 0 38px; display: flex; gap: 12px; align-items: baseline; font-size: 13px; font-weight: 800; }
+  .I .who .l2 b { font-size: 20px; }
+  .I .heart { position: absolute; right: 70px; top: 12px; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px; border-radius: 999px; font-size: 16px; font-weight: 800; color: #fff; }
+  .I .heart svg { width: 22px; height: 22px; fill: #e5484d; filter: drop-shadow(0 0 6px rgba(229, 72, 77, 0.9)); }
+  .I .heart i { position: absolute; inset: -6px; border-radius: 999px; border: 2px solid rgba(229, 72, 77, 0.55); }
+  .I .ctr2 { position: absolute; right: 18px; top: 12px; }
+  /* marqueurs des coéquipiers, dans la scène */
+  .I .mk { position: absolute; transform: translate(-50%, -100%); display: grid; justify-items: center; gap: 2px; }
+  .I .mk b { display: grid; place-items: center; width: 24px; height: 24px; transform: rotate(45deg); border-radius: 5px; background: var(--team); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+  .I .mk b span { transform: rotate(-45deg); font-size: 9px; font-weight: 900; color: #fff; }
+  .I .mk.on b { background: var(--h3-effort); }
+  .I .mk.on b span { color: #111; }
+  .I .mk small { font-size: 9px; font-weight: 800; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); white-space: nowrap; }
+  .I .mk .bars { display: grid; gap: 1px; width: 26px; }
+  .I .mk .bars i { display: block; height: 3px; border-radius: 2px; }
+  /* coins : Freiner, Accélérer (et l'effort) en arcs */
+  .I .corner { position: absolute; bottom: 0; width: 170px; height: 170px; pointer-events: none; }
+  .I .corner .t { position: absolute; bottom: 18px; font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); }
+  .I .corner .t small { display: block; font-size: 9px; letter-spacing: 0; font-weight: 700; }
+  /* menu radial (appui long) */
+  .I .dim { position: absolute; inset: 0; background: rgba(8, 10, 14, 0.42); }
+  .I .radial { position: absolute; width: 0; height: 0; }
+  .I .radial .c { position: absolute; left: -38px; top: -38px; width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; text-align: center; font-size: 11px; font-weight: 800; line-height: 1.2; }
+  .I .radial .o { position: absolute; width: 112px; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; font-size: 10px; font-weight: 800; text-align: center; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+  .I .radial .o span { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .I .radial .o.on span { background: var(--h3-effort); color: #111; }
+  .I .finger { position: absolute; width: 34px; height: 34px; border-radius: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.18); }
+</style>
+</head>
+<body class="I">
+<h1>Proposition I · Sensations</h1>
+<p class="lead">On <b>ressent</b> l'effort plutôt qu'on ne le lit. Le bord gauche de l'écran est <b>vert</b> tant que l'aérobie est pleine et se ternit quand elle baisse ;
+le bord droit devient <b>rouge et pulse au rythme du cœur</b> quand l'anaérobie se vide ; on entend la respiration s'accélérer, le téléphone vibre aux battements
+dans le rouge. Peu de chiffres : le nom du coureur actif (◀ ▶), puissance, vitesse, et la FC dans un cœur. Les <b>coéquipiers ont un marqueur dans la scène</b> :
+on les touche pour les piloter. Un <b>appui long</b> n'importe où ouvre les actions en cercle, sous le doigt.</p>
+
+<section class="state"><h2>En course (caméra large, aide à la trajectoire sur la route)</h2>
+<div class="phone wide" id="p1"></div></section>
+<section class="state"><h2>Appui long : les actions en cercle sous le doigt (on glisse vers l'action, on relâche)</h2>
+<div class="phone wide" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Les coins : un quart d'arc rouge à gauche (Freiner, on le tient), un quart d'arc jaune à droite (Accélérer, on le tapote) ; l'arc intérieur donne l'effort réglé et ce qu'ajoute Accélérer.</li>
+  <li>Le bruit du vent monte avec la vitesse et baisse à l'abri (l'aspiration s'entend) ; un petit « −48 W » vert apparaît quand on entre dans les roues.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const heart = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z"/></svg>';
+  const marker = (x, y, i, n, e, w, on) => `<div class="mk${on ? ' on' : ''}" style="left:${x}px;top:${y}px"><small>${n}</small><b><span>${i}</span></b>
+    <span class="bars"><i style="width:${e * 100}%;background:var(--h3-endu)"></i><i style="width:${w * 100}%;background:var(--h3-anaer)"></i></span></div>`;
+  /** Quart d'arc dans un coin : Freiner (gauche, rouge) ou Accélérer (droite : effort réglé, dépassement, remplissage). */
+  function corner(side) {
+    const left = side === 'l';
+    const arc = (r, a0, a1) => {   // angles en degrés depuis l'horizontale vers le haut (0 : le bas de l'écran)
+      const cx = left ? 0 : 170, cy = 170, s = left ? 1 : -1;
+      const p = (a) => [cx + s * r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)];
+      const [x0, y0] = p(a0), [x1, y1] = p(a1);
+      return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 0 ${left ? 0 : 1} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    };
+    const svg = left
+      ? `<path d="${arc(130, 0, 90)}" stroke="rgba(229,72,77,0.75)" stroke-width="12" fill="none" stroke-linecap="round"/>`
+      : `<path d="${arc(130, 0, 90)}" stroke="rgba(255,255,255,0.22)" stroke-width="12" fill="none" stroke-linecap="round"/>
+         <path d="${arc(130, 0, 90 * D.boost)}" stroke="#ffd23f" stroke-width="12" fill="none" stroke-linecap="round"/>
+         <path d="${arc(108, 0, 90)}" stroke="rgba(255,255,255,0.18)" stroke-width="6" fill="none"/>
+         <path d="${arc(108, 0, 90 * D.effort / 150)}" stroke="#fff" stroke-width="6" fill="none"/>
+         <path d="${arc(108, 90 * D.effort / 150, 90 * D.boostTo / 150)}" stroke="#ff8c28" stroke-width="6" fill="none"/>`;
+    return `<div class="corner" style="${left ? 'left:0' : 'right:0'}"><svg viewBox="0 0 170 170" width="170" height="170" style="position:absolute;inset:0">${svg}</svg>
+      <div class="t" style="${left ? 'left:46px;color:#ffd0d1' : 'right:22px;text-align:right;color:var(--h3-effort)'}">${left ? 'FREINER<small>tiens</small>' : `ACCÉLÉRER<small>effort ${D.effort} % · tapote</small>`}</div></div>`;
+  }
+  const base = () => `${M.chevrons('wide', { label: true })}
+    <div class="edge aer"></div><div class="edge ana"></div>
+    ${marker(436, 222, 'ID', 'del Toro', 0.78, 0.92)}${marker(456, 262, 'JA', 'Almeida', 0.66, 0.81)}${marker(430, 316, 'TP', 'toi', D.endu, D.anaer, true)}
+    <div class="who"><div class="l1"><span class="nav glass">${ico('left')}</span>${M.name()}<span class="nav glass">${ico('right')}</span></div>
+      <div class="l2"><span><b>${D.P}</b> W</span><span><b>${M.fr(D.v, 1)}</b> km/h</span><span style="color:#8fe3a2">−${D.draft} W</span></div></div>
+    <div class="heart glass"><i></i>${heart}${D.hr}</div>
+    <div class="ctr2"><span class="sq glass">${ico('menu')}</span></div>
+    ${corner('l')}${corner('r')}`;
+  document.getElementById('p1').innerHTML = base();
+  const fx = 600, fy = 196, R = 124;
+  const opts = M.ACTIONS.map(([id, l], k) => {
+    const a = -Math.PI / 2 + k * 2 * Math.PI / M.ACTIONS.length;
+    return `<div class="o${id === 'follow' ? ' on' : ''}" style="left:${(R * Math.cos(a)).toFixed(0)}px;top:${(R * Math.sin(a)).toFixed(0)}px"><span class="glass">${ico(id)}</span>${l.replace(' jusqu\'à la ligne', '')}</div>`;
+  }).join('');
+  document.getElementById('p2').innerHTML = base() + `<div class="dim"></div>
+    <div class="radial" style="left:${fx}px;top:${fy}px">${opts}<div class="c glass">Tadej<br><small style="font-weight:600;color:var(--h3-ink-2)">actions</small></div></div>
+    <div class="finger" style="left:${fx + 64}px;top:${fy + 66}px"></div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition G « Retransmission TV »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition G : l'habillage d'une course télévisée ---------- */
+  .G { --tv: rgba(9, 22, 48, 0.9); --tv-2: rgba(22, 44, 86, 0.92); --acc: #ffd23f; }
+  .G .tvf { font-family: "Arial Narrow", "Roboto Condensed", system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.02em; }
+  .G .bug { position: absolute; left: 44px; top: 12px; display: flex; align-items: stretch; height: 34px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35); }
+  .G .bug .logo { display: flex; align-items: center; padding: 0 10px; background: var(--acc); color: #10213f; font-weight: 900; font-size: 15px; }
+  .G .bug .live { display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--tv); color: #fff; font-weight: 800; font-size: 12px; }
+  .G .bug .live i { width: 8px; height: 8px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.3); }
+  .G .bug .stage { display: flex; align-items: center; padding: 0 10px; background: var(--tv-2); color: #cfe0ff; font-weight: 700; font-size: 11px; }
+  .G .breaks { position: absolute; right: 70px; top: 12px; width: 330px; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35); }
+  .G .breaks .r1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; background: var(--tv); color: #fff; height: 30px; }
+  .G .breaks .r1 b { padding: 0 8px; height: 100%; display: flex; align-items: center; background: var(--acc); color: #10213f; font-size: 12px; font-weight: 900; white-space: nowrap; }
+  .G .breaks .r1 span { padding: 0 8px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .G .breaks .r1 em { font-style: normal; padding: 0 10px; font-size: 16px; font-weight: 900; color: var(--acc); }
+  .G .breaks .r2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 4px 8px; background: var(--tv-2); color: #cfe0ff; font-size: 11px; font-weight: 800; }
+  .G .breaks .bar { height: 6px; background: rgba(255, 255, 255, 0.2); position: relative; }
+  .G .breaks .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 29.5%; background: var(--acc); }
+  .G .breaks .bar b { position: absolute; top: -4px; width: 2px; height: 14px; background: #e5484d; }
+  /* pastille au-dessus du coureur, dans l'image */
+  .G .tag { position: absolute; display: flex; align-items: center; height: 22px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+  .G .tag i { width: 5px; height: 100%; background: var(--team); }
+  .G .tag span { padding: 0 7px; background: var(--tv); color: #fff; font-size: 12px; font-weight: 900; }
+  .G .tag small { padding: 0 6px; height: 100%; display: flex; align-items: center; background: var(--acc); color: #10213f; font-size: 10px; font-weight: 900; }
+  .G .tagline { position: absolute; width: 2px; background: rgba(255, 255, 255, 0.8); }
+  /* bandeau de nom (lower third) */
+  .G .third { position: absolute; left: 132px; bottom: 18px; width: 440px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
+  .G .third .n { display: grid; grid-template-columns: 28px 8px minmax(0, 1fr) 28px; align-items: stretch; height: 36px; background: var(--tv); color: #fff; }
+  .G .third .n .nav { display: grid; place-items: center; background: var(--tv-2); }
+  .G .third .n .nav .ico { width: 16px; height: 16px; }
+  .G .third .n i { background: var(--team); }
+  .G .third .n div { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 0; }
+  .G .third .n strong { font-size: 19px; font-weight: 900; white-space: nowrap; }
+  .G .third .n div { overflow: hidden; white-space: nowrap; }
+  .G .third .n div span { font-size: 11px; font-weight: 700; color: #cfe0ff; }
+  .G .third .d { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--tv-2); color: #fff; }
+  .G .third .d > div { padding: 3px 8px 5px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+  .G .third .d small { display: block; font-size: 9px; font-weight: 800; color: #9fb7e4; }
+  .G .third .d b { font-size: 20px; font-weight: 900; }
+  .G .third .d em { font-style: normal; font-size: 10px; font-weight: 800; color: #cfe0ff; margin-left: 2px; }
+  .G .third .d .g b { color: #8fe3a2; }
+  /* encart « capteurs » : effort, aérobie, anaérobie */
+  .G .sens { position: absolute; right: 112px; bottom: 18px; width: 158px; padding: 6px 8px; background: var(--tv); color: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); display: grid; gap: 5px; }
+  .G .sens .t { display: flex; justify-content: space-between; font-size: 10px; font-weight: 900; color: #9fb7e4; }
+  .G .sens .t b { color: #fff; font-size: 13px; }
+  .G .sens .tr2 { position: relative; height: 10px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.2) 66.67%, rgba(229, 72, 77, 0.45) 66.67%); }
+  .G .sens .tr2 i { position: absolute; left: 0; top: 0; bottom: 0; }
+  .G .sens .mini { display: grid; grid-template-columns: 56px 1fr; align-items: center; gap: 6px; font-size: 9px; font-weight: 900; color: #9fb7e4; }
+  .G .sens .mini span { height: 6px; background: rgba(255, 255, 255, 0.18); position: relative; }
+  .G .sens .mini span i { position: absolute; left: 0; top: 0; bottom: 0; }
+  /* commandes discrètes */
+  .G .soft { position: absolute; bottom: 16px; width: 74px; height: 74px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 9px; font-weight: 800; background: rgba(9, 22, 48, 0.55); border: 2px solid rgba(255, 255, 255, 0.5); }
+  .G .soft .ico { width: 24px; height: 24px; }
+  .G .soft.acc { border: 0; padding: 0; }
+  .G .soft.acc .in { width: 64px; height: 64px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; background: rgba(9, 22, 48, 0.85); color: var(--h3-effort); font-size: 8px; }
+  .G .ctr2 { position: absolute; right: 18px; top: 12px; display: grid; gap: 8px; }
+  .G .sqtv { width: 40px; height: 40px; display: grid; place-items: center; background: var(--tv); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35); }
+</style>
+</head>
+<body class="G">
+<h1>Proposition G · Retransmission TV</h1>
+<p class="lead">On regarde sa course <b>comme à la télévision</b> : la caméra TV, le logo et « en direct », le bandeau de l'échappée (écart, kilomètres restants),
+une <b>pastille de nom</b> au-dessus de son coureur, et en bas le <b>bandeau de nom</b> du coureur actif avec ses chiffres (puissance, vitesse, FC, aspiration),
+◀ ▶ aux bouts. L'effort, l'aérobie et l'anaérobie sont dans un encart « capteurs ». Freiner et Accélérer restent aux coins, plus discrets.</p>
+
+<section class="state"><h2>En course (caméra TV)</h2>
+<div class="phone tv" id="p1"></div></section>
+<section class="state"><h2>Liste de l'équipe ouverte (« la course de ton équipe »)</h2>
+<div class="phone tv" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Les caméras changent comme à la télévision (moto, hélicoptère, bord de route) ; les graphismes ne bougent pas. Le bandeau de nom passe au coureur actif quand on change avec ◀ ▶.</li>
+  <li>Les arrivées, les sommets et les attaques ont leur « carton » plein écran, comme les ralentis d'une retransmission.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const pc = (p) => (100 * p / 150).toFixed(1) + '%';
+  const base = () => `
+    <div class="bug tvf"><span class="logo">Wattlas</span><span class="live"><i></i>En direct</span><span class="stage">Étape 7 · Col des Marmottes</span></div>
+    <div class="ctl" style="top:56px"><span class="sqtv">${ico('team')}</span></div>
+    <div class="ctr2"><span class="sqtv">${ico('more')}</span><span class="sqtv">${ico('menu')}</span></div>
+    <div class="breaks tvf">
+      <div class="r1"><b>Tête de course</b><span>4 coureurs · peloton</span><em>+0:42</em></div>
+      <div class="r2"><span>${M.fr(D.km, 1)} km</span><span class="bar"><i></i><b style="left:83%"></b></span><span>${D.total} km</span></div>
+    </div>
+    <span class="tagline" style="left:380px;top:82px;height:22px"></span>
+    <div class="tag tvf" style="left:330px;top:60px"><i></i><span>Pogačar</span><small>3ᵉ</small></div>
+    <div class="soft" style="left:44px;color:#ffd0d1">${ico('brake')}FREINER</div>
+    <div class="soft acc" style="right:18px;${M.ring(D.boost)}"><div class="in">${ico('accel')}ACCÉLÉRER</div></div>
+    <div class="third tvf">
+      <div class="n"><span class="nav">${ico('left')}</span><i></i><div><strong>Tadej Pogačar</strong><span>UAE · ${D.role} · ${D.place}ᵉ</span></div><span class="nav">${ico('right')}</span></div>
+      <div class="d"><div><small>Puissance</small><b>${D.P}</b><em>W</em></div><div><small>Vitesse</small><b>${M.fr(D.v, 1)}</b><em>km/h</em></div>
+        <div><small>Fréq. cardiaque</small><b>${D.hr}</b><em>bpm</em></div><div class="g"><small>Aspiration</small><b>−${D.draft}</b><em>W</em></div></div>
+    </div>
+    <div class="sens tvf">
+      <div class="t">Effort <b>${D.effort} %</b></div>
+      <div class="tr2"><i style="width:${pc(D.effort)};background:var(--acc)"></i><i style="left:${pc(D.effort)};width:${pc(D.boostTo - D.effort)};background:repeating-linear-gradient(135deg,#ffd23f 0 3px,#ff8c28 3px 6px)"></i></div>
+      <div class="mini">Aérobie<span><i style="width:${D.endu * 100}%;background:var(--h3-endu)"></i></span></div>
+      <div class="mini">Anaérobie<span><i style="width:${D.anaer * 100}%;background:var(--h3-anaer)"></i></span></div>
+    </div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.teamMenu('left:96px;top:56px;width:330px');
+</script>
+</body>
+</html>

@@ -62,9 +62,10 @@
   }
 
   /** Endurance (vert) et effort court (rouge). */
-  function meters() {
-    return `<div class="meters"><div class="meter">Endurance <div class="gauge endu"><i style="width:${D.endu * 100}%"></i></div></div>
-      <div class="meter">Effort court <div class="gauge anaer"><i style="width:${D.anaer * 100}%"></i></div></div></div>`;
+  function meters(aero) {
+    const [a, b] = aero ? ['Aérobie', 'Anaérobie'] : ['Endurance', 'Effort court'];
+    return `<div class="meters"><div class="meter">${a} <div class="gauge endu"><i style="width:${D.endu * 100}%"></i></div></div>
+      <div class="meter">${b} <div class="gauge anaer"><i style="width:${D.anaer * 100}%"></i></div></div></div>`;
   }
 
   const draft = () => `<span class="chip draft" title="Watts économisés grâce à l'aspiration">Aspiration −${D.draft} W</span>`;
@@ -98,16 +99,20 @@
   }
 
   /* ---------- chevrons de l'aide à la trajectoire ---------- */
-  // perspective de fond.jpg (844 × 390) : point de fuite (442, 145) ; à la hauteur y, l'axe de la route est à 442 − 0,335·(y − 145) et un
-  // mètre de côté vaut (y − 145) / 3 px ; la profondeur z (m) donne y = 145 + 980 / z (le bas de l'image est à 4 m)
-  const VX = 442, VY = 145, K = 980;
-  function proj(X, z) {
-    const y = VY + K / z, d = y - VY;
-    return [VX - 0.335 * d + X * d / 3, y];
-  }
+  // perspective de chaque fond (844 × 390), relevée sur l'image : à la hauteur y (d = y − VY sous l'horizon), l'axe de la route est en cx(d)
+  // et un mètre de côté vaut sx(d) px ; la profondeur z (m) donne y = VY + K / z
   const sm = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-  /** Trajectoire idéale : depuis la place du coureur (à droite), vers la corde d'un virage à gauche qui commence à ≈ 45 m. */
-  const ideal = (z) => 1.75 - 4.0 * sm((z - 8) / 28);
+  const VIEWS = {
+    // fond.jpg : caméra de poursuite ; vers la corde d'un virage à gauche qui commence à ≈ 45 m
+    chase: { VY: 145, K: 980, cx: (d) => 442 - 0.335 * d, sx: (d) => d / 3, z0: 6, z1: 52, dz: 4.6, k: 1,
+      ideal: (z) => 1.75 - 4.0 * sm((z - 8) / 28), tz: (z) => sm((z - 9) / 24), label: 46 },
+    // fond-cycliste.jpg : vue du cycliste (les yeux au-dessus du guidon)
+    rider: { VY: 186.3, K: 611, cx: () => 420, sx: (d) => 0.653 * d, z0: 5, z1: 44, dz: 3.4, k: 0.75,
+      ideal: (z) => 1.8 - 3.8 * sm((z - 6) / 26), tz: (z) => sm((z - 7) / 20), label: 36 },
+    // fond-large.jpg : caméra large, derrière le peloton
+    wide: { VY: 134.5, K: 2044, cx: (d) => 436.3 - 0.0833 * d, sx: (d) => 0.215 * d, z0: 10, z1: 95, dz: 6.5, k: 1.3,
+      ideal: (z) => 1.4 - 3.0 * sm((z - 14) / 55), tz: (z) => sm((z - 14) / 50), label: 84 },
+  };
   /** Couleur selon l'écart entre la vitesse et la vitesse conseillée : vert (de la marge) → jaune → orange → rouge (ralentis, freine). */
   const STOPS = [[0, [52, 181, 82]], [0.45, [255, 210, 63]], [0.7, [255, 140, 40]], [1, [229, 72, 77]]];
   function color(t) {
@@ -119,23 +124,68 @@
     }
     return 'rgb(229,72,77)';
   }
-  function chevrons() {
+  function chevrons(view, opts) {
+    const V = VIEWS[view || 'chase'], o = opts || {};
+    const proj = (X, z) => { const y = V.VY + V.K / z, d = y - V.VY; return [V.cx(d) + X * V.sx(d), y]; };
     // chevrons allongés (comme les flèches peintes sur la route) : vus de la caméra basse, un chevron court s'écrase
-    const shape = [[-0.75, 0], [0, 2.2], [0.75, 0], [0.75, 0.9], [0, 3.1], [-0.75, 0.9]];
+    const shape = [[-0.75, 0], [0, 2.2], [0.75, 0], [0.75, 0.9], [0, 3.1], [-0.75, 0.9]].map(([u, v]) => [u * V.k, v * V.k]);
     let out = '';
-    for (let z = 52; z >= 6; z -= 4.6) {
-      const X = ideal(z), t = sm((z - 9) / 24);
+    for (let z = V.z1; z >= V.z0; z -= V.dz) {
+      const X = V.ideal(z), t = V.tz(z);
       const pts = shape.map(([u, v]) => proj(X + u, z + v)).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-      out += `<polygon points="${pts}" fill="${color(t)}" fill-opacity="${(0.92 - 0.25 * (z / 60)).toFixed(2)}" stroke="#fff" stroke-opacity="0.7" stroke-width="${Math.max(0.4, 6 / z).toFixed(2)}"/>`;
+      out += `<polygon points="${pts}" fill="${color(t)}" fill-opacity="${((o.alpha || 0.92) - 0.25 * (z / V.z1)).toFixed(2)}" stroke="#fff" stroke-opacity="0.7" stroke-width="${Math.max(0.4, 6 / z).toFixed(2)}"/>`;
     }
-    const [lx, ly] = proj(ideal(46), 46);
-    out += `<g transform="translate(${(lx - 6).toFixed(1)},${(ly - 30).toFixed(1)})"><rect x="-46" y="-13" width="92" height="22" rx="11" fill="rgb(229,72,77)" stroke="#fff" stroke-width="1.2"/>
-      <text x="0" y="3" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="system-ui, sans-serif">Virage ${D.advice} km/h</text></g>`;
+    if (o.label !== false) {
+      const [lx, ly] = proj(V.ideal(V.label), V.label);
+      out += `<g transform="translate(${(lx - 6).toFixed(1)},${(ly - 30).toFixed(1)})"><rect x="-46" y="-13" width="92" height="22" rx="11" fill="rgb(229,72,77)" stroke="#fff" stroke-width="1.2"/>
+        <text x="0" y="3" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="system-ui, sans-serif">Virage ${D.advice} km/h</text></g>`;
+    }
     return `<svg class="road" viewBox="0 0 844 390" preserveAspectRatio="none" aria-hidden="true">${out}</svg>`;
+  }
+
+  /* ---------- HUD en deux parties : le haut (coureur actif, vitesse, puissance, FC) ---------- */
+  /** Barre du haut : ◀ (coéquipier derrière), le coureur actif et ses chiffres, ▶ (coéquipier devant). */
+  function topBar(cls, withDraft) {
+    return `<div class="topbar glass ${cls || ''}">${arrow('behind', 'left')}
+      <div class="tb-mid"><div class="tb-name">${name()}<span class="sub">${D.place}ᵉ/${D.field} · ${D.tactic}</span></div>
+        <div class="tb-stats"><span><span class="big">${D.P}</span><span class="unit">W</span></span><span><span class="big">${fr(D.v, 1)}</span><span class="unit">km/h</span></span>
+        <span><span class="big">${D.hr}</span><span class="unit">bpm</span></span>${withDraft ? draft() : ''}</div></div>
+      ${arrow('ahead', 'right')}</div>`;
+  }
+
+  /** Cadran d'effort (demi-cercle, 0 à 150 % de la PC) : consigne (aiguille), dépassement d'Accélérer, puissance produite ; Aérobie et
+   * Anaérobie en arcs extérieurs, à gauche et à droite. r : rayon (px). */
+  function dial(r) {
+    const W = 2 * r + 60, H = r + 34, cx = W / 2, cy = r + 22;
+    const pt = (p, rr) => { const a = Math.PI * (1 - p / 150); return [cx + rr * Math.cos(a), cy - rr * Math.sin(a)]; };
+    const arc = (p0, p1, rr) => { const [x0, y0] = pt(p0, rr), [x1, y1] = pt(p1, rr); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${rr} ${rr} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+    // arcs extérieurs : aérobie (gauche, de 0 à 75) et anaérobie (droite, de 75 à 150), remplis depuis le bas
+    const aer = 75 * D.endu, ana = 75 * D.anaer;
+    const [nx, ny] = pt(D.effort, r - 26), [mx, my] = pt(D.now, r - 2);
+    return `<svg class="dial" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+      <path d="${arc(0, 150, r - 12)}" stroke="rgba(14,17,22,0.72)" stroke-width="30" fill="none"/>
+      <path d="${arc(0, 100, r - 12)}" stroke="rgba(255,255,255,0.18)" stroke-width="18" fill="none"/>
+      <path d="${arc(100, 150, r - 12)}" stroke="rgba(229,72,77,0.45)" stroke-width="18" fill="none"/>
+      <path d="${arc(0, D.effort, r - 12)}" stroke="#ffd23f" stroke-width="18" fill="none"/>
+      <path d="${arc(D.effort, D.boostTo, r - 12)}" stroke="url(#hatch)" stroke-width="18" fill="none"/>
+      <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="rgba(255,140,40,0.85)"/><rect width="3" height="6" fill="#ffd23f"/></pattern></defs>
+      <path d="${arc(0, 75, r + 8)}" stroke="rgba(255,255,255,0.15)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="${arc(0, aer, r + 8)}" stroke="#34b552" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="${arc(75, 150, r + 8)}" stroke="rgba(255,255,255,0.15)" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <path d="${arc(150 - ana, 150, r + 8)}" stroke="#e5484d" stroke-width="7" fill="none" stroke-linecap="round"/>
+      ${(() => { const [a, b] = pt(100, r - 24), [c, d] = pt(100, r); return `<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}" stroke="#fff" stroke-width="2.5"/>`; })()}
+      <circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4" fill="#111" stroke="#fff" stroke-width="1.5"/>
+      <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="6" fill="#fff"/>
+      <text x="${cx}" y="${cy - 26}" text-anchor="middle" font-size="26" font-weight="800" fill="#fff" font-family="system-ui, sans-serif">${D.effort} %</text>
+      <text x="${cx}" y="${cy - 11}" text-anchor="middle" font-size="9" font-weight="700" fill="rgba(255,255,255,0.75)" font-family="system-ui, sans-serif" letter-spacing="0.6">EFFORT · PC</text>
+      <text x="${(pt(4, r + 22)[0]).toFixed(1)}" y="${cy + 10}" text-anchor="start" font-size="9" font-weight="800" fill="#8fe3a2" font-family="system-ui, sans-serif">AÉROBIE</text>
+      <text x="${(pt(146, r + 22)[0]).toFixed(1)}" y="${cy + 10}" text-anchor="end" font-size="9" font-weight="800" fill="#ff9b9b" font-family="system-ui, sans-serif">ANAÉROBIE</text>
+    </svg>`;
   }
 
   /** Bouton Accélérer rond : anneau rempli (remplissage d'Accélérer : chaque appui monte, il se vide en une seconde). */
   const ring = (p) => `background: conic-gradient(var(--h3-effort) ${(p * 360).toFixed(0)}deg, rgba(255,255,255,0.18) 0)`;
 
-  window.M = { D, ico, ACTIONS, effort, meters, draft, traj, name, info, sub, arrow, actionsMenu, teamMenu, chevrons, ring, fr };
+  window.M = { D, ico, ACTIONS, effort, meters, draft, traj, name, info, sub, arrow, actionsMenu, teamMenu, chevrons, ring, fr, topBar, dial, sm };
 })();

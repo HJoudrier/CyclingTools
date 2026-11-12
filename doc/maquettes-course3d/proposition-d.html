@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition D « Haut et bas »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition D : HUD en deux parties, le coureur en haut, l'effort en bas ---------- */
+  .D .topbar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 410px; }
+  .D .low .row2 { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; }
+  .D .low { position: absolute; left: 158px; right: 132px; bottom: 16px; padding: 8px 12px 10px; display: grid; gap: 8px; }
+  .D .low .track { height: 22px; }
+  .D .low .gauge { height: 9px; }
+  .D .low .meter { font-size: 11px; }
+</style>
+</head>
+<body class="D">
+<h1>Proposition D · Haut et bas</h1>
+<p class="lead">Le HUD est <b>coupé en deux</b>. En haut, le <b>coureur actif</b> : son nom, ◀ ▶ vers le coéquipier le plus proche derrière ou devant,
+puis <b>puissance, vitesse, FC</b>. En bas, entre <b>Freiner</b> et <b>Accélérer</b>, seulement ce qu'on règle et ce qu'on dépense :
+la <b>barre d'effort</b>, l'aspiration (les watts économisés) et les barres <b>Aérobie</b> et <b>Anaérobie</b>. Le centre de l'écran et le coureur restent dégagés.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Menu d'actions ouvert (il s'applique au coureur actif)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>En haut à gauche : Équipe (liste des coureurs) et, dessous, la bascule de trajectoire. En haut à droite : le menu d'actions (⚡) et le menu du jeu (☰).</li>
+  <li>Le bas ne fait que deux lignes : on le lit d'un coup d'œil entre les deux pouces.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = () => `${M.chevrons('chase')}
+    <div class="ctl"><span class="sq glass">${ico('team')}</span><span class="pill glass" style="padding:0 4px 0 10px;height:30px"><span class="lbl">Traj.</span>${M.traj()}</span></div>
+    <div class="ctr"><span class="sq glass act">${ico('bolt')}</span><span class="sq glass">${ico('menu')}</span></div>
+    ${M.topBar()}
+    <div class="rbtn brake"><div class="in">${ico('brake')}FREINER</div></div>
+    <div class="rbtn accel" style="${M.ring(D.boost)}"><div class="in">${ico('accel')}ACCÉLÉRER<small>tapote !</small></div></div>
+    <div class="low glass">${M.effort(true)}<div class="row2">${M.draft()}${M.meters(true)}</div></div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.actionsMenu('right:18px;top:58px;width:420px', 2);
+</script>
+</body>
+</html>

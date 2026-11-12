@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition H « Vue cycliste, compteur au guidon »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition H : la vue du cycliste ; les données sont sur le compteur fixé au guidon ---------- */
+  .H svg.bike { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* l'écran du compteur, posé sur le dessin */
+  .H .gps { position: absolute; left: 330px; top: 242px; width: 184px; height: 80px; padding: 4px 7px; border-radius: 6px; background: linear-gradient(180deg, #e9eee4, #d6ddd0); color: #1d2420; display: grid; grid-template-rows: auto 1fr auto; gap: 1px; font-variant-numeric: tabular-nums; }
+  .H .gps .who { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 800; }
+  .H .gps .who span { padding: 0 4px; border-radius: 3px; background: #1d2420; color: #e9eee4; font-size: 9px; }
+  .H .gps .main { display: grid; grid-template-columns: 1.15fr 1.1fr 0.85fr; align-items: end; gap: 4px; }
+  .H .gps .main b { font-size: 21px; font-weight: 900; line-height: 1; letter-spacing: -0.5px; }
+  .H .gps .main small { font-size: 8px; font-weight: 800; color: #4c564f; display: block; }
+  .H .gps .main em { font-style: normal; font-size: 9px; font-weight: 800; margin-left: 1px; }
+  .H .gps .ft { display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: #3a7d48; }
+  /* étiquettes des leviers */
+  .H .lever { position: absolute; bottom: 64px; display: flex; flex-direction: column; gap: 1px; padding: 5px 9px; border-radius: 10px; font-size: 11px; font-weight: 800; }
+  .H .lever small { font-size: 9px; font-weight: 700; color: var(--h3-ink-2); }
+  .H .ctl2 { position: absolute; left: 44px; top: 12px; display: flex; gap: 8px; }
+  .H .ctr2 { position: absolute; right: 18px; top: 12px; display: flex; gap: 8px; }
+</style>
+</head>
+<body class="H">
+<h1>Proposition H · Vue cycliste, compteur au guidon</h1>
+<p class="lead">On roule <b>dans les yeux du coureur</b>. Pas de HUD : les chiffres sont sur le <b>compteur fixé au guidon</b> (nom du coureur actif avec ◀ ▶,
+puissance, vitesse, FC, aspiration). Ses <b>diodes</b> donnent l'effort (la rangée du haut : jaune jusqu'à la consigne, orange pour ce qu'ajoute Accélérer,
+rouge au-delà de 100 % de la PC), l'<b>aérobie</b> (colonne verte, à gauche) et l'<b>anaérobie</b> (colonne rouge, à droite). On touche le <b>levier gauche</b>
+pour freiner, la <b>cocotte droite</b> pour accélérer (en danseuse).</p>
+
+<section class="state"><h2>En course (vue cycliste, aide à la trajectoire sur la route)</h2>
+<div class="phone cyc" id="p1"></div></section>
+<section class="state"><h2>Menu d'actions ouvert (il s'applique au coureur actif)</h2>
+<div class="phone cyc" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Le guidon suit le coureur : il tourne avec la trajectoire et tremble sur les pavés ; les mains se crispent sur les cocottes quand on tapote Accélérer.</li>
+  <li>Le compteur peut aussi passer en vue de poursuite : il devient alors un petit compteur en bas de l'écran, au même dessin.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  /** Le guidon, la potence, le support et le boîtier du compteur, les gants sur les cocottes ; les diodes. */
+  function bike() {
+    const leds = [];
+    for (let i = 0; i < 15; i++) {           // 0 à 150 % de la PC, par 10 %
+      const p = (i + 1) * 10, x = 334 + i * 12;
+      const c = p <= D.effort + 5 ? (p > 100 ? '#e5484d' : '#ffd23f') : p <= D.boostTo ? '#ff8c28' : 'rgba(255,255,255,0.18)';
+      leds.push(`<rect x="${x}" y="232" width="8" height="5" rx="1.5" fill="${c}"${p <= D.boostTo ? ` filter="url(#glow)"` : ''}/>`);
+    }
+    for (let i = 0; i < 6; i++) {            // colonnes : aérobie (gauche), anaérobie (droite), du bas vers le haut
+      const y = 314 - i * 12;
+      leds.push(`<rect x="320" y="${y}" width="5" height="8" rx="1.5" fill="${(i + 1) / 6 <= D.endu + 0.05 ? '#34b552' : 'rgba(255,255,255,0.18)'}"/>`);
+      leds.push(`<rect x="519" y="${y}" width="5" height="8" rx="1.5" fill="${(i + 1) / 6 <= D.anaer + 0.05 ? '#e5484d' : 'rgba(255,255,255,0.18)'}"/>`);
+    }
+    return `<svg class="bike" viewBox="0 0 844 390" aria-hidden="true">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5058"/><stop offset="0.5" stop-color="#22262c"/><stop offset="1" stop-color="#121417"/></linearGradient>
+        <linearGradient id="glove" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b3f46"/><stop offset="1" stop-color="#16181c"/></linearGradient>
+      </defs>
+      <!-- cintre : les tops, puis les cocottes qui plongent vers les bords bas -->
+      <path d="M40 392 C 60 352, 110 334, 180 330 L 664 330 C 734 334, 784 352, 804 392" stroke="url(#bar)" stroke-width="20" fill="none" stroke-linecap="round"/>
+      <!-- potence et support du compteur -->
+      <polygon points="398,330 446,330 466,392 378,392" fill="url(#bar)"/>
+      <rect x="400" y="320" width="44" height="14" rx="4" fill="#2a2e34"/>
+      <!-- boîtier du compteur -->
+      <rect x="312" y="224" width="220" height="104" rx="14" fill="#15171b" stroke="#3a3f47" stroke-width="2"/>
+      ${leds.join('')}
+      <!-- gants sur les cocottes ; levier de frein gauche (lueur rouge), cocotte droite (lueur jaune : Accélérer) -->
+      <ellipse cx="120" cy="352" rx="62" ry="30" fill="url(#glove)" transform="rotate(-18 120 352)"/>
+      <ellipse cx="724" cy="352" rx="62" ry="30" fill="url(#glove)" transform="rotate(18 724 352)"/>
+      <path d="M150 336 C 160 360, 168 378, 170 392" stroke="#e5484d" stroke-width="7" fill="none" stroke-linecap="round" filter="url(#glow)"/>
+      <path d="M694 336 C 684 360, 676 378, 674 392" stroke="#ffd23f" stroke-width="7" fill="none" stroke-linecap="round" filter="url(#glow)"/>
+      <circle cx="724" cy="320" r="30" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="5"/>
+      <path d="M724 290 A30 30 0 1 1 ${(724 + 30 * Math.sin(2 * Math.PI * D.boost)).toFixed(1)} ${(320 - 30 * Math.cos(2 * Math.PI * D.boost)).toFixed(1)}" fill="none" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/>
+    </svg>`;
+  }
+  const gps = () => `<div class="gps">
+      <div class="who"><span>◀</span>${D.rider} · ${D.place}ᵉ<span>▶</span></div>
+      <div class="main"><span><small>PUISSANCE</small><b>${D.P}</b><em>W</em></span><span><small>VITESSE</small><b>${M.fr(D.v, 1)}</b></span><span><small>FC</small><b>${D.hr}</b></span></div>
+      <div class="ft"><span>Aspiration −${D.draft} W</span><span style="color:#1d2420">Effort ${D.effort} %</span></div>
+    </div>`;
+  const base = () => `${M.chevrons('rider', { label: true })}${bike()}${gps()}
+    <div class="ctl2"><span class="sq glass">${ico('team')}</span><span class="pill glass" style="padding:0 4px 0 10px;height:40px"><span class="lbl">Traj.</span>${M.traj()}</span></div>
+    <div class="ctr2"><span class="sq glass act">${ico('bolt')}</span><span class="sq glass">${ico('menu')}</span></div>
+    <div class="lever glass" style="left:150px;color:#ffd0d1">FREINER<small>tiens le levier</small></div>
+    <div class="lever glass" style="right:118px;color:var(--h3-effort);text-align:right">ACCÉLÉRER<small>tapote la cocotte</small></div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.actionsMenu('right:18px;top:58px;width:420px', 2);
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition E « Cadran »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition E : HUD en deux parties, l'effort en cadran (compte-tours) au bas de l'écran ---------- */
+  .E .topbar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 410px; }
+  .E .dial { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+  .E .steps { position: absolute; bottom: 12px; display: flex; gap: 6px; }
+  .E .steps .step { width: 38px; height: 34px; border-radius: 10px; }
+  .E .steps .step .ico { width: 18px; height: 18px; }
+</style>
+</head>
+<body class="E">
+<h1>Proposition E · Cadran</h1>
+<p class="lead">Le haut est celui de D (le coureur actif, ◀ ▶, puissance, vitesse, FC). En bas, l'effort devient un <b>cadran</b>, comme un compte-tours :
+l'aiguille est la consigne (95 % de la PC), l'arc hachuré ce que donne Accélérer, le point noir la puissance produite ; au-delà du trait blanc (100 %),
+la zone rouge vide l'anaérobie. Autour, deux arcs : <b>Aérobie</b> à gauche, <b>Anaérobie</b> à droite. − et + au pied du cadran.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Liste de l'équipe ouverte (un toucher fait du coureur le coureur actif)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Le cadran se lit sans chiffres : l'aiguille à gauche du trait blanc, on est en endurance ; à droite, on puise dans l'anaérobie.</li>
+  <li>Il prend plus de hauteur que la barre de D, mais au centre seulement : les coins restent aux boutons.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = () => `${M.chevrons('chase')}
+    <div class="ctl"><span class="sq glass">${ico('team')}</span><span class="pill glass" style="padding:0 4px 0 10px;height:30px"><span class="lbl">Traj.</span>${M.traj()}</span></div>
+    <div class="ctr"><span class="sq glass act">${ico('bolt')}</span><span class="sq glass">${ico('menu')}</span></div>
+    ${M.topBar()}
+    <div class="rbtn brake"><div class="in">${ico('brake')}FREINER</div></div>
+    <div class="rbtn accel" style="${M.ring(D.boost)}"><div class="in">${ico('accel')}ACCÉLÉRER<small>tapote !</small></div></div>
+    ${M.dial(108)}
+    <div style="position:absolute;right:184px;bottom:60px">${M.draft()}</div>
+    <div class="steps" style="left:222px"><span class="step glass">${ico('minus')}</span></div>
+    <div class="steps" style="right:194px"><span class="step glass">${ico('plus')}</span></div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.teamMenu('left:44px;top:58px;width:330px');
+</script>
+</body>
+</html>

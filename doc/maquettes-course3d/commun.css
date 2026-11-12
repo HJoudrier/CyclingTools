@@ -88,3 +88,28 @@ h1 { margin: 0 0 4px; font-size: 22px; }
 .menu.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 4px; }
 .menu.cols2 .head { grid-column: 1 / -1; }
 .menu.cols2 .row { height: 40px; }
+
+/* HUD en deux parties : barre du haut (coureur actif, vitesse, puissance, FC) */
+.topbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 6px; }
+.topbar .arrow { min-width: 62px; padding: 3px 4px; background: var(--h3-bg-2); border: 0; box-shadow: none; }
+.topbar .tb-mid { display: grid; justify-items: center; gap: 2px; }
+.topbar .tb-name { display: flex; align-items: baseline; gap: 8px; }
+.topbar .tb-stats { display: flex; align-items: baseline; gap: 14px; }
+.topbar .tb-stats .big { font-size: 24px; }
+.phone.tv { background-image: url("fond-tv.jpg"); }
+.phone.cyc { background-image: url("fond-cycliste.jpg"); }
+.phone.wide { background-image: url("fond-large.jpg"); }
+
+/* gros boutons ronds aux coins (Freiner, Accélérer) et coins du haut, partagés par D, E, F */
+.rbtn { position: absolute; bottom: 16px; width: 100px; height: 100px; border-radius: 50%; display: grid; place-items: center; z-index: 5; }
+.rbtn .in { width: 86px; height: 86px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: rgba(14, 17, 22, 0.82); font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
+.rbtn .in small { font-size: 9px; font-weight: 700; color: var(--h3-ink-2); letter-spacing: 0; }
+.rbtn .ico { width: 28px; height: 28px; }
+.rbtn.brake { left: 44px; background: rgba(229, 72, 77, 0.55); }
+.rbtn.brake .in { color: #ffd0d1; }
+.rbtn.accel { right: 18px; }
+.rbtn.accel .in { color: var(--h3-effort); }
+.ctl { position: absolute; left: 44px; top: 12px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; z-index: 6; }
+.ctr { position: absolute; right: 18px; top: 12px; display: flex; gap: 8px; z-index: 6; }
+.sq { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+.act { background: var(--h3-effort); color: #111; border-color: transparent; }
