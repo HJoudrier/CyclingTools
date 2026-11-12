@@ -11,7 +11,7 @@
  *   - cond.stopped : cycliste arrêté (crevaison, chute) ;
  *   - cond.vCap : vitesse à ne pas dépasser (freinage léger pour ne pas rouler sur la roue devant) ;
  *   - cond.manual (trajectoire manuelle, steer.js) : pas de freinage automatique en virage ni de coupure de la puissance au-delà de la
- *     limite ; cond.brakeIn (0 à 1) : le frein du joueur. cond.vlimMul : limite de vitesse en virage multipliée (trajectoire large) ;
+ *     limite ; cond.brakeIn (0 à 1) : le frein du joueur (dans les deux trajectoires). cond.vlimMul : limite de vitesse en virage multipliée (trajectoire large) ;
  *   - cond.wcS : vent de côté signé (> 0 : il vient de la droite du coureur), pour le placement dans le peloton (peloton.js) ;
  *     cond.wc reste sa valeur absolue, seule utile à la traînée ;
  *   - st.s peut être négatif (grille de départ du peloton, derrière la ligne) : on lit alors la première cellule ;
@@ -643,7 +643,7 @@
     if (!cond.manual && v > cond.vlim * vlMul + 0.1) P = 0;
     // limite de vitesse à la cellule j : celle du virage (sauf trajectoire manuelle), et vCap
     const limAt = (cc, j) => { const vl = cond.manual ? Infinity : C.vLim[j] * vlMul; return cc.vCap < vl ? cc.vCap : vl; };
-    const brakeA = cond.manual && cond.brakeIn > 0 ? ctx.aBrake * (cond.brakeK > 0 ? cond.brakeK : 1) * Math.min(1, cond.brakeIn) : 0;
+    const brakeA = cond.brakeIn > 0 ? ctx.aBrake * (cond.brakeK > 0 ? cond.brakeK : 1) * Math.min(1, cond.brakeIn) : 0;
 
     // Effort maximal prolongé : on suit l'enveloppe lissée plutôt que le plafond « glouton »
     // (évite les oscillations 1150 → 650 → 1150 W d'un sprint).

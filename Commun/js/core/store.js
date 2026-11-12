@@ -56,7 +56,7 @@
       // niveau de réalisme : 'arcade' (effort, endurance = glycogène, effort court = W′ ; ni chaleur, ni courbe de puissance record, ni hydratation)
       // ou 'simulation' (le modèle complet, selon les options ci-dessous) ; Course 3D (cartoon) commence en arcade
       realism: PYR.appId === 'jeu3d' ? 'arcade' : 'simulation',
-      // Course 3D : trajectoire du coureur piloté : 'auto' (pilote automatique, à la corde), 'wide' (pilote automatique, large) ou 'manual'
+      // Course 3D : trajectoire du coureur piloté : 'auto' (pilote automatique, à la corde) ou 'manual'
       // (le joueur la pilote : flèches, manette, gyroscope, contrôleurs VR ; il freine lui-même), voir engine/steer.js
       steer: 'auto',
       team: { on: false, team: '', riders: [], plans: {}, opp: 9, size: 8 }, // mode équipe : l'équipe du World Tour que le joueur gère, ses coureurs et leurs plans (team-game.js)
@@ -319,7 +319,8 @@
     state.ui.chartH = cleanChartH(state.ui.chartH);
     // le mode jeu roule toujours en peloton 2D : deux coureurs ne s'y chevauchent jamais (l'ancienne option « en file » les superposait)
     state.game.peloton = true;
-    if (state.game.source === 'road') state.game.source = 'avatar';      // le GPS n'est plus proposé dans les jeux : le Compteur rejoint la partie
+    if (state.game.source === 'road') state.game.source = 'avatar';
+    if (state.game.steer === 'wide') state.game.steer = 'auto';            // Course 3D : la trajectoire « large » n'est plus proposée      // le GPS n'est plus proposé dans les jeux : le Compteur rejoint la partie
     if (state.perf.formRef !== 'form') state.perf.formRef = 'athlete';
     syncAge(state.rider);
     state.checkpoints = cleanCheckpoints(state.checkpoints);

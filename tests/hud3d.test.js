@@ -43,11 +43,13 @@ test('chargeur : steer-input.js puis hud3d.js ne sont chargés que pour Course 3
 test('trajectoire : réglage, page de choix, vignette, touches, messages de la vue 3D, bas-côté dans la vue', () => {
   assert.match(read('Commun/js/core/store.js'), /steer: 'auto',/);
   const page = read('VirtualRide3D/index.html');
-  for (const v of ['auto', 'wide', 'manual']) assert.match(page, new RegExp(`<option value="${v}">`));
+  for (const v of ['auto', 'manual']) assert.match(page, new RegExp(`<option value="${v}">`));
+  assert.doesNotMatch(page, /<option value="wide">/);
+  assert.match(read('Commun/js/core/store.js'), /if \(state\.game\.steer === 'wide'\) state\.game\.steer = 'auto';/);
   assert.match(page, /data-bind="game\.steer"/);
-  assert.deepEqual([...HUD.slice(HUD.indexOf('const STEERS = ['), HUD.indexOf('];', HUD.indexOf('const STEERS = ['))).matchAll(/\{ id: '([a-z]+)'/g)].map((m) => m[1]), ['auto', 'wide', 'manual']);
+  assert.deepEqual([...HUD.slice(HUD.indexOf('const STEERS = ['), HUD.indexOf('];', HUD.indexOf('const STEERS = ['))).matchAll(/\{ id: '([a-z]+)'/g)].map((m) => m[1]), ['auto', 'manual']);
   assert.match(HUD, /kl === 'v'/);
-  assert.match(HUD, /k === 'ArrowLeft' \|\| k === 'ArrowRight' \|\| kl === 'f'/);
+  assert.match(HUD, /kl === 'f' \|\| \(T\.steerMode\(\) === 'manual' && \(k === 'ArrowLeft' \|\| k === 'ArrowRight'\)\)/);
   for (const cls of ['h3-steer', 'h3-seg', 'h3-drive', 'h3-brake', 'h3-tiltbtn']) assert.ok(CSS.includes('.' + cls), cls);
   const v3 = read('Commun/js/jeu/view3d.js');
   for (const t of ['keyup', 'pad', 'vr']) assert.match(v3, new RegExp(`m\\.type === '${t}'`));
@@ -66,10 +68,11 @@ test('actions des vignettes : chacune est un ordre du moteur (ou manger), avec u
   assert.deepEqual(acts, ['moveup', 'attack', 'cover', 'sprint', 'front', 'relay', 'follow', 'eat']);
   for (const a of acts) if (a !== 'eat') assert.ok(PYR.race.ORDER_MODES.includes(a), a);
   const keys = [...HUD.slice(HUD.indexOf('const ACTIONS = ['), HUD.indexOf('const ICON')).matchAll(/key: '(.)'/g)].map((m) => m[1]);
-  assert.equal(keys.length, 8);
-  assert.equal(new Set(keys).size, 8);
-  // les touches de tactique communes aux jeux ne changent pas : celles du HUD reprennent 6, 7, 8, 9 et S
-  for (const k of ['6', '7', '8', '9', 'S']) assert.ok(keys.includes(k), k);
+  assert.equal(keys.length, 7, 'Sprinter jusqu\'à la ligne n\'a pas de touche');
+  assert.equal(new Set(keys).size, 7);
+  // les touches de tactique communes aux jeux ne changent pas : celles du HUD reprennent 6, 8, 9 et S ; 7 accélère (appuis répétés)
+  for (const k of ['6', '8', '9', 'S']) assert.ok(keys.includes(k), k);
+  assert.match(HUD, /if \(k === '7'\) \{ T\.sprintTap\(\);/);
   for (const id of ['moveup', 'front']) assert.ok(PYR.tactics.LABELS[id], id);
 });
 

@@ -219,3 +219,15 @@ test('déterminisme : deux parties identiques donnent la même trajectoire', () 
   const one = () => { const x = solo({ deg: 60, R: 25, pre: 80, v0: 12, events: true }); drive(x, 20, (r) => (r.st.t % 6 < 3 ? 0.6 : -0.4)); return [x.r.st.s, x.r.lat.y, x.race.events.length]; };
   assert.deepEqual(one(), one());
 });
+
+test('frein du joueur aussi en trajectoire automatique (bouton Freiner) ; les coureurs virtuels l\'ignorent', () => {
+  const a = solo({ v0: 12, manual: false }), b = solo({ v0: 12, manual: false });
+  drive(a, 3, null, () => 1);
+  drive(b, 3, null, () => 0);
+  assert.ok(a.r.st.v < b.r.st.v - 3, `frein ${a.r.st.v.toFixed(1)} m/s, roue libre ${b.r.st.v.toFixed(1)} m/s`);
+  assert.ok(a.r.st.braking);
+  const c = solo({ v0: 12, manual: false });
+  c.r.human = false;
+  drive(c, 3, null, () => 1);
+  assert.ok(Math.abs(c.r.st.v - b.r.st.v) < 0.01, 'un coureur non piloté ne freine pas');
+});

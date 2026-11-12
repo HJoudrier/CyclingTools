@@ -38,7 +38,7 @@
     { id: 'moveup', key: 'U', label: 'Remonter en tête', help: 'Remonter aux premières places du groupe, puis rester dans les roues', d: ['M6 13l6-6 6 6', 'M6 19l6-6 6 6'] },
     { id: 'attack', key: '6', label: 'Attaquer', help: 'Attaquer : une accélération, puis un effort tenu une minute (jusqu\'au sommet dans une côte classée)', d: ['M13 2 4 14h7l-1 8 9-12h-7z'] },
     { id: 'cover', key: 'S', label: 'Suivre les attaques', help: 'Rester aux premières places et sauter dans la roue de ceux qui attaquent', d: ['M12 4a8 8 0 1 0 0 16 8 8 0 1 0 0-16', 'M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6', 'M12 1v4M12 19v4M1 12h4M19 12h4'] },
-    { id: 'sprint', key: '7', label: 'Sprinter', help: 'Sprinter à fond, jusqu\'à la ligne si elle est proche (35 s au plus)', d: ['M5 21V4', 'M5 4h12l-3 4 3 4H5'] },
+    { id: 'sprint', key: '', label: 'Sprinter jusqu\'à la ligne', help: 'Un seul appui : à fond jusqu\'à la ligne si elle est proche (35 s au plus). Pour doser, tapote Accélérer (touche 7)', d: ['M5 21V4', 'M5 4h12l-3 4 3 4H5'] },
     { id: 'front', key: 'T', label: 'Rouler en tête', help: 'Remonter en tête du groupe et mener à l\'effort de la barre, sans relais', d: ['M4 12h12', 'm11 6 6 6-6 6', 'M21 4v16'] },
     { id: 'relay', key: '9', label: 'Prendre le relais', help: 'Relayer : mener le groupe à son tour (à l\'effort de la barre), puis se laisser glisser', d: ['M20 12a8 8 0 0 1-14 5.3', 'M4 12a8 8 0 0 1 14-5.3', 'M18 3v4h-4', 'M6 21v-4h4'] },
     { id: 'follow', key: '8', label: 'Rester dans les roues', help: 'Rester abrité dans la roue de celui de devant', d: ['M3 17a3 3 0 1 0 6 0 3 3 0 1 0-6 0', 'M15 17a3 3 0 1 0 6 0 3 3 0 1 0-6 0', 'M6 17l4-8h5l3 8', 'M10 9 8 5h3'] },
@@ -54,8 +54,7 @@
   };
   /** Trajectoire du coureur piloté : automatique à la corde, automatique large, manuelle. */
   const STEERS = [
-    { id: 'auto', label: 'Corde', help: 'Pilote automatique : il prend les virages à la corde, s\'écarte pour remonter, évite les chutes et freine pour toi' },
-    { id: 'wide', label: 'Large', help: 'Pilote automatique : il prend les virages par l\'extérieur (un peu plus vite, chemin plus long), évite les chutes et freine pour toi' },
+    { id: 'auto', label: 'Auto', help: 'Pilote automatique : il prend les virages à la corde, s\'écarte pour remonter, évite les chutes et freine pour toi' },
     { id: 'manual', label: 'Manuelle', help: 'Tu pilotes : ← → (stick gauche, inclinaison du téléphone, contrôleurs VR) et tu freines (F, gâchette gauche, bouton Frein). Trop vite en virage ou hors de la route : chute probable' },
   ];
   const SRC_ICON = { keys: '⌨', gamepad: '🎮', vr: '🥽', tilt: '📱' };
@@ -506,10 +505,10 @@
     const k = (keys, what) => h('div', null, ...keys.map((x) => h('kbd', null, x)), ' ', what);
     if (S.mode !== 'phone') lines.push(h('div', { class: 'keys h3-keys' },
       k(['↑', '↓'], 'effort ±5 % (Maj : ±25 %)'), k(['1', '…', '5'], 'effort 55, 75, 90, 100, 120 %'), k(['0'], 'roue libre'),
-      k(['U'], 'remonter en tête'), k(['6'], 'attaquer'), k(['S'], 'suivre les attaques'), k(['7'], 'sprinter'),
+      k(['U'], 'remonter en tête'), k(['6'], 'attaquer'), k(['S'], 'suivre les attaques'), k(['7'], 'accélérer (tapote)'),
       k(['T'], 'rouler en tête'), k(['9'], 'relais'), k(['8'], 'dans les roues'), k(['M'], 'manger'),
       G.team ? k(['N'], 'coureur suivant') : null, k(['C'], 'caméra'), k(['H'], 'masquer le HUD'), k(['P'], 'profil'),
-      k(['V'], 'trajectoire auto ↔ manuelle'), k(['←', '→'], 'piloter (manuelle) ou changer de rang'), k(['F'], 'freiner (manuelle)'),
+      k(['V'], 'trajectoire auto ↔ manuelle'), k(['←', '→'], 'piloter (manuelle) ou changer de rang'), k(['F'], 'freiner'),
       k(['Espace'], 'pause'), k(['Échap'], 'menu')));
     if (S.mode !== 'phone') lines.push(h('div', { class: 'h3-padkeys' }, h('h4', null, 'Manette'), h('p', { class: 'hint' }, 'Stick gauche : trajectoire (manuelle) · gâchette gauche : frein · stick droit ↑ ↓ : effort · ' + PYR.steerInput.PAD_ACTIONS.map((a) => a.label).join(' · '))));
     return h('div', { class: 'h3-pane' }, ...lines);
@@ -546,14 +545,16 @@
     // trajectoire : V bascule automatique ↔ manuelle ; en manuelle, ← → et F se tiennent enfoncées (le relâchement : steer-input.js)
     if (T.steerable()) {
       if (kl === 'v') { T.toggleSteer(); update(true); return true; }
-      if (T.steerMode() === 'manual' && (k === 'ArrowLeft' || k === 'ArrowRight' || kl === 'f')) { PYR.steerInput.key(k, e.code, true); return true; }
+      if (kl === 'f' || (T.steerMode() === 'manual' && (k === 'ArrowLeft' || k === 'ArrowRight'))) { PYR.steerInput.key(k, e.code, true); return true; }
     }
     if (k === 'ArrowUp' || k === 'ArrowDown') { nudge(me, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 25 : PCT_STEP)); return true; }
     if (k === 'PageUp' || k === 'PageDown') { nudge(me, (k === 'PageUp' ? 25 : -25)); return true; }
     if (k === '0') { T.setPct(0, me); update(true); return true; }
     const n = '12345'.indexOf(k);
     if (n >= 0) { T.setPct(PRESETS[n], me); update(true); return true; }
-    const a = ACTIONS.find((x) => x.key.toLowerCase() === kl);
+    // 7 : Accélérer, à appuis répétés (l'effort monte au-delà de la barre, puis retombe sans appui)
+    if (k === '7') { T.sprintTap(); update(true); return true; }
+    const a = ACTIONS.find((x) => x.key && x.key.toLowerCase() === kl);
     if (a) { T.act(a.id, me); update(true); return true; }
     return false;
   };

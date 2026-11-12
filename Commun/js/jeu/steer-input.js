@@ -24,7 +24,7 @@
     { b: 3, act: 'front', label: 'Y : rouler en tête' },
     { b: 4, act: 'prev', label: 'LB : coureur précédent' },
     { b: 5, act: 'next', label: 'RB : coureur suivant' },
-    { b: 7, act: 'sprint', label: 'RT : sprinter' },
+    { b: 7, act: 'accel', label: 'RT : accélérer (appuie à répétition)' },
     { b: 8, act: 'steer', label: 'View : trajectoire auto ↔ manuelle' },
     { b: 9, act: 'menu', label: 'Menu : menu (pause)' },
     { b: 10, act: 'attack', label: 'L3 : attaquer' },

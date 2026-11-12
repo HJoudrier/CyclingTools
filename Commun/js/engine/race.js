@@ -375,7 +375,7 @@
     // trajectoire : manuelle (le frein du joueur, pas de freinage automatique ; roulement ×3 hors de la chaussée), ou large (Course 3D)
     const man = !!(r.lat && r.lat.manual && !r.incident);
     c.manual = man;
-    c.brakeIn = man ? Math.min(1, Math.max(0, Number(r.brakeIn) || 0)) : 0;
+    c.brakeIn = r.human && !r.incident ? Math.min(1, Math.max(0, Number(r.brakeIn) || 0)) : 0; // le frein du joueur (Course 3D : bouton Freiner, F)
     c.vlimMul = 1;
     if (man) {
       if (Steer.zone(r.lat.y, Steer.edgeOf(race.course, st.s, r.lat.edgeMax)) !== 'road') c.crr *= 3;
