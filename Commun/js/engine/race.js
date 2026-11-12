@@ -15,7 +15,7 @@
   const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Strat = PYR.strategy, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
 
   // peloton : positions latérales et aspiration en deux dimensions (peloton.js) ; sans elle, tout le monde roule dans l'axe (une file)
-  const RULES = { events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false, strategy: false };
+  const RULES = { arcade: false, events: false, form: false, fuel: false, physio: false, pullSec: 30, sprints: 0, kom: false, draft: true, peloton: false, strategy: false };
   // modèle physiologique : la courbe record ne limite que les efforts de 20 min au plus, la durabilité vient de la couche lente
   const PHYSIO_REC_MAX = 1200;
   const PUNCTURE_KM = 250;  // une crevaison tous les 250 km en moyenne (asphalte, pneus route) ; revêtement et pneus la modulent
@@ -60,11 +60,15 @@
   /** Règles de course normalisées (sprints : nombre de sprints intermédiaires ; kom : grand prix de la montagne). */
   function normRules(x) {
     x = x || {};
+    // niveau Arcade (réglage game.realism, ou règle arcade d'un défi ou d'une course en direct) : seuls comptent l'intensité de l'effort,
+    // le glycogène (endurance) et le W′ (effort court) ; ni chaleur, ni courbe de puissance record, ni hydratation (fuel.js, sim.js)
+    const arcade = x.arcade === true || x.realism === 'arcade';
     return {
+      arcade,
       // durée d'un relais : de 5 à 300 s, 30 s par défaut ; 0 = aucune limite de durée (affichée « inf » dans l'interface)
-      events: !!x.events, form: !!x.form, fuel: !!x.fuel, pullSec: pullSecOf(x.pullSec),
-      // modèle physiologique (metabo.js) : il remplace l'énergie et l'hydratation simplifiées, avec l'alimentation seulement
-      physio: !!x.physio && !!x.fuel,
+      events: !!x.events, form: !!x.form, fuel: arcade || !!x.fuel, pullSec: pullSecOf(x.pullSec),
+      // modèle physiologique (metabo.js) : il remplace l'énergie et l'hydratation simplifiées, avec l'alimentation seulement (jamais en Arcade)
+      physio: !arcade && !!x.physio && !!x.fuel,
       sprints: Math.min(Cl.MAX_SPRINTS, Math.max(0, Math.floor(Number(x.sprints) || 0))), kom: !!x.kom,
       draft: x.draft !== false,   // aspiration : désactivée (false) pour les défis contre des coureurs virtuels en sortie réelle
       peloton: x.peloton === true && x.draft !== false, // seulement demandé explicitement : les anciens défis et courses restent en file
@@ -93,6 +97,15 @@
     };
   }
 
+  /** FC de repos et maximale du profil (carte athlète du modèle physiologique, sinon 208 − 0,7 × âge) : la FC simple de fuel.js s'y règle. */
+  function hrOf(rider) {
+    const p = (rider && rider.physio) || {}, age = Number(rider && rider.age) > 0 ? Number(rider.age) : 35;
+    return {
+      hrRest: Number(p.hrRest) > 0 ? Number(p.hrRest) : 55,
+      hrMax: Number(p.hrMax) > 0 ? Number(p.hrMax) : Math.round(208 - 0.7 * age),
+    };
+  }
+
   /** Le modèle physiologique est-il joué dans cette course ? */
   const physioOn = (race) => !!(race.rules.physio && race.rules.fuel && PYR.metabo);
 
@@ -107,8 +120,11 @@
    */
   function addRider(race, o) {
     const athlete = o.form ? Ph.scaleAthlete(o.athlete, o.form.cpK, o.form.wK) : o.athlete;
-    const phy = physioOn(race);
-    const ctx = Sim.createContext(race.course, o.setup, athlete, { margin: o.margin || 0, seed: race.gustSeed, smoothRec: true, recMax: phy ? PHYSIO_REC_MAX : 0 });
+    const phy = physioOn(race), arcade = !!race.rules.arcade;
+    // Arcade : pas de courbe de puissance record (seule la fenêtre d'une seconde reste : la puissance maximale), l'effort n'est limité que par le W′
+    const ctx = Sim.createContext(race.course, o.setup, athlete, arcade
+      ? { margin: o.margin || 0, seed: race.gustSeed, recMax: 1, flatEnv: true }
+      : { margin: o.margin || 0, seed: race.gustSeed, smoothRec: true, recMax: phy ? PHYSIO_REC_MAX : 0 });
     const st = Sim.initState(ctx, o.v0 || 0);
     st.capK = 1;
     // carte athlète à l'échelle du coureur du jour (forme, marge) : la PC et le W′ du simulateur sont ceux du modèle
@@ -121,7 +137,7 @@
       id: o.id, name: o.name, color: o.color, human: !!o.human, bot: o.bot || null,
       measured: !!o.measured, driven: !!o.driven, drive: null,
       setup: o.setup, athlete, form: o.form || null, ctx, st, cond: {},
-      fuel: race.rules.fuel ? Fu.create(o.setup.mRider, Object.assign({}, o.kit, { gutTraining: o.gut, physio: card, physioOpts: o.physioOpts })) : null,
+      fuel: race.rules.fuel ? Fu.create(o.setup.mRider, Object.assign({}, o.kit, { gutTraining: o.gut, physio: card, physioOpts: o.physioOpts, arcade }, hrOf(o.rider))) : null,
       penv: phy ? {} : null,  // environnement du modèle physiologique (réutilisé chaque seconde)
       tac: { mode: o.bot ? 'follow' : 'manual', cmd: o.cmd || 0, pull: 0, phase: null, since: 0, phaseT: 0, pulls: 0, target: null },
       draft: SOLO, savedW: 0, injuryK: 1, incident: null,
@@ -352,7 +368,8 @@
       // modèle physiologique : signature effective (la chaleur agit par les températures du noyau et de la peau, pas par la météo)
       st.capK = r.injuryK * Fu.factor(r.fuel);
       st.wK = r.injuryK * Fu.wFactor(r.fuel);
-    } else st.capK = r.injuryK * (r.fuel ? Fu.factor(r.fuel) : 1) * (c.heatK || 1); // chaleur et grand froid (météo)
+    } else if (race.rules.arcade) st.capK = r.injuryK * (r.fuel ? Fu.factor(r.fuel) : 1); // Arcade : ni chaleur ni froid, seulement la fringale
+    else st.capK = r.injuryK * (r.fuel ? Fu.factor(r.fuel) : 1) * (c.heatK || 1); // chaleur et grand froid (météo)
 
     let Pcmd = 0;
     if (!c.stopped) {

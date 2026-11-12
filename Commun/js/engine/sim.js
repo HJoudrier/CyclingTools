@@ -112,7 +112,9 @@
     const nEnv = 3600;
     const env = new Float32Array(nEnv + 1);
     let prev = 0;
-    for (let tau = 1; tau <= nEnv; tau++) { const w = tau * athlete.mmp(tau) * k; env[tau] = w - prev; prev = w; }
+    // opts.flatEnv (niveau Arcade, sans courbe de puissance record) : l'effort maximal reste à la puissance maximale, seul le W′ le limite
+    if (opts.flatEnv) env.fill(athlete.mmp(1) * k);
+    else for (let tau = 1; tau <= nEnv; tau++) { const w = tau * athlete.mmp(tau) * k; env[tau] = w - prev; prev = w; }
     return {
       course, setup, athlete,
       cp: athlete.cp * k,

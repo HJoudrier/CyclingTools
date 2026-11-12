@@ -53,6 +53,9 @@
       timeScale: 5, ghost: true, follow: true,
       countdown: 5,            // décompte avant le départ (s, temps réel ; 0 : aucun), affiché sur l'écran de course
       bots: 3, botLevel: 'equal', events: true, form: true, fuel: true, pullSec: 30,
+      // niveau de réalisme : 'arcade' (effort, endurance = glycogène, effort court = W′ ; ni chaleur, ni courbe de puissance record, ni hydratation)
+      // ou 'simulation' (le modèle complet, selon les options ci-dessous) ; Course 3D (cartoon) commence en arcade
+      realism: PYR.appId === 'jeu3d' ? 'arcade' : 'simulation',
       team: { on: false, team: '', riders: [], plans: {}, opp: 9, size: 8 }, // mode équipe : l'équipe du World Tour que le joueur gère, ses coureurs et leurs plans (team-game.js)
       strategy: true,         // stratégies des coureurs virtuels : équipes, rôles et objectifs (strategy.js) ; sans elles, les coureurs d'avant
       source: 'avatar',        // présence dans la course (presence.js) : avatar ou home-trainer (watts mesurés)
@@ -115,7 +118,9 @@
       // mode jeu, grand écran : les statistiques en vignettes (une carte par donnée) plutôt qu'en liste
       gameStatsTiles: false,
       // magasin : le vélo en 3D (vitrine de Bike3D) ou en photos
-      shopView: '3d' },
+      shopView: '3d',
+      // Course 3D (cartoon) : éléments du HUD superposé à la vue 3D (Commun/js/jeu/hud3d.js), chacun désactivable dans le menu (Échap)
+      hud3d: { power: true, speed: true, hr: true, grade: true, togo: true, time: false, banner: true, next: true, wx: false, rank: true, riders: true } },
   });
 
   const listeners = Object.create(null);

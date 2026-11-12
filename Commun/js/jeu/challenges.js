@@ -339,7 +339,7 @@
       h('strong', null, ch.title),
       h('span', null, ` — lancé par ${ch.creator} · ${U.fmt(km, 1)} km · D+ ${U.fmt(up, 0)} m`),
       ch.fair ? h('span', { class: 'badge' }, 'armes égales') : null,
-      ...[ch.rules && ch.rules.events && 'incidents', ch.rules && ch.rules.form && 'forme du jour', ch.rules && ch.rules.fuel && 'alimentation', ch.rules && ch.rules.physio && 'modèle physiologique',
+      ...[ch.rules && ch.rules.arcade && 'niveau Arcade', ch.rules && ch.rules.events && 'incidents', ch.rules && ch.rules.form && 'forme du jour', ch.rules && ch.rules.fuel && !ch.rules.arcade && 'alimentation', ch.rules && ch.rules.physio && 'modèle physiologique',
         Cl.active(ch.cps) && `classements : ${CV.cpsText(ch.cps)}`]
         .filter(Boolean).map((x) => h('span', { class: 'badge' }, x))));
     if (!current) {

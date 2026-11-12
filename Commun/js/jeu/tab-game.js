@@ -257,7 +257,7 @@
       // le vent, la météo et les revêtements font partie du parcours simulé (et des manches à air affichées)
       ['winds', 'weather', 'surfaces', 'env', 'road', 'checkpoints', 'feedZones'].forEach((e) => store.on(e, () => { if (!G.running && !G.counting && !G.liveStart) T.reset(); }));
       store.on('game', (ev) => {
-        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|pullSec|peloton|strategy|team|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
+        if (ev && /^game\.(bots|botLevel|events|form|fuel|physio|realism|pullSec|peloton|strategy|team|source)$/.test(ev.path) && !G.running && !G.counting && !G.liveStart) T.reset();
         // course en direct pas encore partie : on peut encore choisir avatar, home-trainer ou route (la partie est réarmée)
         else if (ev && ev.path === 'game.source' && G.liveStart && !G.running) T.armLive(G.liveStart);
       });
@@ -395,7 +395,7 @@
       const r = G.mode === 'solo' ? null : currentRules();
       note.hidden = !r;
       if (!r) return;
-      const on = [r.events && 'incidents', r.form && 'forme du jour', r.fuel && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D', r.strategy && 'stratégies des coureurs virtuels'].filter(Boolean);
+      const on = [r.arcade && 'niveau Arcade', r.events && 'incidents', r.form && 'forme du jour', r.fuel && !r.arcade && 'alimentation', r.physio && 'modèle physiologique', r.peloton && 'peloton en 2D', r.strategy && 'stratégies des coureurs virtuels'].filter(Boolean);
       const cl = CV.cpsText(G.cps);
       // défi ou course d'une ancienne version, sans peloton en 2D : ses règles sont figées, les coureurs y roulent en file
       const file = r.peloton ? '' : ' Coureurs en file (règle d\'une ancienne version) : ils peuvent s\'y chevaucher.';
@@ -1699,7 +1699,11 @@
       store.set('game.kit', next, true);
       const me = G.me;
       if (me && me.fuel && G.st && G.st.t === 0 && !G.running && !G.finished) {
-        me.fuel = Fu.create(me.setup.mRider, Object.assign({}, next, { gutTraining: Number(store.state.rider.gut) || 0 }));
+        const was = me.fuel; // même corps : niveau Arcade, FC, carte du modèle physiologique
+        me.fuel = Fu.create(me.setup.mRider, Object.assign({}, next, {
+          gutTraining: Number(store.state.rider.gut) || 0, arcade: was.arcade, hrRest: was.hrRest, hrMax: was.hrMax,
+          physio: was.phy ? was.phy.card : undefined,
+        }));
         T.renderFuel();
         T.renderHud(true);
       }
@@ -1979,7 +1983,7 @@
         id: U.uid() + U.uid(), name, time, date: new Date().toISOString(), auto: G.usedAuto,
         avgP: Math.round(me.stats.sumP / time), np: Math.round(Race.np(me)),
         rider: { weight: G.inputs.setup.mRider, ftp: Math.round(G.inputs.athlete.ftp) },
-        rules: { events: G.rules.events, form: G.rules.form, fuel: G.rules.fuel, physio: G.rules.physio },
+        rules: { arcade: G.rules.arcade, events: G.rules.events, form: G.rules.form, fuel: G.rules.fuel, physio: G.rules.physio },
         s: me.trace.s.slice(), P: me.trace.P.slice(),
         sp: Cl.packSplits(me.splits), // temps de passage aux sprints, aux sommets et à l'arrivée
       };

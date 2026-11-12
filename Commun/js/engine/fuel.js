@@ -16,7 +16,11 @@
  *     au-delà de 1,5 % du poids du corps (−2,5 % de capacité par % supplémentaire).
  * Modèle physiologique (metabo.js, `kit.physio` = carte athlète) : ce module garde les poches, les bidons et la digestion, et le
  * corps devient celui du modèle couplé — glycogène des fibres I et II et du foie, glycémie, sueur selon la thermorégulation, eau
- * absorbée par l'intestin, sodium, caféine. La capacité (factor, wFactor) est alors la signature effective du modèle. */
+ * absorbée par l'intestin, sodium, caféine. La capacité (factor, wFactor) est alors la signature effective du modèle.
+ * Niveau Arcade (`kit.arcade`) : seul le glycogène compte (la barre d'endurance) ; ce qu'on mange passe aussitôt dans une réserve rapide,
+ * absorbée à ARCADE_ABS, sans digestion ni sueur : pas de déshydratation, pas de boisson.
+ * FC simple (sans le modèle physiologique) : elle suit l'intensité (puissance / PC) avec un retard d'une demi-minute à la montée et
+ * d'une minute à la descente, entre la FC de repos et la FC maximale (`kit.hrRest`, `kit.hrMax`), et dérive quand le glycogène baisse. */
 (function (PYR) {
   'use strict';
 
@@ -27,6 +31,8 @@
   const POCKETS = { gel: 6, bar: 4 };    // ce que les poches peuvent contenir (par catégorie : tous les gels, toutes les barres)
   const MUSETTE = { gel: 3, bar: 2 };    // contenu d'une musette de ravitaillement (en plus des bidons pleins) : gels et barres de base
   const BOTTLE = 0.5;                    // L par bidon
+  const ARCADE_ABS = 1;                  // g/s : niveau Arcade, les glucides mangés passent dans le sang à ce débit (un gel en 25 s)
+  const HR_UP = 30, HR_DOWN = 60;        // s : constantes de temps de la FC simple, à la montée et à la descente
 
   // Contenants emportés : jusqu'à 3 bidons de 0,5 L et un camelback (poche à eau dans le dos) de 1,5 L ; chacun a son contenu (voir MIXES).
   // L'ordre est celui des emplacements du matériel (SLOTS) et des bidons de `status().containers`.
@@ -134,9 +140,15 @@
       items,
       lastEat: -1e9, lastDrink: -1e9, burned: 0, eatenG: 0, drunkL: 0, drunkG: 0, cafMg: 0,
       phy: null,
+      arcade: !!kit.arcade, fast: 0,     // niveau Arcade : glucides mangés pas encore passés dans le sang (g)
+      // FC simple : bornes du profil (repos, maximale), valeur courante (bpm)
+      hrRest: Number(kit.hrRest) > 0 ? Number(kit.hrRest) : 55,
+      hrMax: Number(kit.hrMax) > 0 ? Number(kit.hrMax) : 183,
+      hr: Number(kit.hrRest) > 0 ? Number(kit.hrRest) : 55,
     };
+    if (f.hrMax < f.hrRest + 40) f.hrMax = f.hrRest + 40;
     // modèle physiologique : le glycogène est celui des trois stocks du modèle (fibres I, fibres II, foie)
-    if (kit.physio && PYR.metabo) {
+    if (kit.physio && PYR.metabo && !f.arcade) {
       const Mx = PYR.metabo;
       f.phy = { card: kit.physio, s: Mx.create(kit.physio, kit.physioOpts) };
       f.G0 = Mx.glycogenCap(kit.physio);
@@ -168,7 +180,8 @@
   function pending(f) {
     let sg = f.stom.drink.glu, sf = f.stom.drink.fru;
     for (const it of f.stom.items) { sg += it.glu; sf += it.fru; }
-    return { stomach: sg + sf, intestine: f.int.glu + f.int.fru, glucose: sg + f.int.glu, fructose: sf + f.int.fru };
+    const fa = f.fast || 0; // niveau Arcade : la réserve rapide compte comme déjà dans l'intestin
+    return { stomach: sg + sf, intestine: f.int.glu + f.int.fru + fa, glucose: sg + f.int.glu + fa, fructose: sf + f.int.fru };
   }
 
   /** Une seconde de digestion : l'estomac se vide dans l'intestin, qui absorbe par ses deux voies. Renvoie les g absorbés. */
@@ -199,6 +212,7 @@
    */
   function step(f, P, cp, tempC, env) {
     if (f.phy) { stepPhysio(f, P, env || { Ta: Number.isFinite(tempC) ? tempC : 20 }); return; }
+    if (f.arcade) { stepArcade(f, P, cp); return; }
     const burn = carbRate(P, cp);
     const abs = digest(f);
     f.absorbing = abs;
@@ -208,6 +222,34 @@
     f.net = abs - burn; // g/s : bilan de la seconde (apports absorbés − glucides brûlés)
     f.burned += burn;
     f.deficit += sweatRate(P, tempC);
+    stepHR(f, P, cp);
+  }
+
+  /** Niveau Arcade : une seconde de glycogène seul (la réserve rapide passe dans le sang à ARCADE_ABS), sans sueur. */
+  function stepArcade(f, P, cp) {
+    const burn = carbRate(P, cp);
+    const abs = Math.min(f.fast, ARCADE_ABS);
+    f.fast = f.fast - abs < 1e-6 ? 0 : f.fast - abs;
+    f.absorbing = abs;
+    f.gut = f.fast;
+    f.G = Math.min(f.G0, Math.max(0, f.G - burn + abs));
+    f.net = abs - burn;
+    f.burned += burn;
+    stepHR(f, P, cp);
+  }
+
+  /**
+   * FC simple (sans le modèle physiologique) : la cible occupe une part de la réserve cardiaque qui croît avec l'intensité P / PC (15 % à
+   * l'arrêt, 92 % à la PC, le maximum au-delà de 110 %), plus une dérive jusqu'à 6 % quand le glycogène s'épuise ; la FC la rejoint avec
+   * un retard (HR_UP à la montée, HR_DOWN à la descente).
+   */
+  function stepHR(f, P, cp) {
+    const r = cp > 0 ? Math.max(0, P) / cp : 0;
+    const drift = 0.06 * Math.max(0, 1 - f.G / f.G0);
+    const frac = Math.min(1, 0.15 + 0.77 * r + drift);
+    const target = f.hrRest + (f.hrMax - f.hrRest) * frac;
+    const tau = target > f.hr ? HR_UP : HR_DOWN;
+    f.hr += (target - f.hr) * (1 - Math.exp(-1 / tau));
   }
 
   /** Une seconde avec le modèle physiologique : digestion (ici), puis le corps (metabo.step) ; les réserves affichées en découlent. */
@@ -267,6 +309,13 @@
     }
     f.items[kind]--;
     const food = FOODS[kind];
+    if (f.arcade) { // niveau Arcade : pas de digestion, les glucides passent dans le sang en quelques dizaines de secondes
+      f.fast += food.carbs;
+      f.gut = f.fast;
+      f.eatenG += food.carbs;
+      f.lastEat = t;
+      return food.label;
+    }
     f.stom.items.push({ glu: food.carbs * (1 - food.fructose), fru: food.carbs * food.fructose, lag: food.lag, rate: emptyRate(food.half) });
     f.gut += food.carbs;
     f.eatenG += food.carbs;
@@ -281,6 +330,7 @@
    * une boisson hypertonique hydrate moins. Renvoie le volume bu (L) ou 0.
    */
   function drink(f, t, idx) {
+    if (f.arcade) return 0; // niveau Arcade : pas d'hydratation
     if (t - f.lastDrink < DRINK_COOLDOWN) return 0;
     const i = idx === undefined || idx === null ? f.bottles.findIndex((b) => b > 0.001) : idx;
     if (i < 0 || !(f.bottles[i] > 0.001)) return 0;
@@ -333,6 +383,7 @@
 
   /** Débit d'absorption possible (g/s) avec ce qui est en attente : une voie sans glucides en attente ne compte pas. */
   function ceilingNow(f) {
+    if (f.arcade) return f.fast > 0.05 ? ARCADE_ABS : 0;
     const p = pending(f), c = caps(f.train);
     return ((p.glucose > 0.05 ? c.glucose : 0) + (p.fructose > 0.05 ? c.fructose : 0)) / 3600;
   }
@@ -370,6 +421,8 @@
       bonk: phys ? phys.bonk : f.G / f.G0 < 0.2,
       dehydrated: lossPct(f) > 2,
       phys,                                         // modèle physiologique : glycogène par stock, glycémie, températures, FC… (metabo.status)
+      hr: phys ? phys.HR : Math.round(f.hr),        // FC (bpm) : celle du modèle physiologique, sinon la FC simple
+      arcade: f.arcade,                             // niveau Arcade : ni hydratation ni boisson
       gut: f.gut,
       stomach: p.stomach, intestine: p.intestine,   // g avalés : dans l'estomac, dans l'intestin
       absorbing: f.absorbing * 3600,                // g/h absorbés en ce moment
@@ -390,7 +443,7 @@
   }
 
   PYR.fuel = {
-    FOODS, FOOD_IDS, DRINK, MIXES, CONTAINERS, SLOTS, GUT_LEVELS, POCKETS, MUSETTE, EAT_COOLDOWN, DRINK_COOLDOWN, SIP,
+    FOODS, FOOD_IDS, DRINK, MIXES, CONTAINERS, SLOTS, GUT_LEVELS, POCKETS, MUSETTE, EAT_COOLDOWN, DRINK_COOLDOWN, SIP, ARCADE_ABS,
     caps, halfMinutes, pending, resupply, runningLow, normKit, count,
     create, carbRate, sweatRate, step, observeHR, lossPct, factor, wFactor, eat, drink, autoFeed, timeToBonk, status,
   };
