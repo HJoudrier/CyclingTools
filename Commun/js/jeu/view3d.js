@@ -43,6 +43,7 @@
   let sound = false;
   const btn = {};
   const status = new Map(); // fenêtre → dernier état annoncé ('building', 'ready', 'error')
+  let vrOk = false;         // la vue de la page a un casque de réalité virtuelle (WebXR)
 
   /** L'écran de course montre-t-il la 3D ? C'est la page qui le dit (VirtualRide3D : oui, VirtualRide2D : la carte). */
   const on = () => typeof document !== 'undefined' && !!document.body && document.body.dataset.display === '3d';
@@ -288,6 +289,7 @@
       post(src, { type: 'cmd', cmd: 'sound', on: src === win ? true : sound });
     } else if (m.type === 'status') {
       status.set(src, String(m.state || ''));
+      if (frameEl && src === frameEl.contentWindow) vrOk = !!m.vr;
       if (m.state === 'error' && m.text) D.toast(`Vue 3D : ${String(m.text).slice(0, 160)}`, 'error');
       if (src !== win && typeof m.sound === 'boolean') sound = m.sound;
       render();
@@ -389,5 +391,9 @@
     return s === 'ready' || s === 'error';
   }
 
-  PYR.view3d = { isReady, V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
+  /** Casque de réalité virtuelle : la vue de la page en a-t-elle un (WebXR), et l'y faire passer (Course 3D : menu, onglet Affichage). */
+  const vrSupported = () => vrOk && on() && stage;
+  function enterVR() { if (frameEl && frameEl.contentWindow) post(frameEl.contentWindow, { type: 'cmd', cmd: 'vr' }); }
+
+  PYR.view3d = { isReady, vrSupported, enterVR, V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
 })(globalThis.PYR = globalThis.PYR || {});

@@ -97,7 +97,8 @@
 
     // ------------------------------------------------------------ entrée / sortie
     // Doit être appelé depuis un clic (geste de l'utilisateur).
-    async enter() {
+    // o.quiet : pas de message en cas de refus (essai depuis le menu de Course 3D, sans geste dans ce cadre)
+    async enter(o) {
       if (this.session || !navigator.xr) return false;
       const r = this.renderer, g = this.game;
       g.sound.start(); // le son doit démarrer pendant le geste
@@ -106,7 +107,7 @@
         // mêmes options que le VRButton de three.js ; l'espace « local » (assis) est toujours fourni
         session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'layers'] });
       } catch (e) {
-        g.showVRError('Impossible de démarrer la réalité virtuelle (' + e.message + ').');
+        if (!(o && o.quiet)) g.showVRError('Impossible de démarrer la réalité virtuelle (' + e.message + ').');
         return false;
       }
       r.xr.enabled = true;

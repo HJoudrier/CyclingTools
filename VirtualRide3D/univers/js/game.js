@@ -363,6 +363,7 @@
     refreshVRButtons() {
       const ok = this.vr && this.vr.supported && !this.vr.presenting;
       for (const id of ['btn-vr', 'btn-pause-vr']) $(id).classList.toggle('hidden', !ok);
+      if (this.ext && this.ext.ready) this.ext.status(); // Course 3D : le menu propose le casque s'il y en a un
     },
 
     showVRError(msg) { this.toast('🥽 ' + msg, 4000); },

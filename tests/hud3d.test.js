@@ -51,7 +51,7 @@ test('trajectoire : réglage, page de choix, vignette, touches, messages de la v
   assert.deepEqual([...HUD.slice(HUD.indexOf('const STEERS = ['), HUD.indexOf('];', HUD.indexOf('const STEERS = ['))).matchAll(/\{ id: '([a-z]+)'/g)].map((m) => m[1]), ['auto', 'manual']);
   assert.match(HUD, /kl === 'v'/);
   assert.match(HUD, /kl === 'f' \|\| \(T\.steerMode\(\) === 'manual' && \(k === 'ArrowLeft' \|\| k === 'ArrowRight'\)\)/);
-  for (const cls of ['h3-steer', 'h3-seg', 'h3-drive', 'h3-brake', 'h3-tiltbtn']) assert.ok(CSS.includes('.' + cls), cls);
+  for (const cls of ['h3-steer', 'h3p-traj', 'h3-drive', 'h3-brake', 'h3-tiltbtn']) assert.ok(CSS.includes('.' + cls), cls);
   const v3 = read('Commun/js/jeu/view3d.js');
   for (const t of ['keyup', 'pad', 'vr']) assert.match(v3, new RegExp(`m\\.type === '${t}'`));
   assert.match(v3, /xr-spatial-tracking; gamepad/);
@@ -157,6 +157,27 @@ test('aide à la trajectoire : calculée en trajectoire manuelle, envoyée dans 
   assert.match(br, /mesh\.setColorAt\(n, tint\(v\)\)/);
   assert.match(br, /'Virage ' \+ kmh \+ ' km\/h' \+ \(fast \? ' · freine !' : ''\)/);
   assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-turn\.fast \{/);
+});
+
+test('trajectoire : un seul bouton « Traj. Auto », jaune (pressé) en automatique, qui bascule vers la manuelle', () => {
+  assert.doesNotMatch(HUD, /h3p-seg|h3-seg|steerBtns/);
+  assert.match(HUD, /onclick: \(e\) => \{ e\.stopPropagation\(\); T\.toggleSteer\(\); update\(true\); \}/);
+  assert.match(HUD, /P\.steer = trajBtn\('h3p-traj', 'Traj\. Auto'\)/);
+  assert.match(HUD, /P\.steer\.setAttribute\('aria-pressed', String\(T\.steerMode\(\) !== 'manual'\)\)/);
+  assert.match(CSS, /\.h3p-traj\[aria-pressed="true"\] \{ background: var\(--h3-effort\)/);
+});
+
+test('réalité virtuelle : lancée depuis le menu (onglet Affichage), plus de bouton VR dans la vue intégrée', () => {
+  const br = read('VirtualRide3D/univers/js/bridge.js');
+  assert.match(br, /buildVR\(\) \{\n\s+if \(this\.embedded \|\| !this\.hostWin\) return;/);
+  assert.match(br, /m\.cmd === 'vr'/);
+  assert.match(br, /g\.vr\.enter\(\{ quiet: true \}\)\.then\(\(ok\) => \{ if \(!ok\) this\.armVR\(true\); \}\)/);
+  assert.match(br, /vr: !!\(g\.vr && g\.vr\.supported\)/);
+  const v3 = read('Commun/js/jeu/view3d.js');
+  assert.match(v3, /vrSupported, enterVR,/);
+  assert.match(HUD, /'Réalité virtuelle'/);
+  assert.match(HUD, /PYR\.view3d\.enterVR\(\)/);
+  assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-vrarm \{/);
 });
 
 test('niveau de réalisme : Arcade ou Simulation sur la page de choix de Course 3D, Arcade par défaut dans Course 3D seulement', () => {

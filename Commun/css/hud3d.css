@@ -217,9 +217,6 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 /* ---------- trajectoire (vignette du coureur piloté, puce du haut, frein et gyroscope sur téléphone) ---------- */
 .h3-steer { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; }
 .h3-steer[hidden] { display: none; }
-.h3-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 8px; background: var(--h3-bg-2); }
-.h3-seg > button { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--h3-ink-2); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h3-seg > button[aria-pressed="true"] { background: var(--h3-effort); color: #111; }
 .h3-chip.warn { background: var(--h3-anaer); color: #fff; font-weight: 700; }
 .h3-drive { position: absolute; left: max(8px, env(safe-area-inset-left)); bottom: calc(var(--h3-dock-h, 290px) + max(8px, env(safe-area-inset-bottom)) + 10px); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; z-index: 3; }
 .h3-drive[hidden] { display: none; }
@@ -250,7 +247,7 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3[data-mode="phone"] .h3-tools > button[aria-expanded="true"] { background: var(--h3-effort); color: #111; border-color: transparent; }
 
 .h3p-tl, .h3p-top, .h3p-low, .h3p-round, .h3p-pop, .h3p-warn { pointer-events: auto; }
-.h3p-sq, .h3p-top, .h3p-low, .h3p-seg, .h3p-pop, .h3p-warn {
+.h3p-sq, .h3p-top, .h3p-low, .h3p-pop, .h3p-warn {
   background: var(--h3-bg); border: 1px solid var(--h3-line); border-radius: 12px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
@@ -265,10 +262,6 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3p-sq { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; cursor: pointer; }
 .h3p-sq[aria-expanded="true"], .h3p-sq[aria-pressed="true"] { background: var(--h3-effort); color: #111; border-color: transparent; }
 .h3p-sq .h3-ico { width: 20px; height: 20px; }
-.h3p-seg { display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 3px 0 9px; border-radius: 999px; }
-.h3p-seg .h3-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 4px; }
-.h3p-seg > button { height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--h3-ink-2); font-size: 12px; font-weight: 700; cursor: pointer; }
-.h3p-seg > button[aria-pressed="true"] { background: var(--h3-effort); color: #111; }
 .h3p-gyro { width: 34px; height: 34px; }
 
 /* en haut au centre : le coureur actif */
@@ -387,3 +380,11 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
   .h3p-top { min-width: 260px; }
   .h3p-stats b { font-size: 20px; }
 }
+
+/* trajectoire : un seul bouton « Traj. Auto » (téléphone) ou « Auto » (vignette), jaune quand le pilote automatique est actif */
+.h3p-traj { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--h3-line); background: var(--h3-bg); color: var(--h3-ink-2);
+  font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.h3p-traj[aria-pressed="true"] { background: var(--h3-effort); color: #111; border-color: transparent; }
+.h3-card .h3p-traj { justify-self: start; height: 24px; padding: 0 12px; font-size: 11px; }
+.h3-menu .h3-vr-go { margin-top: 4px; }
+.h3-menu .h3-vr-none { margin: 4px 0 0; }

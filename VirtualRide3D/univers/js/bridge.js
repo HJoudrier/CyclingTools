@@ -135,7 +135,7 @@
 
     status(extra) {
       const g = this.game;
-      this.post(Object.assign({ type: 'status', state: this.ready ? 'ready' : 'building', seed: g.seed, cam: g.camIndex, sound: this.soundOn }, extra || {}));
+      this.post(Object.assign({ type: 'status', state: this.ready ? 'ready' : 'building', seed: g.seed, cam: g.camIndex, sound: this.soundOn, vr: !!(g.vr && g.vr.supported) }, extra || {}));
     },
 
     onMessage(e) {
@@ -159,6 +159,9 @@
       } else if (m.cmd === 'reroll') {
         // autre paysage autour du même parcours (pour soi : les autres joueurs gardent le leur)
         if (this.course && !g.building) this.build(this.course, (this.seed + 7919) % 1000000);
+      } else if (m.cmd === 'vr') {
+        // casque demandé depuis le menu de Course 3D : essai direct ; si le navigateur veut un geste dans ce cadre, une carte le demande
+        if (this.ready && g.vr && g.vr.supported && !g.vr.presenting) g.vr.enter({ quiet: true }).then((ok) => { if (!ok) this.armVR(true); });
       } else if (m.cmd === 'hud') {
         this.hudOn = m.on === undefined ? !this.hudOn : !!m.on;
         this.hud.classList.toggle('hidden', !this.hudOn || !this.ready);
@@ -520,9 +523,24 @@
       this.post({ type: 'pad', src: 'vr', axes: [ax(L, 2), ax(L, 3), ax(R, 2), ax(R, 3)], buttons: b });
     },
 
-    // bouton « VR » de la vue (le casque ne se lance que d'un geste dans ce cadre) ; l'application est prévenue quand on le met ou l'enlève
+    // carte « Touche ici pour passer dans le casque » : le casque ne se lance que d'un geste dans ce cadre (demande venue du menu)
+    armVR(on) {
+      if (!this.vrArm) {
+        const c = this.vrArm = document.createElement('div');
+        c.className = 'pyr-vrarm hidden';
+        c.innerHTML = '<button type="button" class="go">🥽 Touche ici pour passer dans le casque</button><button type="button" class="no">Annuler</button>';
+        c.querySelector('.go').addEventListener('click', (e) => { e.stopPropagation(); this.armVR(false); if (this.game.vr) this.game.vr.enter(); });
+        c.querySelector('.no').addEventListener('click', (e) => { e.stopPropagation(); this.armVR(false); });
+        c.addEventListener('pointerdown', (e) => e.stopPropagation());
+        document.body.appendChild(c);
+      }
+      this.vrArm.classList.toggle('hidden', !on);
+    },
+
+    // bouton « VR » de la vue ouverte dans une autre fenêtre (dans la page de jeu de Course 3D, le casque se lance depuis le menu, onglet
+    // Affichage) ; l'application est prévenue quand on le met ou l'enlève
     buildVR() {
-      if (!this.embedded && !this.hostWin) return;
+      if (this.embedded || !this.hostWin) return;
       const b = this.vrBtn = document.createElement('button');
       b.type = 'button';
       b.className = 'pyr-vr hidden';
@@ -535,6 +553,7 @@
     watchVR() {
       const vr = this.game.vr, on = !!(vr && vr.presenting);
       if (this.vrBtn) this.vrBtn.classList.toggle('hidden', !(this.ready && vr && vr.supported && !on));
+      if (on && this.vrArm) this.armVR(false);
       if (on !== !!this.vrWas) { this.vrWas = on; this.post({ type: 'vr', on }); }
     },
 

@@ -209,8 +209,8 @@
     const btn = (cls, title, kids, onclick) => h('button', { class: cls, type: 'button', title, 'aria-label': title, onclick }, ...kids);
     // en haut à gauche : l'équipe, la trajectoire (auto / manuelle), le gyroscope (manuelle)
     P.teamBtn = btn('h3p-sq', 'Ton équipe : choisis le coureur à piloter', [icon(ICON.team)], (e) => { e.stopPropagation(); togglePop('team'); });
-    P.steerBtns = STEERS.map((m) => h('button', { type: 'button', 'data-steer': m.id, title: m.help, 'aria-pressed': 'false', onclick: () => { T.setSteer(m.id); update(true); } }, m.label));
-    P.steer = h('div', { class: 'h3p-seg', role: 'group', 'aria-label': 'Trajectoire' }, h('span', { class: 'h3-lbl' }, 'Traj.'), ...P.steerBtns);
+    // trajectoire : un seul bouton, jaune en automatique ; désactivé, tu pilotes (manuelle)
+    P.steer = trajBtn('h3p-traj', 'Traj. Auto');
     P.gyro = btn('h3p-sq h3p-gyro', 'Gyroscope : incline le téléphone pour piloter', [icon(ICON.tilt)], async () => {
       const ok = await PYR.steerInput.setTilt(!PYR.steerInput.tiltOn);
       if (!ok && !PYR.steerInput.tiltOn) D.toast('Gyroscope indisponible (capteur absent ou permission refusée).', 'error');
@@ -361,7 +361,7 @@
     // trajectoire
     const ok = T.steerable(), manual = ok && T.steerMode() === 'manual';
     P.steer.hidden = !ok;
-    for (const x of P.steerBtns) x.setAttribute('aria-pressed', String(x.dataset.steer === T.steerMode()));
+    P.steer.setAttribute('aria-pressed', String(T.steerMode() !== 'manual'));
     P.gyro.hidden = !manual;
     P.gyro.setAttribute('aria-pressed', String(PYR.steerInput.tiltOn));
     P.warn.hidden = !S.steerWarn;
@@ -422,6 +422,15 @@
   /** Réglages d'immersion pour la vue 3D (trame de view3d.js) : marqueurs des coéquipiers, respiration. */
   function fx() { return S.mode ? { mk: feelOn('markers'), br: feelOn('breath'), gd: feelOn('guide') } : null; }
 
+  /** Bouton de trajectoire : pressé (jaune) en automatique ; un appui bascule automatique ↔ manuelle (touche V). */
+  function trajBtn(cls, label) {
+    return h('button', {
+      class: cls, type: 'button', 'aria-pressed': 'true', 'aria-label': 'Trajectoire automatique',
+      title: 'Trajectoire automatique (V) : le pilote prend les virages à la corde, s\'écarte pour remonter, évite les chutes et freine pour toi. Désactivée : tu pilotes (← →, manette, gyroscope) et tu freines toi-même',
+      onclick: (e) => { e.stopPropagation(); T.toggleSteer(); update(true); },
+    }, label);
+  }
+
   /** Vignette d'un coureur : identité, effort, endurance, effort court, actions. */
   function card(r) {
     const color = r.color || (G.team ? G.team.teams[0].color : null);
@@ -460,11 +469,8 @@
     c.pilot = h('button', { class: 'h3-mini', type: 'button', title: 'Piloter ce coureur : la caméra le suit, le clavier le commande', onclick: (e) => { e.stopPropagation(); T.switchRider(r.id); } }, icon(ICON.cam), 'Piloter');
     c.mates = h('div', { class: 'h3-mates' }, c.auto, c.pilot);
     // trajectoire (coureur piloté) : automatique ou manuelle
-    c.steerBtns = STEERS.map((m) => h('button', {
-      type: 'button', 'data-steer': m.id, 'aria-pressed': 'false', title: m.help,
-      onclick: (e) => { e.stopPropagation(); T.setSteer(m.id); update(true); },
-    }, m.label));
-    c.steerRow = h('div', { class: 'h3-steer', role: 'group', 'aria-label': 'Trajectoire' }, h('span', { class: 'h3-lbl' }, 'Trajectoire'), h('div', { class: 'h3-seg' }, ...c.steerBtns));
+    c.steerBtn = trajBtn('h3p-traj', 'Auto');
+    c.steerRow = h('div', { class: 'h3-steer' }, h('span', { class: 'h3-lbl' }, 'Trajectoire'), c.steerBtn);
     c.el = tint(h('article', { class: 'h3-card', 'data-id': r.id },
       h('header', { class: 'h3-head' }, ph, h('div', { class: 'h3-id' }, h('div', null, c.name, c.badge), c.state), c.place),
       h('div', { class: 'h3-effort' }, h('span', { class: 'h3-lbl' }, 'Effort'), c.minus, c.track, c.plus, c.val),
@@ -618,7 +624,7 @@
     c.badge.hidden = !piloted || !G.team;
     c.mates.hidden = piloted || !G.team || out;
     c.steerRow.hidden = !piloted || out || !T.steerable();
-    if (!c.steerRow.hidden) { const m = T.steerMode(); for (const b of c.steerBtns) b.setAttribute('aria-pressed', String(b.dataset.steer === m)); }
+    if (!c.steerRow.hidden) c.steerBtn.setAttribute('aria-pressed', String(T.steerMode() !== 'manual'));
     c.auto.disabled = !r.order;
     c.auto.setAttribute('aria-pressed', String(!r.order));
     // effort : consigne (null : la tactique règle la puissance) et puissance produite, en % de la PC du coureur
@@ -800,8 +806,13 @@
       cb.addEventListener('change', () => { store.set('ui.hud3d', Object.assign(prefs(), { [w.id]: cb.checked }), true); update(true); });
       feel.appendChild(h('label', null, cb, ' ', w.label));
     }
+    // réalité virtuelle : le casque se lance d'ici (la vue n'a plus de bouton VR)
+    const vr = PYR.view3d && PYR.view3d.vrSupported()
+      ? h('button', { class: 'btn primary h3-vr-go', type: 'button', onclick: () => { if (S.menu && !S.menu.closed) S.menu.close(); PYR.view3d.enterVR(); } }, '🥽 Passer dans le casque')
+      : h('p', { class: 'hint h3-vr-none' }, 'Aucun casque de réalité virtuelle détecté (il faut un casque et un navigateur WebXR, comme celui du Meta Quest).');
     return h('div', { class: 'h3-pane' }, h('p', { class: 'hint' }, 'Les éléments affichés par-dessus la vue 3D. La touche H masque ou affiche tout le HUD.'), box,
-      h('h4', { class: 'h3-feel-head' }, 'Sensations'), feel);
+      h('h4', { class: 'h3-feel-head' }, 'Sensations'), feel,
+      h('h4', { class: 'h3-feel-head' }, 'Réalité virtuelle'), vr);
   }
 
   /* ---------- clavier (tab-game.onKey le passe ici d'abord ; vrai si la touche est prise) ---------- */
