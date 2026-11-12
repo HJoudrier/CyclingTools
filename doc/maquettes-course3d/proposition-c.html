@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition C « Immersif minimal »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition C : grandes zones tactiles aux coins, ruban de données, tiroir d'actions ---------- */
+  .C .tl { position: absolute; left: 44px; top: 12px; display: flex; gap: 8px; }
+  .C .tr { position: absolute; right: 18px; top: 12px; display: flex; gap: 8px; }
+  .C .sq { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+  /* zones : le quart bas gauche freine (on le tient), le quart bas droit accélère (on le tapote) */
+  .C .zone { position: absolute; bottom: 0; width: 26%; height: 58%; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 0 66px; gap: 3px; font-size: 13px; font-weight: 800; letter-spacing: 0.05em; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+  .C .zone .ico { width: 34px; height: 34px; filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5)); }
+  .C .zone small { font-size: 10px; font-weight: 700; letter-spacing: 0; }
+  .C .zone.brake { left: 0; padding-left: 50px; align-items: flex-start; background: radial-gradient(120% 100% at 0% 100%, rgba(229, 72, 77, 0.42), rgba(229, 72, 77, 0) 70%); border-top-right-radius: 60px; color: #ffe1e2; }
+  .C .zone.accel { right: 0; padding-right: 26px; align-items: flex-end; background: radial-gradient(120% 100% at 100% 100%, rgba(255, 210, 63, 0.45), rgba(255, 210, 63, 0) 70%); border-top-left-radius: 60px; color: #fff3c4; }
+  .C .zone .arc { position: absolute; right: 18px; bottom: 58px; width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(from 270deg, var(--h3-effort) 0 54deg, rgba(255, 255, 255, 0.18) 54deg 90deg, transparent 90deg); -webkit-mask: radial-gradient(circle, transparent 52px, #000 53px); mask: radial-gradient(circle, transparent 52px, #000 53px); }
+  /* ruban : le coureur actif et ses données, en bas au centre */
+  .C .ribbon { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: 610px; padding: 5px 6px; border-radius: 16px; display: grid; gap: 4px; }
+  .C .line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+  .C .line .arrow { min-width: 60px; padding: 3px 4px; background: var(--h3-bg-2); border: 0; box-shadow: none; }
+  .C .data { display: flex; align-items: baseline; justify-content: center; gap: 12px; white-space: nowrap; }
+  .C .data .big { font-size: 22px; }
+  .C .data .name { font-size: 14px; }
+  .C .low { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 10px; align-items: center; padding: 0 6px; }
+  .C .low .meters { grid-template-columns: 1fr; gap: 3px; }
+  /* tiroir d'actions, depuis la droite */
+  .C .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; padding: 14px 18px 14px 12px; border-radius: 18px 0 0 18px; z-index: 30; display: flex; flex-direction: column; gap: 4px; }
+  .C .drawer .menu { position: static; padding: 0; background: none; border: 0; box-shadow: none; }
+  .C .drawer .menu .row { height: 31px; }
+</style>
+</head>
+<body class="C">
+<h1>Proposition C · Immersif minimal</h1>
+<p class="lead">La vue d'abord. Les deux quarts bas de l'écran sont de <b>grandes zones tactiles</b> : on tient le quart gauche pour <b>Freiner</b>, on tapote le quart droit
+pour <b>Accélérer</b> (l'arc se remplit). Entre les deux, un <b>ruban</b> : le coureur actif, ses données et l'aspiration, l'effort, l'endurance et l'effort court,
+avec ◀ ▶ aux deux bouts. « ⋯ » ouvre un <b>tiroir d'actions</b> depuis la droite.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Tiroir d'actions ouvert (actions du coureur actif, trajectoire)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Pas de bouton à viser : le pouce gauche freine n'importe où dans son quart, le pouce droit tapote dans le sien. Il faut un petit apprentissage (aucun bouton dessiné).</li>
+  <li>Le ruban est le plus bas possible ; il laisse voir le coureur et la route, mais ses chiffres sont plus petits que dans A et B.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = (drawer) => `${M.chevrons()}
+    <div class="zone brake">${ico('brake')}FREINER<small>tiens appuyé</small></div>
+    <div class="zone accel"><i class="arc"></i>${ico('accel')}ACCÉLÉRER<small>tapote · 60 %</small></div>
+    <div class="tl"><span class="pill glass">${ico('team')} Équipe ▾</span>${drawer ? '' : `<span class="pill glass" style="padding:0 4px 0 12px"><span class="lbl">Trajectoire</span>${M.traj()}</span>`}</div>
+    <div class="tr"><span class="sq glass">${ico('more')}</span><span class="sq glass">${ico('menu')}</span></div>
+    <div class="ribbon glass">
+      <div class="line">${M.arrow('behind', 'left')}
+        <div class="data">${M.name()}<span><span class="big">${D.P}</span><span class="unit">W</span></span><span><span class="big">${M.fr(D.v, 1)}</span><span class="unit">km/h</span></span><span><span class="big">${D.hr}</span><span class="unit">bpm</span></span></div>
+        ${M.arrow('ahead', 'right')}</div>
+      <div class="low"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center">${M.draft()}${M.effort(false)}</div>${M.meters()}</div>
+    </div>`;
+  document.getElementById('p1').innerHTML = base(false);
+  document.getElementById('p2').innerHTML = base(true) + `<div class="drawer glass">
+      <div style="display:flex;align-items:center;justify-content:space-between"><span class="lbl">Trajectoire</span>${M.traj()}</div>
+      <div class="sep" style="height:1px;background:var(--h3-line);margin:6px 0"></div>
+      ${M.actionsMenu('', 1)}</div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+/* author : Hugo Joudrier-Faure */
+/* Maquettes de l'écran de jeu de Course 3D sur téléphone, en paysage (844 × 390, iPhone 13) : cadre, jetons du HUD (Commun/css/hud3d.css),
+ * composants communs aux trois propositions. Le fond est une vraie capture de la vue 3D (fond.jpg). */
+:root {
+  --h3-bg: rgba(14, 17, 22, 0.68);
+  --h3-bg-2: rgba(255, 255, 255, 0.13);
+  --h3-line: rgba(255, 255, 255, 0.16);
+  --h3-ink: #ffffff;
+  --h3-ink-2: rgba(255, 255, 255, 0.74);
+  --h3-endu: #34b552;   /* endurance (glycogène, aérobie) */
+  --h3-anaer: #e5484d;  /* effort court (W′, anaérobie) */
+  --h3-effort: #ffd23f; /* effort demandé */
+  --team: #d2142f;      /* maillot de l'équipe (UAE) */
+  --safe: 34px;         /* marge de l'encoche (paysage) */
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #e9e8e3; color: #1d1d1b; font-variant-numeric: tabular-nums; }
+h1 { margin: 0 0 4px; font-size: 22px; }
+.lead { margin: 0 0 18px; max-width: 900px; font-size: 14px; color: #4a4944; line-height: 1.45; }
+.state { margin: 0 0 22px; }
+.state > h2 { margin: 0 0 8px; font-size: 14px; color: #4a4944; font-weight: 700; }
+
+/* le téléphone, en paysage */
+.phone { position: relative; width: 844px; height: 390px; border-radius: 34px; overflow: hidden; background: #000 url("fond.jpg") center / cover no-repeat;
+  box-shadow: 0 0 0 10px #111, 0 0 0 11px #444, 0 18px 40px rgba(0, 0, 0, 0.35); color: var(--h3-ink); }
+.phone::before { /* encoche, côté gauche */ content: ""; position: absolute; left: 0; top: 50%; width: 28px; height: 150px; margin-top: -75px; border-radius: 0 18px 18px 0; background: #000; z-index: 50; }
+.phone::after { /* barre du système */ content: ""; position: absolute; left: 50%; bottom: 7px; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255, 255, 255, 0.75); z-index: 50; }
+.phone svg.road { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* briques communes */
+.glass { background: var(--h3-bg); border: 1px solid var(--h3-line); border-radius: 14px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
+.ico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: var(--h3-bg-2); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.chip.draft { background: rgba(52, 181, 82, 0.28); color: #b9f5c6; }
+.lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--h3-ink-2); }
+.big { font-size: 27px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
+.unit { font-size: 11px; font-weight: 700; color: var(--h3-ink-2); margin-left: 2px; }
+.name { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.name .tag { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--team); margin-right: 6px; vertical-align: 0; }
+.sub { font-size: 11px; color: var(--h3-ink-2); white-space: nowrap; }
+
+/* barre d'effort : 0 à 150 % de la PC ; au-delà de 100 % la zone rouge ; consigne (jaune), dépassement d'Accélérer (hachuré), puissance (trait) */
+.effort { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 5px; }
+.track { position: relative; height: 18px; border-radius: 6px; overflow: hidden; background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 66.67%, rgba(229, 72, 77, 0.35) 66.67%); }
+.track .set { position: absolute; left: 0; top: 0; bottom: 0; background: var(--h3-effort); }
+.track .boost { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(255, 210, 63, 0.95) 0 4px, rgba(255, 140, 40, 0.75) 4px 8px); }
+.track .cp { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; }
+.track .now { position: absolute; top: 3px; bottom: 3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: #111; box-shadow: 0 0 0 1px #fff; }
+.step { width: 26px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--h3-bg-2); }
+.step .ico { width: 14px; height: 14px; }
+.pct { font-size: 13px; font-weight: 800; min-width: 38px; text-align: right; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.meter { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: var(--h3-ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.gauge { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.gauge > i { display: block; height: 100%; }
+.gauge.endu > i { background: var(--h3-endu); }
+.gauge.anaer > i { background: var(--h3-anaer); }
+
+/* bascule de trajectoire */
+.seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; border-radius: 9px; background: var(--h3-bg-2); }
+.seg > span { padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--h3-ink-2); }
+.seg > span.on { background: var(--h3-effort); color: #111; }
+
+/* flèches : coéquipier le plus proche devant / derrière */
+.arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 64px; padding: 4px 6px; border-radius: 12px; }
+.arrow b { font-size: 18px; line-height: 1; }
+.arrow small { font-size: 10px; font-weight: 700; color: var(--h3-ink-2); white-space: nowrap; }
+
+/* menus déroulants (actions, équipe) */
+.menu { position: absolute; z-index: 20; padding: 6px; border-radius: 14px; }
+.menu .row { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 10px; border-radius: 9px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.menu .row.on { background: var(--h3-effort); color: #111; }
+.menu .row small { margin-left: auto; padding-left: 12px; font-size: 11px; font-weight: 600; color: var(--h3-ink-2); }
+.menu .row.on small { color: #333; }
+.menu .sep { height: 1px; margin: 4px 6px; background: var(--h3-line); }
+.menu .rider { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 9px; }
+.menu .rider.on { background: rgba(255, 210, 63, 0.18); box-shadow: inset 0 0 0 1px var(--h3-effort); }
+.av { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--team); background: #f6d3d8; border: 2px solid var(--team); }
+.minibars { display: grid; gap: 3px; width: 54px; }
+.minibars .gauge { height: 5px; }
+
+/* légendes des maquettes (hors téléphone) */
+.notes { margin: 10px 0 0; padding: 0 0 0 18px; max-width: 864px; font-size: 13px; line-height: 1.45; color: #3e3d39; }
+.notes li { margin: 2px 0; }
+/* menu d'actions en deux colonnes (paysage) */
+.menu.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 4px; }
+.menu.cols2 .head { grid-column: 1 / -1; }
+.menu.cols2 .row { height: 40px; }

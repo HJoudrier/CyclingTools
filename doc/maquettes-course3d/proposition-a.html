@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition A « Console de course »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition A : gros boutons ronds aux coins, HUD central en bas ---------- */
+  .A .tl { position: absolute; left: 44px; top: 12px; display: flex; gap: 8px; }
+  .A .tc { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 12px; }
+  .A .tr { position: absolute; right: 18px; top: 12px; display: flex; gap: 8px; }
+  .A .sq { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; }
+  .A .act { background: var(--h3-effort); color: #111; border-color: transparent; }
+  .A .round { position: absolute; bottom: 16px; width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; }
+  .A .round .in { width: 90px; height: 90px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: rgba(14, 17, 22, 0.82); font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
+  .A .round .in small { font-size: 9px; font-weight: 700; color: var(--h3-ink-2); letter-spacing: 0; }
+  .A .round .ico { width: 30px; height: 30px; }
+  .A .brake { left: 44px; background: rgba(229, 72, 77, 0.55); }
+  .A .brake .in { color: #ffd0d1; }
+  .A .accel { right: 18px; }
+  .A .accel .in { color: var(--h3-effort); }
+  .A .hud { position: absolute; left: 160px; right: 134px; bottom: 12px; padding: 8px 10px 9px; display: grid; gap: 6px; }
+  .A .hud .top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+  .A .hud .who { text-align: center; line-height: 1.15; }
+  .A .hud .arrow { min-width: 74px; background: var(--h3-bg-2); border: 0; box-shadow: none; }
+  .A .hud .stats { display: flex; justify-content: center; align-items: baseline; gap: 18px; }
+</style>
+</head>
+<body class="A">
+<h1>Proposition A · Console de course</h1>
+<p class="lead">Deux gros boutons ronds aux coins bas, sous les pouces : <b>Freiner</b> à gauche, <b>Accélérer</b> à droite (l'anneau se remplit à chaque appui
+et se vide en une seconde : on tapote pour tenir l'effort au-delà de la barre). Entre les deux, le HUD du <b>coureur actif</b> : son nom, puissance, vitesse, FC,
+l'aspiration, la barre d'effort, l'endurance et l'effort court ; ◀ ▶ passent au coéquipier le plus proche derrière ou devant. En haut : l'équipe, la trajectoire,
+le menu d'actions.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Menu d'actions ouvert (il s'applique au coureur actif)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>Les chevrons dessinent la trajectoire idéale (ici vers la corde du virage à gauche) ; leur couleur passe du vert au rouge à l'approche du virage, où la vitesse conseillée est 28 km/h : rouge, il faut ralentir ou freiner.</li>
+  <li>La barre d'effort : la consigne en jaune (95 % de la PC), le dépassement obtenu en tapotant Accélérer en hachuré, la puissance produite (le trait noir) ; au-delà du repère blanc (100 %), l'effort court se vide.</li>
+  <li>« Équipe » ouvre la liste des coureurs ; un toucher fait du coureur le coureur actif.</li>
+  <li>Le HUD du bas cache le bas de la vue : en jeu, la caméra cadrerait le coureur au-dessus de lui.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = () => `${M.chevrons()}
+    <div class="tl"><span class="pill glass">${ico('team')} Équipe ▾</span><span class="pill glass" style="padding:0 4px 0 12px"><span class="lbl">Trajectoire</span>${M.traj()}</span></div>
+    <div class="tr"><span class="pill glass act">${ico('bolt')} Actions ▾</span><span class="sq glass">${ico('cam')}</span><span class="sq glass">${ico('menu')}</span></div>
+    <div class="round brake"><div class="in">${ico('brake')}FREINER</div></div>
+    <div class="round accel" style="${M.ring(D.boost)}"><div class="in">${ico('accel')}ACCÉLÉRER<small>tapote !</small></div></div>
+    <div class="hud glass">
+      <div class="top">${M.arrow('behind', 'left')}
+        <div class="who">${M.name()}<br><span class="sub">${M.sub()}</span></div>
+        ${M.arrow('ahead', 'right')}</div>
+      <div class="stats"><span><span class="big">${D.P}</span><span class="unit">W</span></span><span><span class="big">${M.fr(D.v, 1)}</span><span class="unit">km/h</span></span>
+        <span><span class="big">${D.hr}</span><span class="unit">bpm</span></span>${M.draft()}</div>
+      ${M.effort(true)}${M.meters()}
+    </div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.actionsMenu('right:18px;top:56px;width:420px', 2);
+</script>
+</body>
+</html>

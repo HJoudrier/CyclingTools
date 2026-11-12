@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!-- author : Hugo Joudrier-Faure -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Course 3D sur téléphone — proposition B « Compteur au guidon »</title>
+<link rel="stylesheet" href="commun.css">
+<style>
+  /* ---------- proposition B : jauges verticales sur les bords, compteur façon GPS au centre, actions toujours visibles ---------- */
+  .B .tl { position: absolute; left: 44px; top: 12px; display: flex; gap: 8px; }
+  .B .tr { position: absolute; right: 18px; top: 12px; display: flex; gap: 6px; }
+  .B .acts { display: flex; gap: 4px; padding: 4px; border-radius: 14px; }
+  .B .acts span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--h3-bg-2); }
+  .B .acts span.on { background: var(--h3-effort); color: #111; }
+  .B .acts .ico { width: 18px; height: 18px; }
+  .B .sq { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
+  /* jauges : Freiner (on la tient), Accélérer (elle se remplit à chaque appui) */
+  .B .bar { position: absolute; bottom: 16px; width: 74px; height: 214px; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; padding-bottom: 12px; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
+  .B .bar .ico { width: 28px; height: 28px; position: relative; }
+  .B .bar span { position: relative; }
+  .B .bar .fill { position: absolute; left: 0; right: 0; bottom: 0; }
+  .B .brake { left: 44px; color: #ffd0d1; }
+  .B .brake .fill { height: 100%; background: linear-gradient(0deg, rgba(229, 72, 77, 0.55), rgba(229, 72, 77, 0.12)); }
+  .B .accel { right: 18px; color: #111; }
+  .B .accel .fill { height: 60%; background: linear-gradient(0deg, #ffd23f, rgba(255, 210, 63, 0.75)); }
+  .B .accel .ticks { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 41px, rgba(255, 255, 255, 0.35) 41px 43px); }
+  .B .accel small { position: relative; font-size: 9px; font-weight: 700; }
+  /* le compteur */
+  .B .cpt { position: absolute; left: 138px; right: 112px; bottom: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 82px; gap: 8px; padding: 8px; border-radius: 18px; background: rgba(10, 12, 15, 0.86); border: 2px solid #2b2f36; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .B .screen { display: grid; gap: 6px; }
+  .B .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 2px; }
+  .B .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; border-radius: 10px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+  .B .cell { background: rgba(10, 12, 15, 0.92); padding: 3px 8px 4px; }
+  .B .cell .big { font-size: 25px; }
+  .B .cell.draft .big { color: #8fe3a2; }
+  .B .side { display: grid; grid-template-rows: 1fr 1fr; gap: 6px; }
+  .B .side .arrow { border-radius: 12px; background: var(--h3-bg-2); }
+</style>
+</head>
+<body class="B">
+<h1>Proposition B · Compteur au guidon</h1>
+<p class="lead">Au centre, un <b>compteur façon GPS de vélo</b> : le nom du coureur actif, puis puissance, vitesse, FC et aspiration en grandes cases, la barre d'effort,
+l'endurance et l'effort court ; ▲ ▼ à sa droite passent au coéquipier le plus proche devant ou derrière. Sur les bords, deux <b>jauges verticales</b> :
+<b>Freiner</b> (on la tient) et <b>Accélérer</b> (elle monte à chaque appui et redescend en une seconde). Les actions du coureur actif restent visibles en haut à droite.</p>
+
+<section class="state"><h2>En course (trajectoire manuelle, aide à la trajectoire sur la route)</h2>
+<div class="phone" id="p1"></div></section>
+<section class="state"><h2>Liste de l'équipe ouverte (un toucher fait du coureur le coureur actif)</h2>
+<div class="phone" id="p2"></div></section>
+
+<ul class="notes">
+  <li>La rangée d'actions est toujours là : pas de menu à ouvrir, mais des icônes sans texte (un appui long affiche le nom).</li>
+  <li>Les jauges laissent la vue dégagée au-dessus des pouces ; la graduation d'Accélérer montre le niveau atteint en tapotant.</li>
+</ul>
+
+<script src="maquettes.js"></script>
+<script>
+  const { D, ico } = M;
+  const base = () => `${M.chevrons()}
+    <div class="tl"><span class="pill glass">${ico('team')} Équipe ▾</span><span class="pill glass" style="padding:0 4px 0 12px"><span class="lbl">Trajectoire</span>${M.traj()}</span></div>
+    <div class="tr"><div class="acts glass">${M.ACTIONS.map(([id, l]) => `<span class="${id === 'follow' ? 'on' : ''}" title="${l}">${ico(id)}</span>`).join('')}</div><span class="sq glass">${ico('menu')}</span></div>
+    <div class="bar brake glass"><i class="fill"></i>${ico('brake')}<span>FREIN</span></div>
+    <div class="bar accel glass"><i class="fill"></i><i class="ticks"></i>${ico('accel')}<span>ACCÉLÉRER</span><small>tapote · 60 %</small></div>
+    <div class="cpt">
+      <div class="screen">
+        <div class="head">${M.name()}<span class="sub">${M.sub()}</span></div>
+        <div class="cells">
+          <div class="cell"><div class="lbl">Puissance</div><span class="big">${D.P}</span><span class="unit">W</span></div>
+          <div class="cell"><div class="lbl">Vitesse</div><span class="big">${M.fr(D.v, 1)}</span><span class="unit">km/h</span></div>
+          <div class="cell"><div class="lbl">FC</div><span class="big">${D.hr}</span><span class="unit">bpm</span></div>
+          <div class="cell draft"><div class="lbl">Aspiration</div><span class="big">−${D.draft}</span><span class="unit">W</span></div>
+        </div>
+        ${M.effort(true)}${M.meters()}
+      </div>
+      <div class="side">${M.arrow('ahead', 'up')}${M.arrow('behind', 'down')}</div>
+    </div>`;
+  document.getElementById('p1').innerHTML = base();
+  document.getElementById('p2').innerHTML = base() + M.teamMenu('left:44px;top:58px;width:330px');
+</script>
+</body>
+</html>
