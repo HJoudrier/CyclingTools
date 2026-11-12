@@ -180,6 +180,23 @@ test('réalité virtuelle : lancée depuis le menu (onglet Affichage), plus de b
   assert.match(read('VirtualRide3D/univers/css/style.css'), /\.pyr-vrarm \{/);
 });
 
+test('plein écran sur téléphone : bouton ⛶, essai à chaque geste (HUD, vue 3D, Démarrer), écran d\'accueil sur iPhone', () => {
+  assert.match(HUD, /P\.full = btn\('h3-tool h3p-full phone-only'/);
+  assert.match(HUD, /if \(S\.mode !== 'phone' \|\| S\.fsDone \|\| fsOn\(\)\) return;/);
+  assert.match(HUD, /H\.gesture = \(\) => autoFullscreen\(\);/);
+  assert.match(read('Commun/js/jeu/view3d.js'), /m\.type === 'touch'/);
+  assert.match(read('VirtualRide3D/univers/js/bridge.js'), /if \(this\.embedded && !this\.fsOn\) this\.post\(\{ type: 'touch' \}\);/);
+  assert.match(read('Commun/js/jeu/tab-game.js'), /PYR\.hud3d\.gesture\(\); T\.start\(\);/);
+  for (const f of ['VirtualRide3D/course.html', 'VirtualRide3D/index.html']) {
+    const html = read(f);
+    assert.match(html, /<meta name="apple-mobile-web-app-capable" content="yes">/, f);
+    assert.match(html, /<link rel="manifest" href="course3d\.webmanifest">/, f);
+  }
+  const man = JSON.parse(read('VirtualRide3D/course3d.webmanifest'));
+  assert.equal(man.display, 'fullscreen');
+  assert.equal(man.orientation, 'landscape');
+});
+
 test('niveau de réalisme : Arcade ou Simulation sur la page de choix de Course 3D, Arcade par défaut dans Course 3D seulement', () => {
   const html = read('VirtualRide3D/index.html');
   assert.match(html, /id="gs-realism"/);

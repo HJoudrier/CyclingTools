@@ -228,7 +228,7 @@
         $('#pane-stage').classList.toggle('all', G.boardAll);
         T.renderBoard();
       });
-      $('#g-start').addEventListener('click', () => T.start());
+      $('#g-start').addEventListener('click', () => { if (PYR.hud3d && PYR.hud3d.gesture) PYR.hud3d.gesture(); T.start(); });
       $('#g-pause').addEventListener('click', () => T.togglePause());
       // « Recommencer » : depuis la page de jeu, une nouvelle partie repart aussitôt (avec le décompte) ; depuis les réglages, elle attend « Démarrer »
       $('#g-reset').addEventListener('click', () => {

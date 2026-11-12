@@ -388,3 +388,4 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3-card .h3p-traj { justify-self: start; height: 24px; padding: 0 12px; font-size: 11px; }
 .h3-menu .h3-vr-go { margin-top: 4px; }
 .h3-menu .h3-vr-none { margin: 4px 0 0; }
+.h3[data-mode="phone"] .h3-tools > .h3p-full[aria-pressed="true"] { color: var(--h3-ink-2); }

@@ -1,0 +1,20 @@
+{
+  "name": "Course 3D — Wattlas",
+  "short_name": "Course 3D",
+  "lang": "fr",
+  "description": "La course cycliste dans l'univers 3D cartoon, en plein écran.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1a1a19",
+  "theme_color": "#1a1a19",
+  "icons": [
+    {
+      "src": "../Commun/img/marque/course.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

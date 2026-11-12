@@ -306,6 +306,9 @@
     } else if (m.type === 'pad') {
       // manette (la vue a le focus) ou contrôleurs VR, dans la disposition standard
       if (PYR.steerInput) PYR.steerInput.padState(m);
+    } else if (m.type === 'touch') {
+      // un toucher dans la vue : le geste vaut aussi pour la page (plein écran sur téléphone)
+      if (PYR.hud3d && PYR.hud3d.gesture) PYR.hud3d.gesture();
     } else if (m.type === 'pick') {
       // marqueur d'un coéquipier touché dans la vue (Course 3D, mode équipe) : on pilote ce coureur
       const G = PYR.tabGame && PYR.tabGame.state;

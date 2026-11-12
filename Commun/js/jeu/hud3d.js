@@ -74,6 +74,8 @@
     accel: ['M5 13l7-7 7 7', 'M5 20l7-7 7 7'],
     // radio d'équipe : un casque à micro (les consignes du directeur sportif)
     radio: ['M4 14v-2a8 8 0 0 1 16 0v2', 'M4 14a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2', 'M20 14a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2', 'M18 16v1a4 4 0 0 1-4 4h-2'],
+    full: ['M4 9V4h5', 'M20 9V4h-5', 'M4 15v5h5', 'M20 15v5h-5'],
+    unfull: ['M9 4v5H4', 'M15 4v5h5', 'M9 20v-5H4', 'M15 20v-5h5'],
     rotate: ['M4 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M16 3a5 5 0 0 1 5 5', 'M19 8l2 0 0-2'],
   };
   const HEART = 'M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z';
@@ -86,7 +88,7 @@
 
   const H = {};
   const E = {};                                  // éléments construits par build()
-  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [], pos: new Map(), pop: null, locked: false,
+  const S = { mode: null, cards: new Map(), key: '', me: null, at: 0, rankAt: 0, menu: null, pausedByMenu: false, page: 0, parked: [], pos: new Map(), pop: null, fsDone: false,
     feel: { wf: 1, hr: 0, zone: 'road', v: 0, crash: false }, beatAt: 0, rumbleAt: 0, beat: 0, vibeTimer: null };
   const P = {};                                  // téléphone : éléments construits par buildPhone()
   let T = null, G = null;
@@ -239,6 +241,10 @@
     // en haut à droite (avec le menu) : la radio d'équipe, qui ouvre les actions du coureur actif
     P.radio = btn('h3-tool h3p-radio phone-only', 'Radio d\'équipe : les actions du coureur actif', [icon(ICON.radio)], (e) => { e.stopPropagation(); togglePop('acts'); });
     E.tools.prepend(P.radio);
+    // plein écran (téléphone) : bascule ; sur iPhone (pas de plein écran pour une page), l'aide de l'écran d'accueil
+    P.full = btn('h3-tool h3p-full phone-only', 'Plein écran', [icon(ICON.full)], (e) => { e.stopPropagation(); toggleFullscreen(); });
+    E.tools.insertBefore(P.full, P.radio.nextSibling);
+    document.addEventListener('fullscreenchange', renderFull);
     // en bas : Freiner (on le tient), l'effort, Accélérer (on le tapote)
     P.brake = h('button', { class: 'h3p-round h3p-brake', type: 'button', 'aria-label': 'Freiner (maintiens appuyé)' }, h('span', { class: 'in' }, icon(ICON.brake), 'FREINER'));
     const brake = (on) => (e) => {
@@ -278,20 +284,45 @@
     document.addEventListener('pointerdown', (e) => {
       if (S.mode !== 'phone') return;
       if (S.pop && !P.popTeam.contains(e.target) && !P.popActs.contains(e.target) && !P.teamBtn.contains(e.target) && !P.radio.contains(e.target)) togglePop(null);
-      lockLandscape();
+      if (!P.full.contains(e.target)) autoFullscreen();
     }, true);
   }
 
-  /** Plein écran et paysage, au premier toucher (un geste est nécessaire) ; sans effet si le navigateur ne le permet pas (iPhone). */
-  function lockLandscape() {
-    if (S.locked) return;
-    S.locked = true;
-    const el = document.documentElement;
+  /* ---------- plein écran (téléphone) ----------
+   * Le navigateur ne l'accorde que pendant un geste : on le demande à chaque toucher (HUD, vue 3D : message « touch » de la vue, Démarrer)
+   * tant qu'il n'a jamais réussi ; ensuite, si le joueur en sort, il y revient par le bouton ⛶. Sur iPhone, Safari n'a pas de plein écran
+   * pour une page : on l'obtient en ajoutant Course 3D à l'écran d'accueil (manifeste, display: fullscreen). */
+  const fsOk = () => typeof document !== 'undefined' && !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+  const fsOn = () => !!document.fullscreenElement;
+  function enterFullscreen() {
     const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* refusé */ } };
+    if (fsOn()) { lock(); return; }
+    if (!fsOk()) return;
     try {
-      if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(lock, () => {});
-      else lock();
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => { S.fsDone = true; lock(); renderFull(); }, () => {});
     } catch (e) { /* refusé */ }
+  }
+  /** Plein écran demandé tout seul : à chaque geste sur téléphone, jusqu'au premier succès. */
+  function autoFullscreen() {
+    if (S.mode !== 'phone' || S.fsDone || fsOn()) return;
+    enterFullscreen();
+  }
+  function toggleFullscreen() {
+    if (!fsOk()) {
+      D.toast('Sur iPhone, le plein écran passe par l\'écran d\'accueil : Partager → « Sur l\'écran d\'accueil », puis ouvre Course 3D depuis son icône.', undefined, 8000);
+      return;
+    }
+    if (fsOn()) { try { document.exitFullscreen().catch(() => {}); } catch (e) { /* déjà sorti */ } } else enterFullscreen();
+  }
+  function renderFull() {
+    if (!P.full) return;
+    const on = fsOn();
+    D.clear(P.full);
+    P.full.appendChild(icon(on ? ICON.unfull : ICON.full));
+    P.full.setAttribute('aria-pressed', String(on));
+    P.full.title = on ? 'Quitter le plein écran' : 'Plein écran';
+    P.full.setAttribute('aria-label', P.full.title);
+    if (PYR.view3d && PYR.view3d.command) PYR.view3d.command('fs', { on: on || S.fsDone });
   }
 
   /** Ouvre la fenêtre 'team' ou 'acts' (une seule à la fois) ; null ou la même : ferme. */
@@ -868,6 +899,8 @@
     document.body.removeAttribute('data-h3-hidden');
   };
   H.fx = fx;
+  /** Un geste (toucher dans la vue 3D, Démarrer) : sur téléphone, c'est l'occasion de passer en plein écran. */
+  H.gesture = () => autoFullscreen();
 
   H.update = (s) => update(false);
   /** Effort du coureur piloté ±d % (manette). */

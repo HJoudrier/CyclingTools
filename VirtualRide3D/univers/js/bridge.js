@@ -94,6 +94,7 @@
       let down = null;
       window.addEventListener('pointerdown', (e) => {
         if (this.soundOn) game.sound.start();
+        if (this.embedded && !this.fsOn) this.post({ type: 'touch' }); // la page profite du geste pour passer en plein écran (téléphone)
         down = e.target === game.renderer.domElement ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
       });
       window.addEventListener('pointerup', (e) => {
@@ -159,6 +160,8 @@
       } else if (m.cmd === 'reroll') {
         // autre paysage autour du même parcours (pour soi : les autres joueurs gardent le leur)
         if (this.course && !g.building) this.build(this.course, (this.seed + 7919) % 1000000);
+      } else if (m.cmd === 'fs') {
+        this.fsOn = !!m.on; // la page est (ou a été) en plein écran : plus besoin de lui signaler les touchers
       } else if (m.cmd === 'vr') {
         // casque demandé depuis le menu de Course 3D : essai direct ; si le navigateur veut un geste dans ce cadre, une carte le demande
         if (this.ready && g.vr && g.vr.supported && !g.vr.presenting) g.vr.enter({ quiet: true }).then((ok) => { if (!ok) this.armVR(true); });
