@@ -12,6 +12,7 @@
 (function (PYR) {
   'use strict';
 
+  const Steer = PYR.steer;
   const Sim = PYR.sim, Feed = PYR.feed, Dr = PYR.draft, Pel = PYR.peloton, Tac = PYR.tactics, Strat = PYR.strategy, Fu = PYR.fuel, Ph = PYR.physio, Cl = PYR.classif;
 
   // peloton : positions latérales et aspiration en deux dimensions (peloton.js) ; sans elle, tout le monde roule dans l'axe (une file)
@@ -284,7 +285,7 @@
   }
 
   /** Déclenche un incident : crevaison (arrêt 25–50 s) ou chute (arrêt 15–45 s, W′ entamé, blessure). */
-  function incident(race, r, type) {
+  function incident(race, r, type, cause) {
     const st = r.st;
     if (type === 'puncture') {
       const dur = Math.round(25 + 25 * race.rnd());
@@ -293,10 +294,12 @@
     }
     const dur = Math.round(15 + 30 * race.rnd());
     const hurt = 0.01 + 0.04 * race.rnd();
-    r.incident = { type: 'crash', until: st.t + dur, dur, hurt };
+    r.incident = { type: 'crash', until: st.t + dur, dur, hurt, cause: cause || null };
     r.injuryK *= 1 - hurt;
     st.wbal *= 0.6;
-    return log(race, r, 'crash', { dur, hurt });
+    if (r.lat) r.lat.vy = 0;
+    // cause : 'verge' (bas-côté), 'offroad' (sortie de route), 'pileup' (sur un coureur tombé) — trajectoire manuelle, steer.js
+    return log(race, r, 'crash', cause ? { dur, hurt, cause } : { dur, hurt });
   }
 
   /**
@@ -359,11 +362,29 @@
     Sim.conditions(ctx, Math.min(st.s, race.course.length - 0.01), st.t, c);
     if (r.lat) Pel.applyLine(race.course, r); // peloton : la trajectoire (corde ou large) change le chemin parcouru et la vitesse en virage
     const d = view.info.get(r.id) || SOLO;
-    if (r.incident && st.t >= r.incident.until) { log(race, r, 'restart', { of: r.incident.type }); r.incident = null; }
+    if (r.incident && st.t >= r.incident.until) {
+      log(race, r, 'restart', { of: r.incident.type });
+      r.incident = null;
+      // trajectoire manuelle : on repart sur la chaussée, au bord
+      if (r.lat && r.lat.manual) { const e = Steer.edgeOf(race.course, st.s, r.lat.edgeMax); r.lat.y = (r.lat.y >= 0 ? 1 : -1) * Math.max(0, e - 0.3); r.lat.vy = 0; r.lat.stepY = r.lat.y; }
+    }
     if (!r.incident && race.rules.events && st.t > 5 && !r.measured && !r.driven) maybeIncident(race, r, d);
     r.draft = r.incident || r.driven ? SOLO : d;
     c.cdaK = r.draft.k;
     c.stopped = !!r.incident;
+    // trajectoire : manuelle (le frein du joueur, pas de freinage automatique ; roulement ×3 hors de la chaussée), ou large (Course 3D)
+    const man = !!(r.lat && r.lat.manual && !r.incident);
+    c.manual = man;
+    c.brakeIn = man ? Math.min(1, Math.max(0, Number(r.brakeIn) || 0)) : 0;
+    c.vlimMul = 1;
+    if (man) {
+      if (Steer.zone(r.lat.y, Steer.edgeOf(race.course, st.s, r.lat.edgeMax)) !== 'road') c.crr *= 3;
+      if (st.t < (r.lat.slowUntil || 0)) c.vCap = Math.min(c.vCap, 8 / 3.6);
+    } else if (r.lat && r.lat.linePref === 'wide') {
+      // à l'extérieur du virage, le rayon est plus grand : on y passe un peu plus vite (le chemin est plus long, pathFactor)
+      const k = Math.abs(Steer.kappaAt(race.course, st.s)), hw = Pel.halfWidth(race.course, st.s);
+      if (k > 0 && Number.isFinite(hw)) c.vlimMul = Math.sqrt(1 + hw * k);
+    }
     if (r.penv && r.fuel && r.fuel.phy) {
       // modèle physiologique : signature effective (la chaleur agit par les températures du noyau et de la peau, pas par la météo)
       st.capK = r.injuryK * Fu.factor(r.fuel);
@@ -394,6 +415,7 @@
       if (hit && r.human && hit.dv > 1.2 && race.onEvent) race.onEvent({ t: st.t, id: r.id, name: r.name, type: 'bump', other: hit.id });
     }
     crossings(race, r, s0, t0);
+    if (man && !r.incident) offRoad(race, r, s0);
     // ligne du sprint ou du sommet franchie : l'effort s'arrête là
     if (r.tac.target !== null && r.tac.target !== undefined && st.s >= r.tac.target) Tac.afterLine(r, st.t);
     if (r.fuel) {
@@ -428,6 +450,38 @@
       r.time = st.tFinish;
       log(race, r, 'finish', { time: r.time });
     }
+  }
+
+  /**
+   * Trajectoire manuelle (steer.js) : conséquences de la position du joueur après la seconde. Sur le bas-côté, un risque de chute qui
+   * monte avec la vitesse ; hors de la route, la chute est probable (sinon on s'arrête presque au bord du bas-côté) ; sur un coureur tombé,
+   * la chute aussi. Indépendant de l'option « Incidents » : c'est le pilotage du joueur.
+   */
+  function offRoad(race, r, s0) {
+    const L = r.lat, st = r.st, v = st.v;
+    const edge = Steer.edgeOf(race.course, st.s, L.edgeMax), zn = Steer.zone(L.y, edge);
+    // un coureur tombé sur la trajectoire de la seconde
+    for (const o of race.riders) {
+      if (o === r || !o.incident || !o.lat || o.finished) continue;
+      if (o.st.s < s0 - 1 || o.st.s > st.s + 0.5) continue;
+      // au début ou à la fin de la seconde (le coureur tombé glisse vers le bord, le joueur se déplace)
+      const py = Number.isFinite(L.prevY) ? L.prevY : L.y, oy0 = Number.isFinite(o.lat.prevY) ? o.lat.prevY : o.lat.y;
+      if (Math.min(Math.abs(o.lat.y - L.y), Math.abs(oy0 - py), Math.abs(oy0 - L.y), Math.abs(o.lat.y - py)) > 0.6) continue;
+      if (race.rnd() < Steer.pileupRisk(v)) { incident(race, r, 'crash', 'pileup'); return; }
+    }
+    if (zn === 'road') { L.offT = 0; return; }
+    if (zn === 'verge') {
+      if (race.rnd() < Steer.vergeRisk(v)) { incident(race, r, 'crash', 'verge'); return; }
+      if (!L.offT) log(race, r, 'verge', {});
+      L.offT = (L.offT || 0) + 1;
+      return;
+    }
+    if (race.rnd() < Steer.exitRisk(v)) { incident(race, r, 'crash', 'offroad'); return; }
+    // sortie sans chute : on s'arrête presque, au bout du bas-côté
+    L.y = (L.y >= 0 ? 1 : -1) * (edge + Steer.VERGE);
+    L.vy = 0;
+    L.slowUntil = st.t + 3;
+    log(race, r, 'offroad', {});
   }
 
   /** Points de passage franchis pendant la seconde [t0, t0 + 1] (temps interpolé, comme l'arrivée). */

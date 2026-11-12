@@ -56,6 +56,9 @@
       // niveau de réalisme : 'arcade' (effort, endurance = glycogène, effort court = W′ ; ni chaleur, ni courbe de puissance record, ni hydratation)
       // ou 'simulation' (le modèle complet, selon les options ci-dessous) ; Course 3D (cartoon) commence en arcade
       realism: PYR.appId === 'jeu3d' ? 'arcade' : 'simulation',
+      // Course 3D : trajectoire du coureur piloté : 'auto' (pilote automatique, à la corde), 'wide' (pilote automatique, large) ou 'manual'
+      // (le joueur la pilote : flèches, manette, gyroscope, contrôleurs VR ; il freine lui-même), voir engine/steer.js
+      steer: 'auto',
       team: { on: false, team: '', riders: [], plans: {}, opp: 9, size: 8 }, // mode équipe : l'équipe du World Tour que le joueur gère, ses coureurs et leurs plans (team-game.js)
       strategy: true,         // stratégies des coureurs virtuels : équipes, rôles et objectifs (strategy.js) ; sans elles, les coureurs d'avant
       source: 'avatar',        // présence dans la course (presence.js) : avatar ou home-trainer (watts mesurés)

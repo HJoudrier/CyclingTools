@@ -59,6 +59,8 @@
   const CENTER_DRIFT = 0.1; // m/s : dérive vers le milieu de la route de celui qui n'est dans aucun sillage
   // tactiques où la voie est choisie pour le coureur (roues, relais, remonter, mener), même pour le joueur
   const LAYER_MODES = ['follow', 'cover', 'relay', 'moveup', 'front'];
+  const FALLEN_LOOK = 25;  // m : on contourne un coureur tombé jusqu'à cette distance devant
+  const FALLEN_DY = 0.9;   // m : écart latéral gardé avec lui
   const EDGE_R = 0.25;    // abri sous lequel le coureur contre le bord sous le vent est « en bordure »
   const R_NONE = 300, R_FULL = 90; // m : au-delà de R_NONE (rayon du tracé), pas de corde ; en deçà de R_FULL, on la prend à fond
   const LINE_LOOK = 5;    // s : on se place à la corde dès que le virage est à moins de 5 s
@@ -418,7 +420,12 @@
     for (let i = 0; i < n; i++) {
       const e = ents[i], r = local.get(e.id);
       let ny;
-      if (r && r.lat) ny = steerRider(ctx, i, r);
+      // trajectoire manuelle (steer.js, Course 3D) : le joueur règle lui-même sa position, image par image ; elle est gardée telle quelle
+      if (r && r.lat && r.lat.manual && !r.incident) {
+        r.lat.prevY = Number.isFinite(r.lat.stepY) ? r.lat.stepY : r.lat.y;
+        r.lat.stepY = r.lat.y;
+        ny = r.lat.y;
+      } else if (r && r.lat) ny = steerRider(ctx, i, r);
       else if (e.pelLocal) ny = steerPassive(ctx, i);
       else ny = ys[i];
       ys[i] = ny;
@@ -619,15 +626,19 @@
     if (!free && !r.bot && LAYER_MODES.includes(tac.mode) && !(L.nudge && t < L.nudge.until) && tac.mode !== 'relay') ty = dodge(ctx, i, ty, tac.wheel, hwA);
     if (free) ty = freeLane(ctx, i, L, L.y, hwA, rm); else L.freeTy = null;
     // virage : on descend à la corde, côté intérieur, dès qu'il approche (le joueur en allure libre garde sa voie, ← → pour la prendre)
+    // (trajectoire automatique de Course 3D, L.linePref : le coureur piloté prend aussi la corde, ou l'extérieur, quelle que soit sa tactique)
     L.line = 0;
-    if (lively && !(L.nudge && t < L.nudge.until) && !(tac.mode === 'relay' && tac.phase === 'swing')) {
+    if ((lively || L.linePref) && !(L.nudge && t < L.nudge.until) && !(tac.mode === 'relay' && tac.phase === 'swing')) {
       const cw = cornerAhead(C, s, v);
       if (cw) {
         L.line = cw;
         const mix = clamp(2 * Math.abs(cw), 0, 1) * LINE_MIX * (free ? 0.5 : 1);
-        ty += mix * (lineY(ctx, i, v, cw, hwA) - ty);
+        ty += mix * (lineY(ctx, i, v, L.linePref === 'wide' ? -cw : cw, hwA) - ty); // large : contre le bord extérieur
       }
     }
+    // un coureur tombé devant, dans notre voie : on le contourne
+    const av = avoidFallen(ctx, i, L.y, ty, hwA);
+    if (av !== null) ty = av;
     return move(L, ty, rm, hw, hwA);
   }
 
@@ -651,6 +662,28 @@
       if (!slow) return yc;
     }
     return side * Math.max(0, edge - 3 * LANE);
+  }
+
+  /**
+   * Un coureur tombé (arrêté) à moins de FALLEN_LOOK m devant, sur notre voie ou sur celle que l'on vise : la voie qui le contourne (du
+   * côté le plus proche où il reste de la place sur la route), sinon null. Les coureurs arrêtés ne comptent plus dans le peloton (ils se
+   * rangent au bord) : sans cela, on leur roulerait dessus.
+   */
+  function avoidFallen(ctx, i, y, ty, hw) {
+    const { ents, ys } = ctx, s = ents[i].s;
+    for (let j = i - 1; j >= 0; j--) {
+      const dx = ents[j].s - s;
+      if (dx - BIKE > FALLEN_LOOK) break;
+      if (!ents[j].stopped || dx < BIKE - 0.5) continue;
+      const oy = ys[j];
+      if (Math.abs(ty - oy) >= FALLEN_DY && Math.abs(y - oy) >= FALLEN_DY) continue;
+      const up = oy + FALLEN_DY, down = oy - FALLEN_DY;
+      const canUp = up <= hw, canDown = down >= -hw;
+      if (canUp && (!canDown || Math.abs(up - y) <= Math.abs(down - y))) return up;
+      if (canDown) return down;
+      return null;
+    }
+    return null;
   }
 
   /** Déplacement latéral vers ty, borné (vitesse, place libre, route) ; squeezed quand la place manque. */

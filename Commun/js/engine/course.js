@@ -150,6 +150,7 @@
       grade, sinT, cosT, bear, bearS, crrF, rho, wMean, wAmp, cosRel, sinRel, sinRelS, windDir, vLim, radius, kappa, crashR, punctR, punctT, width, surf, roadWidth: roadW,
       ele, lat, lng,
       hasGusts, hasWind, aBrake, temperature: t0, weather,
+      aLat, // m/s² : accélération latérale du freinage automatique en virage (0 : pas de limite) ; l'adhérence de la trajectoire manuelle (steer.js) en part
     };
   }
 

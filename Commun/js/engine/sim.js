@@ -10,6 +10,8 @@
  *   - cond.cdaK : facteur de CdA dû à l'aspiration (1 = seul au vent) ;
  *   - cond.stopped : cycliste arrêté (crevaison, chute) ;
  *   - cond.vCap : vitesse à ne pas dépasser (freinage léger pour ne pas rouler sur la roue devant) ;
+ *   - cond.manual (trajectoire manuelle, steer.js) : pas de freinage automatique en virage ni de coupure de la puissance au-delà de la
+ *     limite ; cond.brakeIn (0 à 1) : le frein du joueur. cond.vlimMul : limite de vitesse en virage multipliée (trajectoire large) ;
  *   - cond.wcS : vent de côté signé (> 0 : il vient de la droite du coureur), pour le placement dans le peloton (peloton.js) ;
  *     cond.wc reste sa valeur absolue, seule utile à la traînée ;
  *   - st.s peut être négatif (grille de départ du peloton, derrière la ligne) : on lit alors la première cellule ;
@@ -637,7 +639,11 @@
     let P = Pcmd > 0 ? Pcmd : 0;
     // Pas de pédalage efficace au-delà du développement max, ni en phase de freinage
     if (v > S.vSpin) { const f = 1 - (v - S.vSpin) / 3; P *= f > 0 ? f : 0; }
-    if (v > cond.vlim + 0.1) P = 0;
+    const vlMul = cond.vlimMul > 0 ? cond.vlimMul : 1;
+    if (!cond.manual && v > cond.vlim * vlMul + 0.1) P = 0;
+    // limite de vitesse à la cellule j : celle du virage (sauf trajectoire manuelle), et vCap
+    const limAt = (cc, j) => { const vl = cond.manual ? Infinity : C.vLim[j] * vlMul; return cc.vCap < vl ? cc.vCap : vl; };
+    const brakeA = cond.manual && cond.brakeIn > 0 ? ctx.aBrake * (cond.brakeK > 0 ? cond.brakeK : 1) * Math.min(1, cond.brakeIn) : 0;
 
     // Effort maximal prolongé : on suit l'enveloppe lissée plutôt que le plafond « glouton »
     // (évite les oscillations 1150 → 650 → 1150 W d'un sprint).
@@ -669,7 +675,8 @@
         let w = vS + 0.5 * h * (b1 + b2); if (w < 0) w = 0;
         let j = ((sS + pk * 0.5 * (vS + w) * h) / C.step) | 0;
         if (j >= C.n) j = C.n - 1; else if (j < 0) j = 0;
-        const lim = cc.vCap < C.vLim[j] ? cc.vCap : C.vLim[j];
+        if (brakeA > 0) { const wb = vS - brakeA * h; if (w > wb) w = wb > 0 ? wb : 0; brk = true; }
+        const lim = limAt(cc, j);
         if (w > lim) {
           const wb = vS - ctx.aBrake * (cc.brakeK > 0 ? cc.brakeK : 1) * h;
           w = lim > wb ? lim : wb;
@@ -700,13 +707,15 @@
     // Freinage (virage / vitesse max)
     let iN = ((st.s + pk * 0.5 * (v + vn)) / C.step) | 0;
     if (iN >= C.n) iN = C.n - 1; else if (iN < 0) iN = 0;
-    const vl = cond.vCap < C.vLim[iN] ? cond.vCap : C.vLim[iN];
+    // trajectoire manuelle : le frein du joueur
+    if (brakeA > 0) { const vb = v - brakeA; if (vn > vb) vn = vb > 0 ? vb : 0; }
+    const vl = limAt(cond, iN);
     if (vn > vl) {
       const vb = v - ctx.aBrake * (cond.brakeK > 0 ? cond.brakeK : 1); // freinage moins franc sur route mouillée
       vn = vl > vb ? vl : vb;
       if (vn < 0) vn = 0;
       st.braking = true;
-    } else st.braking = false;
+    } else st.braking = brakeA > 0;
 
     // Progression minimale (on pousse le vélo) quand on pédale mais que la pente est trop forte
     if (vn < ctx.vMinProgress && P > 20) { vn = ctx.vMinProgress; st.stalled++; }
