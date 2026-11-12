@@ -199,6 +199,7 @@
 
   const T = {
     init() {
+      if (PYR.steerInput) PYR.steerInput.onAction = (act, extra) => T.padAction(act, extra);
       // page de préparation (téléphone) : les infobulles ne s'affichent pas au toucher, on touche la vignette « Tenable » ou une réserve pour
       // ouvrir une fenêtre qui explique ce qu'elle mesure
       const tap = (el, kind) => {
@@ -366,6 +367,103 @@
     /** Reprend la posture actuelle comme neutralité de l'inclinaison (départ, reprise après une pause). */
     calibrateTilt() {
       if (G.tiltOn && G.tilt) PYR.tilt.recalibrate(G.tilt);
+      if (PYR.steerInput) PYR.steerInput.recalibrate();
+    },
+
+    /* ---------- Course 3D : trajectoire du coureur piloté (engine/steer.js, jeu/steer-input.js) ---------- */
+
+    /** Trajectoire réglable ici (Course 3D, peloton 2D) : 'auto' (corde), 'wide' (large) ou 'manual'. */
+    steerMode() {
+      const m = store.state.game.steer;
+      return m === 'manual' || m === 'wide' ? m : 'auto';
+    },
+    steerable() { return !!(PYR.steerInput && PYR.hud3d && PYR.hud3d.on() && G.me && G.me.lat); },
+
+    /** Choisit la trajectoire du coureur piloté. En manuel, le temps passe à ×1 (il revient à sa vitesse d'avant au retour en automatique). */
+    setSteer(mode) {
+      const m = mode === 'manual' || mode === 'wide' ? mode : 'auto';
+      store.set('game.steer', m, true);
+      T.applySteer();
+      if (PYR.hud3d) PYR.hud3d.refresh();
+    },
+
+    /** Trajectoire manuelle : le temps passe à ×1 pour qu'on puisse piloter (partie seule) ; il revient à sa vitesse d'avant en automatique. */
+    steerTime(manual) {
+      if (G.mode !== 'solo') return;
+      const cur = Number(store.state.game.timeScale) || 1;
+      if (manual && cur > 1) {
+        G.scaleBeforeSteer = cur;
+        store.set('game.timeScale', 1, true);
+        PYR.app.refreshBindings();
+        D.toast('Trajectoire manuelle : le temps passe à ×1 pour que tu puisses piloter.');
+      } else if (!manual && G.scaleBeforeSteer) {
+        store.set('game.timeScale', G.scaleBeforeSteer, true);
+        G.scaleBeforeSteer = 0;
+        PYR.app.refreshBindings();
+      }
+    },
+
+    /** Trajectoire manuelle avec la vue 3D pas encore prête : le départ l'attend. */
+    waitView() {
+      return T.steerable() && T.steerMode() === 'manual' && !!PYR.view3d && !PYR.view3d.isReady();
+    },
+
+    /** Auto ↔ manuel (touche V, bouton View de la manette). */
+    toggleSteer() { T.setSteer(T.steerMode() === 'manual' ? 'auto' : 'manual'); },
+
+    /** Applique la trajectoire choisie au coureur piloté (après une nouvelle course ou un changement de coureur). */
+    applySteer() {
+      if (!T.steerable()) return;
+      const me = G.me, m = T.steerMode(), L = me.lat;
+      L.linePref = m === 'wide' ? 'wide' : 'inside';
+      L.edgeMax = PYR.steer.HALF_3D;
+      if (m === 'manual' && !L.manual) { PYR.steer.init(L); L.stepY = L.y; }
+      L.manual = m === 'manual';
+      if (!L.manual) { PYR.steerInput.release(); me.brakeIn = 0; }
+      T.steerTime(L.manual);
+      G.brakeAcc = 0; G.brakeT = 0;
+    },
+
+    /**
+     * Une image en trajectoire manuelle : la commande du joueur fait avancer la position latérale (steer.step) pendant dtSim secondes de
+     * course, à la position et à la vitesse affichées ; le frein est moyenné sur la seconde de course à venir (me.brakeIn, stepOnce).
+     */
+    steerFrame(dtReal, dtSim) {
+      const me = G.me, L = me && me.lat;
+      if (!L || !L.manual) return;
+      const inp = PYR.steerInput.read(dtReal);
+      G.steerIn = inp;
+      if (me.incident || me.finished || !(dtSim > 0)) return;
+      const f = Math.min(1, Math.max(0, G.acc));
+      const s = me.prevS + (me.st.s - me.prevS) * f, v = (me.prevV || me.st.v) + (me.st.v - (me.prevV || me.st.v)) * f;
+      const course = G.ctx.course;
+      PYR.steer.step(L, dtSim, v, PYR.steer.kappaAt(course, s), inp.u, PYR.steer.gripOf(course, me.cond));
+      G.brakeAcc = (G.brakeAcc || 0) + inp.brake * dtSim;
+      G.brakeT = (G.brakeT || 0) + dtSim;
+    },
+
+    /** Boucle de secours pendant la VR : si le navigateur suspend les images de la page, la course avance quand même. */
+    setVrLoop(on) {
+      if (G.vrTimer) { clearInterval(G.vrTimer); G.vrTimer = null; }
+      if (!on) return;
+      G.vrTimer = setInterval(() => {
+        const now = performance.now();
+        if (G.running && G.mode !== 'live' && now - (G.lastFrameAt || 0) > 150) T.frame(now, true);
+      }, 50);
+    },
+
+    /** Actions de la manette (steer-input.js). */
+    padAction(act, extra) {
+      if (act === 'pad-on') { D.toast(`🎮 Manette connectée${extra ? ' (' + String(extra).slice(0, 40) + ')' : ''} : stick gauche pour la trajectoire manuelle, gâchette gauche pour freiner.`); return; }
+      if (store.state.ui.tab !== 'game' || !G.ready || !(PYR.hud3d && PYR.hud3d.on())) return;
+      if (document.querySelector('dialog[open]')) { if (act === 'menu') PYR.hud3d.menu(); return; }
+      if (act === 'menu') PYR.hud3d.menu();
+      else if (act === 'steer') T.toggleSteer();
+      else if (act === 'camera') { if (PYR.view3d) PYR.view3d.command('camera'); }
+      else if (act === 'prev' || act === 'next') { if (G.team) T.nextRider(act === 'prev' ? -1 : 1); }
+      else if (act === 'up' || act === 'down') PYR.hud3d.effort(act === 'up' ? 5 : -5);
+      else T.act(act);
+      PYR.hud3d.refresh();
     },
 
     /** « Zoom peloton » : la carte au plus près du joueur (vélos à l'échelle), et retour à la vue d'avant. */
@@ -491,6 +589,7 @@
       // une voie tirée de l'identifiant (les autres joueurs envoient la leur)
       if (rules.peloton) { if (isLive) Pel.place(race, G.me); else Pel.grid(race); }
       race.onEvent = (ev) => T.onRaceEvent(ev);
+      T.applySteer();
       G.acc = 0; G.renderS = 0; G.pHist = []; G.savedHist = []; G.tteKey = null; G.surfKey = undefined;
       G.boostT = 0;
       G.best = new Float64Array(CURVE_MAX); G.lastCurve = 0;
@@ -540,7 +639,7 @@
       $('#g-start').disabled = true;
       T.enterGame();
       const n = countdownSec();
-      if (n > 0) T.countdown(n); else T.go(false);
+      if (n > 0 || T.waitView()) T.countdown(n); else T.go(false);
     },
 
     /** Le départ est donné (counted : après un décompte, « Partez ! » s'affiche une seconde). */
@@ -565,6 +664,8 @@
         if (!G.counting) return;
         const left = Math.ceil((end - Date.now()) / 1000);
         if (left > 0) { T.showCount(left); G.cdTimer = setTimeout(tick, 100); return; }
+        // trajectoire manuelle : on ne part pas sans voir la route (la vue 3D se construit encore ; 30 s au plus)
+        if (T.waitView() && Date.now() - end < 30000) { T.showCount('…'); G.cdTimer = setTimeout(tick, 200); return; }
         G.counting = false;
         T.go(true);
       };
@@ -646,19 +747,22 @@
       }
     },
 
-    frame(now) {
+    frame(now, noLoop) {
       if (!G.running || G.mode === 'live') return;
       const dt = Math.min(0.25, (now - G.last) / 1000);
       G.last = now;
+      G.lastFrameAt = now;
+      const next = noLoop ? () => {} : (cb) => requestAnimationFrame(cb);
       if (now < G.holdUntil) { // pause de réaction : la course est figée, les commandes restent actives
         T.render(Math.min(1, G.acc));
         if (now - G.lastHud > 90) { T.renderHud(); G.lastHud = now; } else T.renderLimits();
-        requestAnimationFrame((t) => T.frame(t));
+        next((t) => T.frame(t));
         return;
       }
       T.decayBoost(now);
       const base = timeScale();
       const scale = T.effScale(base);
+      if (G.me && G.me.lat && G.me.lat.manual) T.steerFrame(dt, dt * scale); // trajectoire manuelle : à chaque image
       G.acc += dt * scale;
       // la simulation ne prend jamais plus de STEP_BUDGET_MS par image : à 90 coureurs et ×50, mieux vaut ralentir un peu le temps de course que saccader l'affichage
       const deadline = performance.now() + STEP_BUDGET_MS;
@@ -674,7 +778,7 @@
       if (G.st.finished) { PYR.map.followSettle(); T.finish(); return; }
       T.render(Math.min(1, G.acc));
       if (now - G.lastHud > 90) { T.renderHud(); G.lastHud = now; } else T.renderLimits(); // limites et durée tenable : à chaque image
-      requestAnimationFrame((t) => T.frame(t));
+      next((t) => T.frame(t));
     },
 
     /* ---------- course en direct : horloge réelle ---------- */
@@ -752,6 +856,9 @@
       const raceT = (Date.now() - G.liveStart) / 1000;
       // la simulation avance par secondes entières : entre deux pas, on prolonge le mouvement à la vitesse
       // courante (position lisse, sans le retard d'une seconde ni les sauts d'un pas à l'autre)
+      const dtL = Math.min(0.25, Math.max(0, (now - (G.liveLast || now)) / 1000));
+      G.liveLast = now;
+      if (G.running && !G.finished && raceT >= 0 && G.me && G.me.lat && G.me.lat.manual) T.steerFrame(dtL, dtL); // trajectoire manuelle
       if (G.finished || raceT < 0) T.render(raceT < 0 ? 0 : 1);
       else T.render(1, U.clamp(raceT - G.st.t, 0, 1.5));
       if (G.running) T.decayBoost(now);
@@ -784,6 +891,10 @@
         G.cmd = Math.round(me.tac.cmd);
       }
       if (G.auto && G.feed.length) Race.takeFeed(race, me, true); // pilote automatique : musette s'il reste peu de vivres
+      if (me.lat && me.lat.manual) { // trajectoire manuelle : le frein moyen de la seconde écoulée
+        me.brakeIn = G.brakeT > 0 ? G.brakeAcc / G.brakeT : G.steerIn ? G.steerIn.brake : 0;
+        G.brakeAcc = 0; G.brakeT = 0;
+      }
       Race.step(race);
       if (src === 'trainer' && PYR.gameSource) PYR.gameSource.load(me); // pente, vent et abri vers le home-trainer
       G.lastP = me.lastP;
@@ -889,7 +1000,11 @@
       if (!me && !T.worthAnnouncing(ev)) return;
       T.onSlowEvent(ev);
       if (ev.type === 'puncture') D.toast(me ? `Crevaison ! Dépannage pendant ${ev.dur} s.` : `${ev.name} a crevé.`, me ? 'error' : undefined);
-      else if (ev.type === 'crash') D.toast(me ? `Chute ! Tu repars dans ${ev.dur} s, un peu diminué (−${U.fmt(ev.hurt * 100, 0)} %).` : `${ev.name} est tombé.`, me ? 'error' : undefined);
+      else if (ev.type === 'crash') {
+        const why = { verge: 'Chute sur le bas-côté !', offroad: 'Sortie de route : chute !', pileup: 'Tu roules sur un coureur tombé : chute !' }[ev.cause] || 'Chute !';
+        D.toast(me ? `${why} Tu repars dans ${ev.dur} s, un peu diminué (−${U.fmt(ev.hurt * 100, 0)} %).` : `${ev.name} est tombé.`, me ? 'error' : undefined);
+      } else if (ev.type === 'verge' && me) D.toast('Bas-côté ! Reviens sur la route (risque de chute).', 'error');
+      else if (ev.type === 'offroad' && me) D.toast('Sortie de route : tu t\'arrêtes presque. Reviens sur la route.', 'error');
       else if (ev.type === 'sealed' && me) D.toast('Crevaison colmatée par le liquide préventif : tu continues !');
       else if (ev.type === 'feed' && me) {
         const bits = [ev.gels ? `${ev.gels} gel${ev.gels > 1 ? 's' : ''}` : '', ev.bars ? `${ev.bars} barre${ev.bars > 1 ? 's' : ''}` : '', 'bidons pleins'].filter(Boolean);
@@ -944,7 +1059,7 @@
       const tNow = Math.max(0, ext === undefined ? me.st.t - 1 + frac : me.st.t + ext);
       const others = T.others(tNow, frac, ext);
       // peloton en 2D : position latérale du joueur, interpolée comme sa position sur la route
-      const y = me.lat ? (ext === undefined ? me.lat.prevY + (me.lat.y - me.lat.prevY) * frac : me.lat.y) : undefined;
+      const y = me.lat ? (ext === undefined && !me.lat.manual ? me.lat.prevY + (me.lat.y - me.lat.prevY) * frac : me.lat.y) : undefined;
       PYR.map.setGameMarkers(s, others, y);
       const now = performance.now();
       // gros peloton : les repères du profil se redessinent 30 fois par seconde (le dessin de 90 points coûte)
@@ -974,6 +1089,7 @@
         me: {
           id: meId(), name: myName(), color: G.team ? G.me.color : ME_COLOR, kind: source(), s, y, v: me.incident ? 0 : me.st.v, P: G.lastP, w: me.st.wbal / G.ctx.w0,
           dr: me.draft && me.draft.k > 0 && me.draft.k < 1 ? 1 - me.draft.k : 0, st: !!me.incident, fin: !!me.finished, cp: G.ctx.cp,
+          free: me.lat && me.lat.manual ? 1 : 0, // trajectoire manuelle : la vue le laisse aller sur le bas-côté
           // ton vélo et ta tenue en 3D, ceux de la vitrine du magasin
           gear: PYR.gearArt ? PYR.gearArt.gear3d({ rider: store.state.rider, bike: store.state.bike, picks: store.state.shop || {} }) : undefined,
         },
@@ -2199,6 +2315,7 @@
       G.saved[G.me.id] = { pHist: G.pHist, savedHist: G.savedHist, best: G.best, cmd: G.cmd };
       // Course 3D : celui qu'on quitte garde sa tactique et son effort (ordre), celui qu'on prend reprend son ordre en cours
       const keep = !!(PYR.hud3d && PYR.hud3d.on()), ord = keep && r.order && !r.order.once ? Object.assign({}, r.order) : null;
+      if (G.me.lat) { G.me.lat.manual = false; G.me.lat.linePref = null; G.me.brakeIn = 0; } // l'équipier quitté repasse en trajectoire automatique
       PYR.teamGame.switchTo(race, id, { keep });
       G.me = r; G.ctx = r.ctx; G.st = r.st;
       const sv = G.saved[id];
@@ -2215,6 +2332,7 @@
       G.lastP = r.lastP; G.lastPcmd = r.lastPcmd;
       G.gaugeMax = Math.max(600, Math.ceil(r.athlete.pmax / 100) * 100);
       G.auto = false; $('#g-auto').checked = false;
+      T.applySteer();
       T.applyFollowLimits();
       T.renderZones();
       T.renderTactics();

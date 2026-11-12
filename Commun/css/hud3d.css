@@ -165,7 +165,7 @@ body[data-h3-off~="riders"] .h3-w-riders, body[data-h3-off~="banner"] .hud-banne
 .h3[data-mode="phone"] .h3-stat em { display: none; }
 .h3[data-mode="phone"] .h3-chips { justify-content: flex-start; }
 .h3[data-mode="phone"] .h3-tools { right: 8px; }
-.h3[data-mode="phone"] .h3-rank { top: auto; bottom: 300px; right: 8px; width: 170px; font-size: 11px; padding: 5px 8px; }
+.h3[data-mode="phone"] .h3-rank { top: auto; bottom: calc(var(--h3-dock-h, 290px) + max(8px, env(safe-area-inset-bottom)) + 10px); right: 8px; width: 170px; font-size: 11px; padding: 5px 8px; }
 .h3[data-mode="phone"] .h3-dock { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); justify-content: center; }
 .h3[data-mode="phone"] .h3-card { width: 100%; max-width: 520px; padding: 9px 11px 10px; gap: 7px; }
 .h3[data-mode="phone"] .h3-track { height: 32px; }
@@ -187,6 +187,7 @@ body[data-h3-off~="riders"] .h3-w-riders, body[data-h3-off~="banner"] .hud-banne
 .h3-pager::-webkit-scrollbar { display: none; }
 .h3-page { flex: 0 0 100%; height: 100%; position: relative; scroll-snap-align: start; pointer-events: none; }
 .h3-paged .h3-page-race .h3-dock { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 18px); }
+.h3-paged .h3-drive, .h3-paged.h3[data-mode="phone"] .h3-rank { bottom: calc(var(--h3-dock-h, 290px) + max(8px, env(safe-area-inset-bottom)) + 28px); }
 .h3-page-team { pointer-events: auto; overflow-y: auto; background: rgba(10, 12, 16, 0.88); padding: calc(var(--h3-top) + 70px) 8px calc(max(8px, env(safe-area-inset-bottom)) + 28px); }
 .h3-page-team h3 { margin: 0 0 8px; font-size: 14px; color: var(--h3-ink); }
 .h3-team-list { display: flex; flex-direction: column; gap: 8px; }
@@ -212,3 +213,23 @@ dialog.modal.h3-menu { width: min(720px, calc(100vw - 32px)); }
 .h3-menu .h3-keys { margin-top: 12px; }
 .h3-menu .h3-display label { display: block; margin: 4px 0; }
 @media (prefers-reduced-motion: reduce) { .h3-pager { scroll-behavior: auto; } }
+
+/* ---------- trajectoire (vignette du coureur piloté, puce du haut, frein et gyroscope sur téléphone) ---------- */
+.h3-steer { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; }
+.h3-steer[hidden] { display: none; }
+.h3-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 8px; background: var(--h3-bg-2); }
+.h3-seg > button { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--h3-ink-2); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h3-seg > button[aria-pressed="true"] { background: var(--h3-effort); color: #111; }
+.h3-chip.warn { background: var(--h3-anaer); color: #fff; font-weight: 700; }
+.h3-drive { position: absolute; left: max(8px, env(safe-area-inset-left)); bottom: calc(var(--h3-dock-h, 290px) + max(8px, env(safe-area-inset-bottom)) + 10px); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; z-index: 3; }
+.h3-drive[hidden] { display: none; }
+.h3-brake, .h3-tiltbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--h3-line); color: var(--h3-ink);
+  background: var(--h3-bg); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25); cursor: pointer; touch-action: none;
+}
+.h3-brake { width: 78px; height: 78px; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.h3-brake .h3-ico { width: 26px; height: 26px; }
+.h3-brake.on { background: var(--h3-anaer); transform: scale(0.96); }
+.h3-tiltbtn { width: 78px; height: 46px; border-radius: 12px; font-size: 11px; }
+.h3-tiltbtn[aria-pressed="true"] { background: var(--h3-effort); color: #111; }
+.h3-menu .h3-padkeys h4 { margin: 12px 0 2px; font-size: 13px; }

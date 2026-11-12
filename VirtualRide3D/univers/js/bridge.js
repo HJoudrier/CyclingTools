@@ -88,6 +88,8 @@
       game.setLoading(0, 'En attente du parcours de Wattlas…');
       window.addEventListener('message', (e) => this.onMessage(e));
       window.addEventListener('keydown', (e) => this.onKey(e), true);
+      window.addEventListener('keyup', (e) => this.onKeyUp(e), true);
+      this.buildVR();
       // le son ne démarre qu'après un geste (règle des navigateurs) ; une touche brève sur la vue change de caméra
       let down = null;
       window.addEventListener('pointerdown', (e) => {
@@ -306,6 +308,62 @@
       g.updateRide(dt);
       this.applyEnv(dt);
       if (this.hudOn) this.updateHud();
+      this.pollPad();
+      this.watchVR();
+    },
+
+    // ------------------------------------------------------------ manette et VR (trajectoire manuelle de Wattlas, steer-input.js)
+    // manette : quand cette vue a le focus, c'est elle qui la lit ; elle la relaie dans la disposition standard (au plus 30 fois par seconde)
+    pollPad() {
+      if (!this.hostWin || !navigator.getGamepads || (this.game.vr && this.game.vr.presenting)) return;
+      if (document.hasFocus && !document.hasFocus()) return;
+      let gp = null;
+      for (const p of navigator.getGamepads() || []) { if (p && p.connected !== false) { if (p.mapping === 'standard') { gp = p; break; } if (!gp) gp = p; } }
+      if (!gp) return;
+      const now = performance.now();
+      if (now - (this.padAt || 0) < 33) return;
+      this.padAt = now;
+      const val = (b) => (b ? Number(b.value) || (b.pressed ? 1 : 0) : 0);
+      this.post({ type: 'pad', src: 'gamepad', axes: Array.from(gp.axes || []).slice(0, 4), buttons: Array.from(gp.buttons || []).slice(0, 17).map(val) });
+    },
+
+    // contrôleurs VR (vr.js, état « pyr ») : la même disposition qu'une manette — stick gauche, stick droit, A B (main droite), X Y (main
+    // gauche), grips (LB, RB), gâchettes (LT : frein, RT : sprint), clic des sticks (L3, R3)
+    vrPad(pads) {
+      const now = performance.now();
+      if (!this.hostWin || now - (this.vrPadAt || 0) < 33) return;
+      this.vrPadAt = now;
+      const L = pads.left, R = pads.right;
+      const ax = (gp, i) => (gp && gp.axes && gp.axes.length > i ? Number(gp.axes[i]) || 0 : 0);
+      const bt = (gp, i) => (gp && gp.buttons && gp.buttons[i] ? Number(gp.buttons[i].value) || (gp.buttons[i].pressed ? 1 : 0) : 0);
+      const b = new Array(17).fill(0);
+      b[0] = bt(R, 4); b[1] = bt(R, 5); b[2] = bt(L, 4); b[3] = bt(L, 5);
+      b[4] = bt(L, 1); b[5] = bt(R, 1); b[6] = bt(L, 0); b[7] = bt(R, 0);
+      b[10] = bt(L, 3); b[11] = bt(R, 3);
+      this.post({ type: 'pad', src: 'vr', axes: [ax(L, 2), ax(L, 3), ax(R, 2), ax(R, 3)], buttons: b });
+    },
+
+    // bouton « VR » de la vue (le casque ne se lance que d'un geste dans ce cadre) ; l'application est prévenue quand on le met ou l'enlève
+    buildVR() {
+      if (!this.embedded && !this.hostWin) return;
+      const b = this.vrBtn = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pyr-vr hidden';
+      b.textContent = '🥽 VR';
+      b.title = 'Rouler dans le casque de réalité virtuelle (stick gauche : trajectoire, gâchette gauche : frein)';
+      b.addEventListener('click', (e) => { e.stopPropagation(); if (this.ready && this.game.vr) this.game.vr.enter(); });
+      document.body.appendChild(b);
+    },
+
+    watchVR() {
+      const vr = this.game.vr, on = !!(vr && vr.presenting);
+      if (this.vrBtn) this.vrBtn.classList.toggle('hidden', !(this.ready && vr && vr.supported && !on));
+      if (on !== !!this.vrWas) { this.vrWas = on; this.post({ type: 'vr', on }); }
+    },
+
+    onKeyUp(e) {
+      if (!this.ready || !this.hostWin) return;
+      if (/^(ArrowLeft|ArrowRight|KeyF)$/.test(e.code)) this.post({ type: 'keyup', key: e.key, code: e.code });
     },
 
     // position cible (abscisse Bike3D) d'un coureur : celle de l'image reçue, prolongée à sa vitesse depuis
@@ -334,7 +392,9 @@
         R.draft = clamp(num(meO.dr, 0), 0, 0.7);
         R.time = num(F.t, 0);
         R.half = this.halfAt(R.sT);
-        if (Number.isFinite(meO.y)) R.laneT = clamp(meO.y, -(R.half - 0.35), R.half - 0.35);
+        // trajectoire manuelle (free) : le joueur peut aller sur le bas-côté (1,5 m au-delà de la chaussée, steer.js VERGE)
+        const lim = meO.free ? R.half + 1.5 : R.half - 0.35;
+        if (Number.isFinite(meO.y)) R.laneT = clamp(meO.y, -lim, lim);
         else lanes.push(R);
         if (meO.fin && !this.finished) this.onFinish();
       }

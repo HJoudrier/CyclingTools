@@ -10,12 +10,14 @@
  * sur une seconde vue, à balayer. Échap (ou ☰) ouvre le menu : reprendre, profil de l'étape, classements, affichage, recommencer, quitter.
  * game-mobile.js garde la machine d'états de l'écran de course (enter, leave, sync, téléphone ou grand écran) et délègue ici le montage et
  * l'affichage ; la logique reste dans tab-game.js (setPct, act, togglePause, switchRider). Actif seulement sur VirtualRide3D/course.html
- * (body data-hud="overlay"). */
+ * (body data-hud="overlay").
+ * Trajectoire (vignette du coureur piloté, touche V) : automatique à la corde, automatique large, ou manuelle (← → et F, manette, gyroscope,
+ * contrôleurs VR : jeu/steer-input.js) ; en manuel, sur téléphone, un bouton « Frein » à maintenir et le gyroscope. */
 (function (PYR) {
   'use strict';
 
   const D = PYR.dom, U = PYR.util, store = PYR.store, { $, h } = D;
-  const Fu = PYR.fuel, Sim = PYR.sim, Tac = PYR.tactics;
+  const Fu = PYR.fuel, Sim = PYR.sim, Tac = PYR.tactics, Steer = PYR.steer;
 
   const PCT_MAX = 150, PCT_STEP = 5;            // effort : de 0 à 150 % de la PC, par crans de 5 %
   const PRESETS = [55, 75, 90, 100, 120];        // touches 1 à 5 : récupération, endurance, tempo, seuil, au-dessus
@@ -47,7 +49,16 @@
     auto: ['M5 20 12 4l7 16', 'M8 14h8'],
     cam: ['M3 7h4l2-3h6l2 3h4v13H3z', 'M12 9a4 4 0 1 0 0 8 4 4 0 1 0 0-8'],
     minus: ['M5 12h14'], plus: ['M5 12h14', 'M12 5v14'],
+    brake: ['M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18', 'M8 12h8'],
+    tilt: ['M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z', 'M3 9l2 3-2 3', 'M21 9l-2 3 2 3'],
   };
+  /** Trajectoire du coureur piloté : automatique à la corde, automatique large, manuelle. */
+  const STEERS = [
+    { id: 'auto', label: 'Corde', help: 'Pilote automatique : il prend les virages à la corde, s\'écarte pour remonter, évite les chutes et freine pour toi' },
+    { id: 'wide', label: 'Large', help: 'Pilote automatique : il prend les virages par l\'extérieur (un peu plus vite, chemin plus long), évite les chutes et freine pour toi' },
+    { id: 'manual', label: 'Manuelle', help: 'Tu pilotes : ← → (stick gauche, inclinaison du téléphone, contrôleurs VR) et tu freines (F, gâchette gauche, bouton Frein). Trop vite en virage ou hors de la route : chute probable' },
+  ];
+  const SRC_ICON = { keys: '⌨', gamepad: '🎮', vr: '🥽', tilt: '📱' };
 
   const H = {};
   const E = {};                                  // éléments construits par build()
@@ -120,7 +131,7 @@
     E.wx = chip('wx', 'Météo à ta position : température, vent sur ton cap, pluie');
     E.top = h('div', { class: 'h3-top' },
       h('div', { class: 'h3-stats' }, E.power.el, E.speed.el, E.hr.el),
-      h('div', { class: 'h3-chips' }, E.grade, E.togo, E.time, E.next, E.wx));
+      h('div', { class: 'h3-chips' }, E.grade, E.togo, E.time, E.next, E.wx, E.steer = chip('steer', 'Trajectoire du coureur piloté (touche V : automatique ↔ manuelle)')));
     E.menuBtn = h('button', { class: 'h3-tool', type: 'button', title: 'Menu (Échap) : reprendre, profil de l\'étape, classements, affichage, quitter', 'aria-label': 'Menu', onclick: () => H.menu() }, icon(ICON.menu));
     E.tools = h('div', { class: 'h3-tools' }, E.menuBtn);
     E.rankList = h('ol', { class: 'h3-rank-list' });
@@ -138,7 +149,19 @@
     }, { passive: true });
     E.dots = h('div', { class: 'h3-dots', role: 'tablist', 'aria-label': 'Vues' },
       [0, 1].map((i) => h('button', { type: 'button', role: 'tab', 'aria-label': i ? 'Ton équipe' : 'Course', onclick: () => showPage(i) })));
-    E.root = h('div', { class: 'h3', hidden: true }, E.top, E.tools, E.rank, E.dock, E.dots);
+    // trajectoire manuelle sur téléphone : frein à maintenir (à gauche, sous le pouce) et gyroscope
+    E.brake = h('button', { class: 'h3-brake', type: 'button', 'aria-label': 'Frein (maintenir)', title: 'Frein : maintiens appuyé (touche F, gâchette gauche)' }, icon(ICON.brake), h('span', null, 'Frein'));
+    const brake = (on) => (e) => { if (e.cancelable) e.preventDefault(); PYR.steerInput.setBrakeButton(on); E.brake.classList.toggle('on', on); };
+    E.brake.addEventListener('pointerdown', brake(true));
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) E.brake.addEventListener(ev, brake(false));
+    E.tiltBtn = h('button', { class: 'h3-tiltbtn', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Piloter en inclinant le téléphone', title: 'Gyroscope : incline le téléphone pour piloter (touche pour l\'activer ou le couper)' }, icon(ICON.tilt), h('span', null, 'Gyro'));
+    E.tiltBtn.addEventListener('click', async () => {
+      const on = await PYR.steerInput.setTilt(!PYR.steerInput.tiltOn);
+      if (!on && !PYR.steerInput.tiltOn && E.tiltBtn.getAttribute('aria-pressed') === 'false') D.toast('Gyroscope indisponible (capteur absent ou permission refusée) : pilote avec les boutons ou la manette.', 'error');
+      E.tiltBtn.setAttribute('aria-pressed', String(PYR.steerInput.tiltOn));
+    });
+    E.drive = h('div', { class: 'h3-drive', hidden: true }, E.tiltBtn, E.brake);
+    E.root = h('div', { class: 'h3', hidden: true }, E.top, E.tools, E.rank, E.dock, E.dots, E.drive);
     $('.map-wrap').append(E.root);
   }
 
@@ -179,10 +202,16 @@
     c.auto = h('button', { class: 'h3-mini', type: 'button', title: 'Rendre ce coureur à la stratégie de son rôle (ses propres décisions)', onclick: (e) => { e.stopPropagation(); T.act('auto', r); update(true); } }, icon(ICON.auto), 'Auto');
     c.pilot = h('button', { class: 'h3-mini', type: 'button', title: 'Piloter ce coureur : la caméra le suit, le clavier le commande', onclick: (e) => { e.stopPropagation(); T.switchRider(r.id); } }, icon(ICON.cam), 'Piloter');
     c.mates = h('div', { class: 'h3-mates' }, c.auto, c.pilot);
+    // trajectoire (coureur piloté) : corde, large ou manuelle
+    c.steerBtns = STEERS.map((m) => h('button', {
+      type: 'button', 'data-steer': m.id, 'aria-pressed': 'false', title: m.help,
+      onclick: (e) => { e.stopPropagation(); T.setSteer(m.id); update(true); },
+    }, m.label));
+    c.steerRow = h('div', { class: 'h3-steer', role: 'group', 'aria-label': 'Trajectoire' }, h('span', { class: 'h3-lbl' }, 'Trajectoire'), h('div', { class: 'h3-seg' }, ...c.steerBtns));
     c.el = tint(h('article', { class: 'h3-card', 'data-id': r.id },
       h('header', { class: 'h3-head' }, ph, h('div', { class: 'h3-id' }, h('div', null, c.name, c.badge), c.state), c.place),
       h('div', { class: 'h3-effort' }, h('span', { class: 'h3-lbl' }, 'Effort'), c.minus, c.track, c.plus, c.val),
-      c.enduRow, c.anaerRow, acts, c.mates), color);
+      c.enduRow, c.anaerRow, acts, c.steerRow, c.mates), color);
     return c;
   }
 
@@ -285,8 +314,33 @@
     }
     mirror(E.next, $('#hud-next'));
     mirror(E.wx, $('#hud-wx'));
+    // téléphone : frein, gyroscope et classement se posent au-dessus de la vignette (sa hauteur change avec son contenu)
+    if (S.mode === 'phone') E.root.style.setProperty('--h3-dock-h', E.dock.offsetHeight + 'px');
+    renderSteer();
     for (const c of S.cards.values()) renderCard(c);
     if (now - S.rankAt > RANK_MS || force) { S.rankAt = now; renderRank(); }
+  }
+
+  /** Trajectoire : la puce du haut (mode, source des commandes, alertes de bas-côté et de virage trop rapide), frein et gyroscope (téléphone). */
+  function renderSteer() {
+    const me = G.me, ok = T.steerable(), L = ok ? me.lat : null, manual = !!(L && L.manual);
+    E.drive.hidden = !manual || S.mode !== 'phone' || S.page === 1; // pas sur la vue de l'équipe
+    E.steer.hidden = !ok;
+    if (!ok) return;
+    let text, warn = false;
+    if (!manual) text = T.steerMode() === 'wide' ? 'Trajectoire auto · large' : 'Trajectoire auto · corde';
+    else {
+      const inp = G.steerIn || PYR.steerInput.read(0);
+      text = `Trajectoire manuelle ${SRC_ICON[inp.source] || ''}`;
+      const zn = Steer.zone(L.y, Steer.edgeOf(G.ctx.course, me.st.s, L.edgeMax));
+      if (me.incident) text = 'Chute…';
+      else if (zn !== 'road') { text = zn === 'verge' ? '⚠ Bas-côté : reviens sur la route !' : '⚠ Hors de la route !'; warn = true; }
+      else if (Math.abs(L.drift || 0) > 0.3) { text = '⚠ Trop vite pour le virage : freine !'; warn = true; }
+      else if (inp.brake > 0.05) text += ' · frein';
+    }
+    if (E.steer.textContent !== text) E.steer.textContent = text;
+    E.steer.classList.toggle('warn', warn);
+    E.tiltBtn.setAttribute('aria-pressed', String(PYR.steerInput.tiltOn));
   }
 
   /** Recopie une puce de tab-game.js (prochain point, météo) : texte et visibilité. */
@@ -302,6 +356,8 @@
     c.el.classList.toggle('is-out', out);
     c.badge.hidden = !piloted || !G.team;
     c.mates.hidden = piloted || !G.team || out;
+    c.steerRow.hidden = !piloted || out || !T.steerable();
+    if (!c.steerRow.hidden) { const m = T.steerMode(); for (const b of c.steerBtns) b.setAttribute('aria-pressed', String(b.dataset.steer === m)); }
     c.auto.disabled = !r.order;
     c.auto.setAttribute('aria-pressed', String(!r.order));
     // effort : consigne (null : la tactique règle la puissance) et puissance produite, en % de la PC du coureur
@@ -453,7 +509,9 @@
       k(['U'], 'remonter en tête'), k(['6'], 'attaquer'), k(['S'], 'suivre les attaques'), k(['7'], 'sprinter'),
       k(['T'], 'rouler en tête'), k(['9'], 'relais'), k(['8'], 'dans les roues'), k(['M'], 'manger'),
       G.team ? k(['N'], 'coureur suivant') : null, k(['C'], 'caméra'), k(['H'], 'masquer le HUD'), k(['P'], 'profil'),
+      k(['V'], 'trajectoire auto ↔ manuelle'), k(['←', '→'], 'piloter (manuelle) ou changer de rang'), k(['F'], 'freiner (manuelle)'),
       k(['Espace'], 'pause'), k(['Échap'], 'menu')));
+    if (S.mode !== 'phone') lines.push(h('div', { class: 'h3-padkeys' }, h('h4', null, 'Manette'), h('p', { class: 'hint' }, 'Stick gauche : trajectoire (manuelle) · gâchette gauche : frein · stick droit ↑ ↓ : effort · ' + PYR.steerInput.PAD_ACTIONS.map((a) => a.label).join(' · '))));
     return h('div', { class: 'h3-pane' }, ...lines);
   }
 
@@ -485,6 +543,11 @@
     if (kl === 'p') { H.menu('profile'); return true; }
     if (kl === 'c') { if (PYR.view3d) PYR.view3d.command('camera'); return true; }
     if (!me) return false;
+    // trajectoire : V bascule automatique ↔ manuelle ; en manuelle, ← → et F se tiennent enfoncées (le relâchement : steer-input.js)
+    if (T.steerable()) {
+      if (kl === 'v') { T.toggleSteer(); update(true); return true; }
+      if (T.steerMode() === 'manual' && (k === 'ArrowLeft' || k === 'ArrowRight' || kl === 'f')) { PYR.steerInput.key(k, e.code, true); return true; }
+    }
     if (k === 'ArrowUp' || k === 'ArrowDown') { nudge(me, (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 25 : PCT_STEP)); return true; }
     if (k === 'PageUp' || k === 'PageDown') { nudge(me, (k === 'PageUp' ? 25 : -25)); return true; }
     if (k === '0') { T.setPct(0, me); update(true); return true; }
@@ -518,6 +581,8 @@
   };
 
   H.update = (s) => update(false);
+  /** Effort du coureur piloté ±d % (manette). */
+  H.effort = (d) => { if (S.mode && G.me) nudge(G.me, d); };
   H.refresh = () => update(true);
 
   /** Arrivée : le menu s'ouvre sur le résultat (Rejouer, Quitter). */
@@ -545,6 +610,7 @@
     applyPrefs();
   };
 
+  H.STEERS = STEERS;
   H.WIDGETS = WIDGETS;
   H.ACTIONS = ACTIONS;
   H.PCT_MAX = PCT_MAX;

@@ -286,6 +286,16 @@
         key: m.key, code: String(m.code || ''), shiftKey: !!m.shift, ctrlKey: !!m.ctrl, altKey: !!m.alt, metaKey: !!m.meta,
         target: document.body, preventDefault() {},
       });
+    } else if (m.type === 'keyup') {
+      // touche relâchée dans la vue (trajectoire manuelle : ← → et F se tiennent enfoncées)
+      if (PYR.steerInput && typeof m.key === 'string' && m.key.length <= 20) PYR.steerInput.key(m.key, String(m.code || ''), false);
+    } else if (m.type === 'pad') {
+      // manette (la vue a le focus) ou contrôleurs VR, dans la disposition standard
+      if (PYR.steerInput) PYR.steerInput.padState(m);
+    } else if (m.type === 'vr') {
+      // casque mis ou retiré : la course continue même si le navigateur suspend les images de la page
+      if (PYR.tabGame && PYR.tabGame.setVrLoop) PYR.tabGame.setVrLoop(!!m.on);
+      if (PYR.steerInput) PYR.steerInput.vrOn = !!m.on;
     }
   }
 
@@ -295,7 +305,7 @@
     if (frameEl) return frameEl;
     frameEl = h('iframe', {
       class: 'v3d-frame', title: 'Vue 3D de la course', src: urlOf(false), hidden: true,
-      allow: 'autoplay; fullscreen; xr-spatial-tracking',
+      allow: 'autoplay; fullscreen; xr-spatial-tracking; gamepad',
     });
     $('.map-wrap').append(frameEl);
     return frameEl;
@@ -355,5 +365,12 @@
 
   if (typeof window !== 'undefined') window.addEventListener('message', onMessage);
 
-  PYR.view3d = { V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
+  /** La vue 3D de la page est-elle construite et prête ('ready') ? Faux tant qu'elle se construit ; vrai aussi si elle a échoué (rien à attendre). */
+  function isReady() {
+    if (!on() || !frameEl || !frameEl.contentWindow) return true;
+    const s = status.get(frameEl.contentWindow);
+    return s === 'ready' || s === 'error';
+  }
+
+  PYR.view3d = { isReady, V, UNIVERSES, universe, urlOf, courseKey, courseMessage, surfaceKind, surfacesOf, frameMessage, envAt, skySettings, skyEnv, clockAt, publish, buttons, setStage, openWindow, command, get on() { return on(); } };
 })(globalThis.PYR = globalThis.PYR || {});

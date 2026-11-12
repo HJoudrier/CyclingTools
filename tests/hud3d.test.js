@@ -30,12 +30,35 @@ test('écrans de course : seul Course 3D (cartoon) a l\'écran plein écran et s
   }
 });
 
-test('chargeur : hud3d.js n\'est chargé que pour Course 3D, après les écrans de jeu', () => {
+test('chargeur : steer-input.js puis hud3d.js ne sont chargés que pour Course 3D, après les écrans de jeu ; steer.js avec le moteur', () => {
   const boot = read('Commun/js/boot.js');
   const lines = boot.split('\n').filter((l) => l.includes('hud3d.js') && !l.trim().startsWith('//'));
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^\s*jeu3d:/);
-  assert.match(lines[0], /GAME_UI, \['Commun\/js\/jeu\/hud3d\.js'\]/);
+  assert.match(lines[0], /GAME_UI, \['Commun\/js\/jeu\/steer-input\.js', 'Commun\/js\/jeu\/hud3d\.js'\]/);
+  assert.equal(boot.split('\n').filter((l) => l.includes('steer-input.js') && !l.trim().startsWith('//')).length, 1);
+  assert.ok(boot.indexOf('engine/steer.js') > 0 && boot.indexOf('engine/steer.js') < boot.indexOf('engine/peloton.js'));
+});
+
+test('trajectoire : réglage, page de choix, vignette, touches, messages de la vue 3D, bas-côté dans la vue', () => {
+  assert.match(read('Commun/js/core/store.js'), /steer: 'auto',/);
+  const page = read('VirtualRide3D/index.html');
+  for (const v of ['auto', 'wide', 'manual']) assert.match(page, new RegExp(`<option value="${v}">`));
+  assert.match(page, /data-bind="game\.steer"/);
+  assert.deepEqual([...HUD.slice(HUD.indexOf('const STEERS = ['), HUD.indexOf('];', HUD.indexOf('const STEERS = ['))).matchAll(/\{ id: '([a-z]+)'/g)].map((m) => m[1]), ['auto', 'wide', 'manual']);
+  assert.match(HUD, /kl === 'v'/);
+  assert.match(HUD, /k === 'ArrowLeft' \|\| k === 'ArrowRight' \|\| kl === 'f'/);
+  for (const cls of ['h3-steer', 'h3-seg', 'h3-drive', 'h3-brake', 'h3-tiltbtn']) assert.ok(CSS.includes('.' + cls), cls);
+  const v3 = read('Commun/js/jeu/view3d.js');
+  for (const t of ['keyup', 'pad', 'vr']) assert.match(v3, new RegExp(`m\\.type === '${t}'`));
+  assert.match(v3, /xr-spatial-tracking; gamepad/);
+  const br = read('VirtualRide3D/univers/js/bridge.js');
+  assert.match(br, /meO\.free \? R\.half \+ 1\.5/);
+  assert.match(br, /type: 'keyup'/);
+  assert.match(br, /type: 'pad', src: 'vr'/);
+  assert.match(read('VirtualRide3D/univers/js/vr.js'), /g\.state === 'pyr'/);
+  const tg = read('Commun/js/jeu/tab-game.js');
+  for (const fn of ['setSteer(mode)', 'toggleSteer()', 'applySteer()', 'steerFrame(dtReal, dtSim)', 'setVrLoop(on)', 'padAction(act, extra)']) assert.ok(tg.includes(`    ${fn} {`), fn);
 });
 
 test('actions des vignettes : chacune est un ordre du moteur (ou manger), avec une touche distincte', () => {

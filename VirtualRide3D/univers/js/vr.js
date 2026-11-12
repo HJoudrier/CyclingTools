@@ -156,7 +156,9 @@
       this.msg = null;
       // la sortie d'écran (bulle de vitesse, etc.) n'est pas visible dans le casque
       g.onVRChange(true);
-      this.toast('🥽 Mode immersif<small>Manette gauche : se déplacer · stick droit : puissance · gâchettes : à fond · grips : freins · A : vue · X : pause</small>', 4500);
+      this.toast(g.state === 'pyr'
+        ? '🥽 Mode immersif<small>Stick gauche : trajectoire (manuelle) · gâchette gauche : frein · gâchette droite : sprint · stick droit ↑ ↓ : effort · A : roues · B : manger · X : suivre les attaques · Y : rouler en tête</small>'
+        : '🥽 Mode immersif<small>Manette gauche : se déplacer · stick droit : puissance · gâchettes : à fond · grips : freins · A : vue · X : pause</small>', 4500);
     }
 
     _detach() {
@@ -222,6 +224,12 @@
     handleInput(dt) {
       const g = this.game, inp = g.input;
       this._readPads();
+      // vue pilotée par Wattlas : les contrôleurs sont relayés à l'application (trajectoire, frein, actions ; bridge.js vrPad)
+      if (g.state === 'pyr') {
+        if (g.ext && g.ext.vrPad) g.ext.vrPad(this.pads);
+        if (this._pressed('right', BTN.stick)) { this.comfort = !this.comfort; this.toast(this.comfort ? '🌀 Confort activé' : '🌀 Confort désactivé', 1500); }
+        return;
+      }
       const riding = g.state === 'ride' || g.state === 'countdown';
       // direction : stick gauche (ou stick droit s'il est poussé de côté)
       const lx = this._axis('left', 2), rx = this._axis('right', 2), ry = this._axis('right', 3);

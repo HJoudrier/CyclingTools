@@ -513,3 +513,7 @@ body.pyr #screen-loading { background: #cfe9fb; }
 .pyr-hud .ph-btns { display: flex; gap: 6px; margin-top: 8px; }
 .pyr-hud .ph-btns button { font: inherit; font-size: 18px; border: 2px solid var(--ink); border-radius: 10px; background: #fff; padding: 2px 10px; cursor: pointer; }
 @media (max-width: 600px) { .pyr-hud { left: 8px; top: 8px; min-width: 150px; font-size: 14px; } .pyr-hud .ph-main b { font-size: 34px; } }
+
+/* vue pilotée par Wattlas : bouton « VR » (le casque se lance d'un geste dans ce cadre) */
+.pyr-vr { position: fixed; right: 12px; bottom: 12px; z-index: 50; padding: 8px 14px; border: 0; border-radius: 10px; background: rgba(14, 17, 22, 0.7); color: #fff; font: 700 14px system-ui, sans-serif; cursor: pointer; }
+.pyr-vr.hidden { display: none; }

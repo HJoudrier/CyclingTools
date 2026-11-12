@@ -205,6 +205,14 @@
           <button type="button" data-realism="simulation" aria-pressed="false" title="Le modèle complet : courbe de puissance record, chaleur, hydratation, et le modèle physiologique détaillé si tu le coches">🔬 Simulation</button>
         </div>
         <p class="hint" id="gs-realism-note"></p>
+        <div class="field"><label for="g-steer">Trajectoire de ton coureur</label>
+          <select id="g-steer" data-bind="game.steer">
+            <option value="auto">Automatique, à la corde : le pilote prend les virages, remonte, évite les chutes et freine pour toi</option>
+            <option value="wide">Automatique, large : les virages par l'extérieur</option>
+            <option value="manual">Manuelle : tu pilotes (← → et F, manette, téléphone incliné, contrôleurs VR) et tu freines</option>
+          </select>
+          <p class="hint">Se change aussi en course (vignette de ton coureur, touche V). En manuelle, le temps passe à ×1 ; un virage pris trop vite fait sortir de la route, et une sortie de route fait souvent chuter, d'autant plus qu'on va vite.</p>
+        </div>
         <h3>Course</h3>
         <div class="grid2">
           <div class="field"><label for="g-bots">Coureurs virtuels (0 à 89 : un peloton de 90 avec toi)</label>
