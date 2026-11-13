@@ -19,7 +19,8 @@
   };
 
   const R = 0.34; // rayon de roue (pneu compris)
-  const TORSO = 0.59; // du bassin aux épaules
+  const SKEL = B3D.anatomy.SKEL; // squelette et pédalage d'un coureur professionnel (js/anatomy.js), les mêmes que le peloton
+  const TORSO = SKEL.torso; // du milieu des hanches aux épaules
   const UP = new THREE.Vector3(0, 1, 0), ZAX = new THREE.Vector3(0, 0, 1);
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -304,8 +305,8 @@
       // tige de selle + selle
       this._tube(stTop, V(0, saddle.y - 0.015, saddle.z + 0.003), 0.013 * (aero ? 1.3 : 1), aero ? frame : metal, null, aero ? 2 : 1);
       const sad = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), dark);
-      sad.scale.set(F.bar === 'tt' ? 0.06 : 0.07, 0.03, 0.14);
-      sad.position.set(0, saddle.y, saddle.z);
+      sad.scale.set(F.bar === 'tt' ? 0.06 : 0.07, 0.02, 0.14);
+      sad.position.set(0, saddle.y - 0.018, saddle.z); // le dessus de la selle à sa hauteur
       g.add(sad);
       addOutline(sad, { width: 0.7, minW: 0.004, maxW: 0.03 });
       this._cockpit(F, frame, dark, metal);
@@ -997,32 +998,24 @@
       H.add(lens);
     }
 
-    /* Plan d'une position : bassin, épaules, mains et coudes posés (repère du corps, sans danseuse ni recroquevillement). L'angle du
-       buste est cherché pour que l'épaule soit à e × longueur du bras des mains ; sur les manchettes, pour que les coudes y reposent.
-       stand : en danseuse (mains sur les cocottes, bassin au-dessus de la selle). */
+    /* Plan d'une position : bassin (le milieu des hanches, au-dessus de la selle), épaules, mains et coudes posés (repère du corps,
+       sans danseuse ni recroquevillement). L'angle du buste est cherché pour que l'épaule soit à e × longueur du bras des mains ; sur
+       les manchettes, pour que les coudes y reposent. stand : en danseuse (mains sur les cocottes, hanches au-dessus du boîtier de
+       pédalier, épaules au-dessus du cintre). */
     _plan(posId, stand) {
       const P = POSITIONS[posId], ck = this.ck;
       const side = (p) => [V(-p[0], p[1], p[2]), V(p[0], p[1], p[2])];
-      const pelvis = V(0, 1.0, this.saddle.z + 0.03);
+      const pelvis = V(0, B3D.anatomy.hipHeight(this.BB, this.saddle), this.saddle.z + SKEL.hipZ);
       let hands, elbows = null, e = P.e;
       if (P.grip === 'pads' && ck.pad) { hands = side(ck.ext); elbows = side(ck.pad); }
       else if (P.grip === 'forearms' && ck.forearm) { hands = side(ck.forearmHand); elbows = side(ck.forearm); }
       else if (P.grip === 'pads' || P.grip === 'forearms' || P.grip === 'drops') { hands = side(ck.drops); e = ck.dropsE; }
       else hands = side(ck[P.grip]);
       let a;
-      if (elbows) {
-        a = Math.asin(clamp((elbows[1].y + 0.28 - pelvis.y) / TORSO, 0.05, 0.95));
-      } else {
-        const h = hands[1], reach = 0.6 * e;
-        let lo = 0.08, hi = 1.3;
-        for (let k = 0; k < 22; k++) {
-          a = (lo + hi) / 2;
-          const d = Math.hypot(Math.abs(h.x) - this.shoulderX, h.y - (pelvis.y + TORSO * Math.sin(a) - 0.02), h.z - (pelvis.z + TORSO * Math.cos(a) - 0.02));
-          if (d < reach) lo = a; else hi = a;
-        }
-      }
+      if (elbows) a = Math.asin(clamp((elbows[1].y + 0.28 - pelvis.y) / TORSO, 0.05, 0.95));
+      else a = B3D.anatomy.torsoAngle(pelvis, hands[1], this.shoulderX, (SKEL.upper + SKEL.fore) * e, -0.02, -0.02);
+      if (stand) { pelvis.y += 0.075; pelvis.z += 0.17; a = 0.66; }
       const shoulder = V(0, pelvis.y + TORSO * Math.sin(a), pelvis.z + TORSO * Math.cos(a));
-      if (stand) { pelvis.y += 0.16; pelvis.z += 0.2; shoulder.y += 0.06; shoulder.z += 0.1; }
       // recroquevillé (descente) : mains en bas du cintre si elles étaient en haut
       const drops = ck.dropBar && (P.grip === 'hoods' || P.grip === 'tops') ? side(ck.drops) : null;
       return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1 };
@@ -1084,13 +1077,15 @@
       const A = this.plan, B = this.planStand, tk = tuck * (1 - stand) * A.tuckK;
       // bassin / épaules : la position choisie, la danseuse, le recroquevillement en descente
       const pelvis = A.pelvis.clone().lerp(B.pelvis, stand);
-      pelvis.y -= 0.03 * tk; pelvis.z += 0.03 * tk;
-      const bob = Math.sin(this.crank * 2) * 0.008 * (st.pedaling ? 1 : 0);
+      // recroquevillé : le bassin bascule en avant sur la selle (il ne descend presque pas), les épaules descendent sur le cintre
+      pelvis.y -= 0.012 * tk; pelvis.z += 0.025 * tk;
+      // le haut du corps d'un coureur reste presque immobile assis ; en danseuse, il monte et descend à chaque coup de pédale
+      const bob = Math.sin(this.crank * 2) * (0.003 + 0.007 * stand) * (st.pedaling ? 1 : 0);
       pelvis.y += bob;
       const sway = -Math.sin(this.crank) * 0.08 * stand;
       pelvis.x += sway;
       const shoulder = A.shoulder.clone().lerp(B.shoulder, stand);
-      shoulder.x = sway * 1.4; shoulder.y += bob - 0.16 * tk; shoulder.z += 0.08 * tk;
+      shoulder.x = sway * 1.4; shoulder.y += bob * 0.6 - 0.15 * tk; shoulder.z += 0.075 * tk;
       this.pelvis.position.copy(pelvis);
       // torse : capsule orientée du bassin aux épaules
       const tdir = shoulder.clone().sub(pelvis);
@@ -1128,7 +1123,7 @@
         const hand = A.hands[i].clone().lerp(B.hands[i], stand);
         if (A.drops && tk > 0.001) hand.lerp(A.drops[i], tk);
         if (stand > 0.01) hand.applyAxisAngle(ZAX, this.rock);
-        let elbow = this._ik(sh, hand, 0.3, 0.3, new THREE.Vector3(arm.sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
+        let elbow = this._ik(sh, hand, SKEL.upper, SKEL.fore, new THREE.Vector3(arm.sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
         if (A.elbows) elbow = A.elbows[i].clone().lerp(elbow, stand);
         if (arm.shoulder) arm.shoulder.position.copy(sh);
         arm.elbow.position.copy(elbow);
@@ -1148,11 +1143,13 @@
       for (const leg of this.legs) {
         // même convention que les manivelles du pédalier : pédale droite (x < 0) en haut à crank = 0
         const sgn = -leg.sx;
-        const pedal = new THREE.Vector3(leg.sx * 0.12, this.BB.y + sgn * Math.cos(this.crank) * 0.17, this.BB.z + sgn * Math.sin(this.crank) * 0.17);
-        if (stand > 0.01) pedal.applyAxisAngle(ZAX, this.rock);
-        const ankle = pedal.clone().add(new THREE.Vector3(0, 0.07, -0.05));
-        const hip = new THREE.Vector3(leg.sx * 0.095 + pelvis.x, pelvis.y - 0.03, pelvis.z + 0.02);
-        const knee = this._ik(hip, ankle, 0.46, 0.45, new THREE.Vector3(leg.sx * 0.12, 0.25, 1).normalize(), new THREE.Vector3());
+        const pedal = new THREE.Vector3(leg.sx * 0.12, this.BB.y + sgn * Math.cos(this.crank) * SKEL.crank, this.BB.z + sgn * Math.sin(this.crank) * SKEL.crank);
+        // pied : la plante sur l'axe de la pédale ; il bascule autour de cet axe au fil du tour (la cheville travaille)
+        const ankle = new THREE.Vector3(), shoeC = new THREE.Vector3();
+        const pitch = B3D.anatomy.footPose(pedal, this.crank + (sgn > 0 ? 0 : Math.PI), stand, ankle, shoeC);
+        if (stand > 0.01) { ankle.applyAxisAngle(ZAX, this.rock); shoeC.applyAxisAngle(ZAX, this.rock); }
+        const hip = new THREE.Vector3(leg.sx * SKEL.hipX + pelvis.x, pelvis.y, pelvis.z);
+        const knee = this._ik(hip, ankle, SKEL.thigh, SKEL.shin, new THREE.Vector3(leg.sx * 0.05, 0.25, 1).normalize(), new THREE.Vector3());
         leg.knee.position.copy(knee);
         leg.theta = Math.atan2(knee.z - hip.z, hip.y - knee.y); // angle de la cuisse (0 : à la verticale, + genou en avant)
         leg.hip = hip;
@@ -1169,10 +1166,9 @@
         const up = this._v[2].copy(knee).sub(ankle).normalize();
         if (leg.sockTube) this._setLimb(leg.sockTube, ankle, ankle.clone().addScaledVector(up, this.sockH));
         if (leg.cover) this._setLimb(leg.cover, ankle, ankle.clone().addScaledVector(up, 0.075));
-        // chaussure posée sur la pédale, pointe vers l'avant
-        const toe = pedal.clone().add(new THREE.Vector3(0, 0.03, 0.09));
-        leg.shoe.position.copy(ankle).add(toe).multiplyScalar(0.5);
-        leg.shoe.lookAt(this._toWorldDir(toe.clone().sub(ankle), leg.shoe.position));
+        // chaussure posée sur la pédale (la cale sur l'axe), inclinée comme le pied ; en danseuse, elle penche avec le vélo
+        leg.shoe.position.copy(shoeC);
+        leg.shoe.rotation.set(pitch, 0, stand > 0.01 ? this.rock : 0, 'ZXY');
       }
       if (this.hipU) {
         // le bas de chaque fessier suit sa cuisse : écart à l'angle moyen des deux cuisses, autour de l'axe des hanches (repère du bassin)
@@ -1187,12 +1183,6 @@
     // Montre ou cache le cycliste (le vélo seul, dans la vitrine du magasin)
     setRiderVisible(v) {
       for (const o of this.body.children) if (o !== this.bikeGroup) o.visible = !!v;
-    }
-
-    // lookAt travaille en coordonnées monde : on convertit une direction locale du corps.
-    _toWorldDir(dirLocal, posLocal) {
-      const p = posLocal.clone().add(dirLocal);
-      return this.body.localToWorld(p);
     }
 
     dispose() {

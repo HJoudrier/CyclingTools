@@ -45,7 +45,7 @@
   }
 
   // ------------------------------------------------------------------ géométries
-  const UP = new THREE.Vector3(0, 1, 0), FWD = new THREE.Vector3(0, 0, 1);
+  const UP = new THREE.Vector3(0, 1, 0), FWD = new THREE.Vector3(0, 0, 1), XAX = new THREE.Vector3(1, 0, 0);
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   function tubeM(a, b, r) {
     const d = b.clone().sub(a), len = d.length();
@@ -88,8 +88,12 @@
      instances posées à chaque image. */
   const geoCache = new Map();
   const W = '#ffffff', DK = '#26232f', SK = '#f1c29b';
-  const HIP_U = { uHipP: { value: new THREE.Vector2(0.97, -0.24) } }; // axe des hanches (y, z) du coureur assis
-  const BB0 = V(0, 0.28, -0.08), PELVIS = V(0, 1.0, -0.26), SHOULDER = V(0, 1.37, 0.2);
+  // Posture d'un coureur professionnel (B3D.anatomy.SKEL, comme le cycliste du joueur) : le milieu des hanches au-dessus de la selle,
+  // les épaules là où les mains tiennent les cocottes, coudes un peu fléchis
+  const SK_ = B3D.anatomy.SKEL, BB0 = V(0, 0.28, -0.08), SADDLE = V(0, 0.965, -0.29), HAND = V(0.205, 0.93, 0.58);
+  const PELVIS = V(0, B3D.anatomy.hipHeight(BB0, SADDLE), SADDLE.z + SK_.hipZ);
+  const SHOULDER = (() => { const a = B3D.anatomy.torsoAngle(PELVIS, HAND, 0.19, (SK_.upper + SK_.fore) * 0.97, -0.02, -0.02); return V(0, PELVIS.y + SK_.torso * Math.sin(a), PELVIS.z + SK_.torso * Math.cos(a)); })();
+  const HIP_U = { uHipP: { value: new THREE.Vector2(PELVIS.y, PELVIS.z) } }; // axe des hanches (y, z) du coureur assis
   function bodyGeometry(level, fem) {
     const key = 'body' + level + (fem ? 'f' : 'm');
     if (geoCache.has(key)) return geoCache.get(key);
@@ -114,7 +118,7 @@
       tube(V(sx * 0.04, 0.7, 0.41), V(sx * 0.05, WR, FRONT), 0.016, W, 1);
     }
     tube(stTop, V(0, 0.95, -0.287), 0.014, '#c9ced8');
-    parts.push({ geo: sph(), color: DK, matrix: tr(0, 0.965, -0.29, 0, 0, 0, 0.07, 0.03, 0.14) });
+    parts.push({ geo: sph(), color: DK, matrix: tr(0, SADDLE.y - 0.018, SADDLE.z, 0, 0, 0, 0.07, 0.02, 0.14) }); // le dessus de la selle à sa hauteur
     tube(htTop, V(0, 0.885, 0.5), 0.017, DK);
     tube(V(-0.21, 0.885, 0.5), V(0.21, 0.885, 0.5), 0.015, DK);
     for (const sx of [-1, 1]) {
@@ -148,8 +152,8 @@
     parts.push({ geo: new THREE.BoxGeometry(0.22, 0.035, 0.02), color: '#4fd0ff', matrix: tr(head.x, head.y, head.z + 0.146, -0.15, 0, 0) });
     if (fem) parts.push({ geo: sph(), color: '#6b4423', matrix: tr(head.x, head.y - 0.08, head.z - 0.17, -0.35, 0, 0, 0.04, 0.095, 0.045) });
     for (const sx of [-1, 1]) {
-      const sh = V(sx * (fem ? 0.18 : 0.19), shoulder.y - 0.02, shoulder.z - 0.02), hand = V(sx * 0.205, 0.93, 0.58);
-      const elbow = ik(sh, hand, 0.3, 0.3, V(sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
+      const sh = V(sx * (fem ? 0.18 : 0.19), shoulder.y - 0.02, shoulder.z - 0.02), hand = V(sx * HAND.x, HAND.y, HAND.z);
+      const elbow = ik(sh, hand, SK_.upper, SK_.fore, V(sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
       parts.push({ geo: sph(), color: W, tint: 1, matrix: tr(sh.x, sh.y, sh.z, 0, 0, 0, 0.068) });
       tube(sh, elbow, 0.056, W, 1);
       tube(elbow, hand, 0.045, SK);
@@ -185,8 +189,8 @@
     parts.push(...placed(A.limbParts('neck', { q, fem, bands: [[1, SK]] }), limbM(neckBase, headPos, V(0, -tn.z, tn.y), new THREE.Matrix4())));
     // bras : manches courtes à la couleur de l'équipe, mains gantées sur les cocottes
     for (const sx of [-1, 1]) {
-      const sh = V(sx * (fem ? 0.175 : 0.19), shoulder.y - 0.02, shoulder.z - 0.02), hand = V(sx * 0.205, 0.93, 0.58);
-      const elbow = ik(sh, hand, 0.3, 0.3, V(sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
+      const sh = V(sx * (fem ? 0.175 : 0.19), shoulder.y - 0.02, shoulder.z - 0.02), hand = V(sx * HAND.x, HAND.y, HAND.z);
+      const elbow = ik(sh, hand, SK_.upper, SK_.fore, V(sx * 0.6, -0.3, -0.75).normalize(), new THREE.Vector3());
       const front = bendDir(sh, elbow, hand, new THREE.Vector3()).negate();
       const upper = A.limbParts('upper', { q, fem, side: sx, bands: q > 1 ? [[0.45, W], [0.5, '#f4f1ea'], [1, SK]] : [[0.5, W], [1, SK]] });
       parts.push(...placed(upper, limbM(sh, elbow, front, new THREE.Matrix4()), { tint: 1 }).map((p, k) => Object.assign(p, { tint: k === 0 ? 1 : 0 })));
@@ -952,15 +956,14 @@
         }
         for (let side = 0; side < 2; side++) {
           const sx = side ? 1 : -1, sgn = -sx;
-          pedal.set(sx * 0.12, BB.y + sgn * Math.cos(r.crank) * 0.17, BB.z + sgn * Math.sin(r.crank) * 0.17);
-          ankle.copy(pedal).add(d.set(0, 0.07, -0.05));
-          hip.set(sx * 0.095, 0.97, -0.24);
-          bend.set(sx * 0.12, 0.25, 1).normalize();
-          ik(hip, ankle, 0.46, 0.45, bend, knee);
+          pedal.set(sx * 0.12, BB.y + sgn * Math.cos(r.crank) * SK_.crank, BB.z + sgn * Math.sin(r.crank) * SK_.crank);
+          // pied : la plante sur l'axe de la pédale, incliné selon la phase du tour (la cheville travaille)
+          const pitch = B3D.anatomy.footPose(pedal, r.crank + (sgn > 0 ? 0 : Math.PI), 0, ankle, toe);
+          hip.set(sx * SK_.hipX, PELVIS.y, PELVIS.z);
+          bend.set(sx * 0.05, 0.25, 1).normalize();
+          ik(hip, ankle, SK_.thigh, SK_.shin, bend, knee);
           theta[side] = Math.atan2(knee.z - hip.z, hip.y - knee.y); // angle de la cuisse (+ genou en avant)
-          toe.copy(pedal).add(d.set(0, 0.03, 0.09));
-          d.copy(toe).sub(ankle).normalize();
-          shoeM.compose(mid.copy(ankle).add(toe).multiplyScalar(0.5), q2.setFromUnitVectors(FWD, d), one);
+          shoeM.compose(toe, q2.setFromAxisAngle(XAX, pitch), one); // toe : le centre de la chaussure
           if (r.fine) {
             // cuisse et jambe galbées : quadriceps et tibia du côté où pointe le genou
             bendDir(hip, knee, ankle, front);

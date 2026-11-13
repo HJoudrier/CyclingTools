@@ -561,7 +561,8 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
     assert.ok(cleft - cheek > 0.005, 'sillon entre les fessiers');
     assert.ok(near - cheek < 0.006, 'sillon étroit : le fessier reste plein jusqu\'à 3 cm du milieu');
     assert.ok(Math.abs(back(fem, 0.02, 0.1) - back(fem, 0, 0.1)) < 0.004, 'en haut, ni sillon ni bord : le bassin se fond dans le maillot');
-    for (const y of [0.03, 0, -0.03, -0.06]) assert.ok(side(fem, y) < 0.17, `hanches pas plus larges que le maillot : ${side(fem, y).toFixed(3)} m`);
+    // (rotules des cuisses comprises ; le maillot fait 0,176 m de demi-largeur à la poitrine)
+    for (const y of [0.03, 0, -0.03, -0.06]) assert.ok(side(fem, y) < 0.176, `hanches pas plus larges que le maillot : ${side(fem, y).toFixed(3)} m`);
   }
   assert.ok(back(true, 0.07, -0.06) < back(false, 0.07, -0.06) - 0.005, 'plus pleins chez une cycliste');
   assert.ok(side(true, -0.03) > side(false, -0.03) + 0.005, 'hanches plus larges chez une cycliste');

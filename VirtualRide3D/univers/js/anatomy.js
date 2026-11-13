@@ -13,7 +13,9 @@
      membre : axe y de -0,5 (première articulation) à 0,5 (seconde), étiré à sa longueur à la pose ; +z devant ; rayons en mètres ;
      buste  : sphère unité étirée du bassin aux épaules (y), +z la poitrine, x sur le côté ;
      main   : origine à la prise du cintre, +z le long de l'avant-bras, +y le dos de la main ;
-     chaussure : centre entre la cheville et la pointe, +z vers la pointe, +y le dessus. */
+     chaussure : centre de la chaussure (au-dessus de la cale), +z vers la pointe, +y le dessus.
+   Le squelette et le pédalage (B3D.anatomy.SKEL, hipHeight, torsoAngle, footPitch, footPose) sont ceux d'un coureur professionnel,
+   les mêmes pour le cycliste du joueur, le peloton et le monde réaliste (VirtualRide3DRealiste/monde/js/body.js). */
 (function (root) {
   'use strict';
   const B3D = root.B3D = root.B3D || {};
@@ -35,6 +37,45 @@
       const h = X[i + 1] - X[i], u = (t - X[i]) / h, u2 = u * u, u3 = u2 * u;
       return (2 * u3 - 3 * u2 + 1) * Y[i] + (u3 - 2 * u2 + u) * S[i] * h + (-2 * u3 + 3 * u2) * Y[i + 1] + (u3 - u2) * S[i + 1] * h;
     };
+  }
+
+  /* ------------------------------------------------------------------ squelette et pédalage */
+  /* Squelette (m) d'un coureur de 1,80 m sur son vélo, d'après des photos de coureurs professionnels en course et les angles
+     mesurés en laboratoire : demi-écart des hanches, cuisse, jambe, bras et avant-bras (jusqu'à la prise de la main), buste (des
+     hanches aux épaules), manivelle ; la cheville est au-dessus (footUp) et en arrière (footBack) de l'axe de la pédale, la plante du
+     pied sur l'axe ; le centre de la chaussure est au-dessus (shoeUp) et en arrière (shoeBack) de l'axe ; hipZ : les hanches devant
+     le milieu de la selle ; knee : flexion du genou en bas du coup de pédale. */
+  const SKEL = { hipX: 0.088, thigh: 0.435, shin: 0.435, upper: 0.31, fore: 0.33, torso: 0.52, crank: 0.17,
+    footUp: 0.087, footBack: 0.125, shoeUp: 0.057, shoeBack: 0.045, hipZ: 0.02, knee: 34 * Math.PI / 180 };
+  /** Inclinaison du pied (rad, pointe plus basse que le talon) à la phase phi du tour (0 : pédale en haut, π/2 : devant) : presque
+      à plat en poussant (vers 3 heures), talon relevé en remontant (vers 9-10 heures) ; stand : en danseuse, talon plus haut. */
+  function footPitch(phi, stand) { return 0.35 - 0.21 * Math.cos(phi - 1.83) + 0.12 * (stand || 0); }
+  /** Hauteur du milieu des hanches : là où le genou reste fléchi de SKEL.knee en bas du coup de pédale, entre 7 et 10 cm au-dessus de
+      la selle (les ischions sont posés dessus, l'articulation de la hanche est plus haut). BB : boîtier de pédalier, saddle : selle. */
+  function hipHeight(BB, saddle) {
+    const p = footPitch(Math.PI, 0), K = SKEL;
+    const ay = BB.y - K.crank + K.footUp * Math.cos(p) + K.footBack * Math.sin(p), az = BB.z - K.footBack * Math.cos(p) + K.footUp * Math.sin(p);
+    const D2 = K.thigh * K.thigh + K.shin * K.shin + 2 * K.thigh * K.shin * Math.cos(K.knee), dz = saddle.z + K.hipZ - az;
+    return Math.max(saddle.y + 0.07, Math.min(saddle.y + 0.1, ay + Math.sqrt(Math.max(0, D2 - dz * dz))));
+  }
+  /** Angle du buste (rad, depuis l'horizontale) pour que l'épaule (à sx de côté, et dy, dz du bout du buste) soit à reach m de la
+      main (x, y, z) ; pelvis : le milieu des hanches. */
+  function torsoAngle(pelvis, hand, sx, reach, dy, dz) {
+    let lo = 0.08, hi = 1.3, a = 0.6;
+    for (let k = 0; k < 22; k++) {
+      a = (lo + hi) / 2;
+      const d = Math.hypot(Math.abs(hand.x) - sx, hand.y - (pelvis.y + SKEL.torso * Math.sin(a) + (dy || 0)), hand.z - (pelvis.z + SKEL.torso * Math.cos(a) + (dz || 0)));
+      if (d < reach) lo = a; else hi = a;
+    }
+    return a;
+  }
+  /** Pied sur la pédale (axe en pedal) à la phase phi : place la cheville (ankle) et le centre de la chaussure (shoe), renvoie
+      l'inclinaison du pied (rad). */
+  function footPose(pedal, phi, stand, ankle, shoe) {
+    const p = footPitch(phi, stand), c = Math.cos(p), sn = Math.sin(p), K = SKEL;
+    ankle.set(pedal.x, pedal.y + K.footUp * c + K.footBack * sn, pedal.z - K.footBack * c + K.footUp * sn);
+    if (shoe) shoe.set(pedal.x, pedal.y + K.shoeUp * c + K.shoeBack * sn, pedal.z - K.shoeBack * c + K.shoeUp * sn);
+    return p;
   }
 
   /** Normales lissées, y compris sur les coutures (sommets confondus). */
@@ -130,7 +171,7 @@
   }
 
   // Muscles des membres (rayons en m) ; side : -1 à gauche, +1 à droite (le vaste interne est du côté du vélo)
-  const THIGH = curve([[0, 0.084], [0.25, 0.079], [0.55, 0.07], [0.8, 0.058], [0.93, 0.05], [1, 0.048]]);
+  const THIGH = curve([[0, 0.074], [0.1, 0.08], [0.28, 0.08], [0.55, 0.07], [0.8, 0.058], [0.93, 0.05], [1, 0.048]]);
   const SHIN = curve([[0, 0.047], [0.12, 0.045], [0.3, 0.044], [0.55, 0.037], [0.78, 0.029], [0.9, 0.027], [1, 0.03]]);
   const UPPER = curve([[0, 0.05], [0.12, 0.05], [0.3, 0.043], [0.5, 0.041], [0.85, 0.034], [1, 0.033]]); // deltoïde à la racine
   const FORE = curve([[0, 0.035], [0.2, 0.037], [0.5, 0.032], [0.85, 0.025], [1, 0.024]]);
@@ -139,7 +180,7 @@
     thigh: (side, fem) => (t, th) => {
       const inner = Math.max(0, -Math.sin(th) * side); // vers le vélo
       return THIGH(t) * (fem ? 1.02 : 1) + 0.009 * bell(t, 0.45, 0.28) * front(th) ** 1.5 + 0.008 * bell(t, 0.82, 0.1) * front(th) * inner * 2
-        + 0.004 * bell(t, 0.5, 0.3) * back(th) + 0.014 * bell(t, 0.03, 0.14) * back(th) ** 1.2; // la racine s'élargit sous le fessier
+        + 0.005 * bell(t, 0.5, 0.3) * back(th); // ischio-jambiers
     },
     shin: (side) => (t, th) => {
       const inner = Math.max(0, -Math.sin(th) * side), outer = Math.max(0, Math.sin(th) * side);
@@ -150,7 +191,7 @@
     fore: () => (t, th) => FORE(t) * (1 + 0.12 * Math.sin(th) * Math.sin(th) * ss(0.6, 1, t)) + 0.004 * bell(t, 0.2, 0.2) * back(th),
     neck: (side, fem) => (t, th) => (fem ? 0.044 : 0.05) * (1.08 - 0.12 * t) + 0.006 * bell(t, 0.1, 0.25) * back(th)
   };
-  const LENGTHS = { thigh: 0.46, shin: 0.45, upper: 0.3, fore: 0.3, neck: 0.16 };
+  const LENGTHS = { thigh: SKEL.thigh, shin: SKEL.shin, upper: SKEL.upper, fore: SKEL.fore, neck: 0.16 };
 
   /** Bras, jambe ou cou : kind ('thigh', 'shin', 'upper', 'fore', 'neck'), side, fem, bands, q ; loose : vêtement ample (m en plus
       sur la première couleur). */
@@ -313,8 +354,8 @@
 
   /* ------------------------------------------------------------------ buste */
   // demi-largeur et profondeurs (unités de la sphère du buste) du bassin (y = -1) au cou (y = 1)
-  const TW = { m: curve([[-1, 0.78], [-0.85, 0.82], [-0.72, 0.79], [-0.42, 0.68], [-0.1, 0.74], [0.25, 0.84], [0.52, 0.88], [0.72, 0.86], [0.88, 0.68], [1, 0.36]]),
-    f: curve([[-1, 0.84], [-0.85, 0.88], [-0.72, 0.84], [-0.42, 0.62], [-0.1, 0.68], [0.25, 0.78], [0.52, 0.8], [0.72, 0.78], [0.88, 0.62], [1, 0.32]]) };
+  const TW = { m: curve([[-1, 0.7], [-0.85, 0.73], [-0.72, 0.72], [-0.42, 0.68], [-0.1, 0.74], [0.25, 0.84], [0.52, 0.88], [0.72, 0.86], [0.88, 0.68], [1, 0.36]]),
+    f: curve([[-1, 0.72], [-0.85, 0.75], [-0.72, 0.72], [-0.42, 0.62], [-0.1, 0.68], [0.25, 0.78], [0.52, 0.8], [0.72, 0.78], [0.88, 0.62], [1, 0.32]]) };
   const TF = curve([[-1, 0.6], [-0.6, 0.62], [-0.2, 0.58], [0.25, 0.7], [0.6, 0.7], [0.9, 0.5], [1, 0.4]]);
   const TB = curve([[-1, 0.62], [-0.5, 0.66], [0, 0.7], [0.5, 0.78], [0.85, 0.62], [1, 0.45]]);
 
@@ -378,33 +419,36 @@
     // col contre le cou, liseré en haut ; fermeture éclair devant
     const parts = [{ geo: torsoStrip(fem, 0.935, 0.975, -Math.PI, Math.PI, 0.02, q), color: o.base }, { geo: torsoStrip(fem, 0.965, 0.985, -Math.PI, Math.PI, 0.024, q), color: o.accent }];
     parts.push({ geo: torsoStrip(fem, 0.34, 0.968, -0.035, 0.035, 0.024, q), color: '#26232f' });
-    for (const a of [-0.62, 0, 0.62]) parts.push({ geo: torsoStrip(fem, -0.66, -0.3, Math.PI + a - 0.27, Math.PI + a + 0.27, 0.03, q), color: pocket });
-    parts.push({ geo: torsoStrip(fem, -0.34, -0.29, Math.PI - 0.9, Math.PI + 0.9, 0.04, q), color: o.accent });
+    for (const a of [-0.62, 0, 0.62]) parts.push({ geo: torsoStrip(fem, -0.5, -0.2, Math.PI + a - 0.27, Math.PI + a + 0.27, 0.03, q), color: pocket });
+    parts.push({ geo: torsoStrip(fem, -0.24, -0.19, Math.PI - 0.9, Math.PI + 0.9, 0.04, q), color: o.accent });
     return parts;
   }
 
   /* Bassin et fessiers : une seule surface qui prolonge le buste sous le maillot et porte le cuissard ; le bas du maillot et son
      ourlet élastique y sont peints, posés sur le haut des fessiers (le buste finit caché dedans : pas de marche entre le maillot et le
      cuissard). Dessinée assise dans le repère du buste (x sur le côté, y le long du dos vers les épaules, z vers la poitrine ; origine
-     au bas du buste), pour un buste penché comme sur les cocottes (PELVIS.beta), elle tourne avec le buste (pelvisPose). La forme est
-     une surface implicite (distance signée approchée) : le prolongement du buste, deux fessiers ronds qui s'y fondent (le sillon naît
-     entre eux), le dessous aplati sur la selle et qui retombe de chaque côté ; plus pleins et hanches plus larges chez une femme.
-     Les cuisses (des membres à part) sortent dessous. Maillée par rayons depuis un centre, colonnes resserrées au milieu du dos (le sillon). */
+     au milieu des hanches, 9 cm au-dessus de la selle), pour un buste penché comme sur les cocottes (PELVIS.beta), elle tourne avec
+     le buste (pelvisPose). La forme est une surface implicite (distance signée approchée) : le prolongement du buste, deux fessiers
+     ronds qui s'y fondent (le sillon naît entre eux), une rotule autour de chaque hanche (une sphère centrée sur l'articulation :
+     la cuisse, un membre à part, en sort sans marche quel que soit son angle), le dessous aplati sur la selle et qui retombe de
+     chaque côté ; plus pleins et hanches plus larges chez une femme. Maillée par rayons depuis un centre, colonnes resserrées au
+     milieu du dos (le sillon). */
   const PELVIS = {
     beta: 0.89,                        // rad : angle du buste depuis la verticale pour lequel la forme est dessinée
     center: [0, -0.03, -0.01],         // centre des rayons (repère du buste)
-    saddle: -0.065,                    // dessous des fessiers posé sur la selle (repère du corps, depuis le bas du buste)
+    saddle: -0.086,                    // dessous des fessiers posé sur la selle (repère du corps, depuis le milieu des hanches)
+    hip: 0.078,                        // rayon de la rotule de chaque hanche (un peu plus que la racine de la cuisse)
     glute: { x: 0.058, y: -0.07, z: -0.05, rx: 0.076, ry: 0.1, rz: 0.07 }, // un fessier (repère du buste) : allongé le long du dos
-    hem: [-0.006, 0.013]               // ourlet du maillot : hauteurs (repère du buste) dans le dos, de son bas à son haut
+    hem: [0.042, 0.06]                 // ourlet du maillot : hauteurs (repère du buste) dans le dos, de son bas à son haut
   };
   const PB_ = Math.cos(PELVIS.beta), PS_ = Math.sin(PELVIS.beta);
   // prolongement du buste le long du dos (repère du buste) : demi-largeur (homme, femme), dos, ventre ; dedans du buste au-dessus de
-  // y ≈ 0,03, dehors en dessous (il cache le bas arrondi du buste)
+  // y ≈ 0,08, dehors en dessous (il cache le bas du buste, plus fin : le cuissard couvre les hanches jusqu'à la taille)
   const PCOL = {
-    wm: curve([[-0.12, 0.136], [-0.04, 0.146], [0.01, 0.151], [0.035, 0.148], [0.06, 0.14], [0.16, 0.126]]),
-    wf: curve([[-0.12, 0.144], [-0.04, 0.155], [0.01, 0.158], [0.035, 0.15], [0.06, 0.138], [0.16, 0.118]]),
-    back: curve([[-0.12, 0.09], [-0.02, 0.104], [0.05, 0.104], [0.16, 0.108]]),
-    front: curve([[-0.12, 0.075], [-0.03, 0.094], [0.025, 0.094], [0.06, 0.082], [0.16, 0.076]])
+    wm: curve([[-0.12, 0.136], [-0.04, 0.148], [0.01, 0.152], [0.05, 0.15], [0.09, 0.14], [0.16, 0.122]]),
+    wf: curve([[-0.12, 0.144], [-0.04, 0.156], [0.01, 0.16], [0.05, 0.155], [0.09, 0.14], [0.16, 0.116]]),
+    back: curve([[-0.12, 0.09], [-0.02, 0.106], [0.06, 0.11], [0.16, 0.108]]),
+    front: curve([[-0.12, 0.075], [-0.03, 0.094], [0.04, 0.096], [0.08, 0.088], [0.16, 0.076]])
   };
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
   const smax = (a, b, k) => -smin(-a, -b, k);
@@ -425,7 +469,10 @@
     const G = PELVIS.glute, kx = fem ? 1.06 : 1, kz = fem ? 1.12 : 1, ky = fem ? 1.04 : 1;
     const gl = ellD(x + G.x * kx, y - G.y, z - G.z, G.rx * kx, G.ry * ky, G.rz * kz), gr = ellD(x - G.x * kx, y - G.y, z - G.z, G.rx * kx, G.ry * ky, G.rz * kz);
     d = smin(d, smin(gl, gr, 0.016), 0.04);
-    // repère du corps (depuis le bas du buste)
+    // rotules des hanches : la racine de chaque cuisse est dedans
+    const hx = Math.abs(x) - SKEL.hipX * (fem ? 1.04 : 1);
+    d = smin(d, Math.sqrt(hx * hx + y * y + z * z) - PELVIS.hip * (fem ? 1.03 : 1), 0.025);
+    // repère du corps (depuis le milieu des hanches)
     const yb = y * PB_ - z * PS_, zb = y * PS_ + z * PB_;
     // posé sur la selle : le dessous des fessiers s'aplatit au milieu et retombe de chaque côté de la selle (derrière les hanches
     // seulement : devant, l'entrejambe et la racine des cuisses)
@@ -450,7 +497,7 @@
     return { offset: V(0, 0, 0), tilt: Math.atan2(tdir.z, tdir.y) };
   }
 
-  const HIP_FOLLOW = 0.6; // part du mouvement de la cuisse que suit le bas du fessier
+  const HIP_FOLLOW = 0.35; // part du mouvement de la cuisse que suit le bas du fessier (le pli sous le fessier)
   /** Rangées du maillage : v des rangées (de bas en haut), avec les limites de l'ourlet ; et le v de chaque limite. */
   function pelvisRows(M) {
     // l'ourlet est à hauteur constante dans le dos : v du rayon du milieu du dos qui atteint la hauteur y
@@ -495,9 +542,9 @@
       for (const j of list) for (let i = 0; i < N; i++) {
         const k = (j * N + i) * 3, x = pos[k], y = pos[k + 1], z = pos[k + 2];
         P.push(x, y, z); Nn.push(nor[k], nor[k + 1], nor[k + 2]);
-        // part du mouvement de la cuisse de ce côté : forte en bas et vers les cuisses, nulle en haut, au milieu (le sillon reste
-        // continu) et à l'ourlet (pas de fente entre le cuissard et le maillot)
-        if (hipW) hip.push(Math.sign(x) * HIP_FOLLOW * ss(0.03, -0.045, y * PB_ - z * PS_) * ss(0, 0.045, Math.abs(x)) * ss(h0, h0 - 0.12, rows[j]));
+        // part du mouvement de la cuisse de ce côté : forte en bas et vers les cuisses, nulle en haut (au-dessus des hanches, le
+        // cuissard ne bouge pas), au milieu (le sillon reste continu) et à l'ourlet (pas de fente entre le cuissard et le maillot)
+        if (hipW) hip.push(Math.sign(x) * HIP_FOLLOW * ss(0.03, -0.045, y * PB_ - z * PS_) * ss(0, 0.045, Math.abs(x)) * ss(h0, h0 - 0.12, rows[j]) * ss(0.015, -0.03, y));
       }
       for (let k = 0; k + 1 < list.length; k++) for (let i = 0; i < N; i++) {
         const a = k * N + i, b = k * N + (i + 1) % N;
@@ -600,5 +647,5 @@
     return parts;
   }
 
-  B3D.anatomy = { curve, smoothNormals, deformed, rings, limb, limbParts, LENGTHS, headPoint, headParts, glassesParts, torsoPoint, torsoGeometry, torsoTrim, PELVIS, pelvisSDF, pelvisPoint, pelvisParts, pelvisPose, HIP_FOLLOW, handParts, shoeParts };
+  B3D.anatomy = { SKEL, footPitch, hipHeight, torsoAngle, footPose, curve, smoothNormals, deformed, rings, limb, limbParts, LENGTHS, headPoint, headParts, glassesParts, torsoPoint, torsoGeometry, torsoTrim, PELVIS, pelvisSDF, pelvisPoint, pelvisParts, pelvisPose, HIP_FOLLOW, handParts, shoeParts };
 })(typeof window !== 'undefined' ? window : globalThis);

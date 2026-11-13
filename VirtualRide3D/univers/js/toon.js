@@ -458,7 +458,8 @@
   /* Fessiers qui suivent les cuisses (cyclistes détaillés) : les sommets marqués hipW (signe : côté -x ou +x ; valeur : part du
      mouvement de la cuisse) tournent autour de l'axe des hanches (uHipP : y, z dans le repère du maillage) de cette part de l'écart
      d'angle de la cuisse de leur côté (uHipA, ou aHip par instance : gauche -x, droite +x ; + quand le genou monte), et se gonflent
-     quand la jambe pousse (contraction du grand fessier). Le pédalage part des fessiers. */
+     à peine quand la jambe pousse (contraction du grand fessier) : le pli sous le fessier accompagne la cuisse, le bassin reste posé
+     sur la selle. */
   const HIP_PARS = [
     'attribute float hipW;',
     'uniform vec2 uHipP;',
@@ -476,7 +477,7 @@
   const HIP_NORMAL = [
     'float hipD_ = hipW < 0.0 ? HIP_A.x : HIP_A.y, hipK_ = abs(hipW);',
     'float hipA_ = -hipD_ * hipK_;',
-    'float hipB_ = 0.05 * max(0.0, -hipD_) * hipK_ * (1.0 - hipK_) * 2.5;',
+    'float hipB_ = 0.02 * max(0.0, -hipD_) * hipK_ * (1.0 - hipK_) * 2.5;',
     'objectNormal = hipDir(objectNormal, hipA_);'
   ].join('\n');
   const HIP_POS = 'transformed = hipRot(transformed, hipA_, uHipP) + normalize(objectNormal) * hipB_;';
