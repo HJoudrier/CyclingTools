@@ -93,7 +93,9 @@
   const SK_ = B3D.anatomy.SKEL, BB0 = V(0, 0.28, -0.08), SADDLE = V(0, 0.965, -0.29), HAND = V(0.205, 0.93, 0.58);
   const PELVIS = V(0, B3D.anatomy.hipHeight(BB0, SADDLE), SADDLE.z + SK_.hipZ);
   const SHOULDER = (() => { const a = B3D.anatomy.torsoAngle(PELVIS, HAND, 0.19, (SK_.upper + SK_.fore) * 0.97, -0.02, -0.02); return V(0, PELVIS.y + SK_.torso * Math.sin(a), PELVIS.z + SK_.torso * Math.cos(a)); })();
-  const HIP_U = { uHipP: { value: new THREE.Vector2(PELVIS.y, PELVIS.z) } }; // axe des hanches (y, z) du coureur assis
+  // axe des hanches (y, z) du coureur assis ; angle de la cuisse pour lequel le bassin est dessiné, dans le repère du coureur (le bassin
+  // y est basculé avec le buste)
+  const HIP_U = { uHipP: { value: new THREE.Vector2(PELVIS.y, PELVIS.z) }, uHipD: { value: B3D.anatomy.PELVIS.thigh - B3D.anatomy.pelvisPose(SHOULDER.clone().sub(PELVIS)).tilt } };
   function bodyGeometry(level, fem) {
     const key = 'body' + level + (fem ? 'f' : 'm');
     if (geoCache.has(key)) return geoCache.get(key);
@@ -984,8 +986,8 @@
           L0.shoe.mesh.setMatrixAt(L0.k * 2 + side, mw.multiplyMatrices(m4, shoeM));
         }
         if (r.fine) LL.k++; else L0.k++;
-        // le bas des fessiers suit les cuisses (écart à leur angle moyen ; gauche : -x)
-        if (B.hip) { const mean = (theta[0] + theta[1]) / 2; B.hip.setXY(slot, theta[0] - mean, theta[1] - mean); }
+        // fessiers et cuisses : l'angle de chaque cuisse dans le repère du coureur (gauche : -x ; B3D.toon.hipPatch)
+        if (B.hip) B.hip.setXY(slot, theta[0], theta[1]);
         if (this.lightsOn) {
           ml.makeTranslation(0, 0.84, 0.58); mw.multiplyMatrices(m4, ml); this.mLamps.setMatrixAt(i * 2, mw);
           ml.makeTranslation(0, 0.86, -0.38); mw.multiplyMatrices(m4, ml); this.mLamps.setMatrixAt(i * 2 + 1, mw);

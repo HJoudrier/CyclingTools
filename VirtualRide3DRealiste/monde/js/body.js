@@ -10,10 +10,11 @@
    jambes (deltoïde, biceps, triceps, quadriceps, ischio-jambiers, vastes, rotule, mollet, malléoles) ne se fondent dans le buste
    qu'autour de l'épaule et de la hanche : pas de palmure entre le bras et le buste, entre les cuisses.
    Chaque sommet suit les os voisins : il reçoit d'abord l'os de sa partie du corps, puis ces poids sont lissés le long de la surface
-   (plus largement autour des hanches, de l'entrejambe et du milieu du dos). Les fessiers, ronds, et l'arrière de la racine des
-   cuisses restent avec le bassin : quand la hanche s'ouvre (en danseuse, en bas du coup de pédale), la fesse ne pivote pas vers
-   l'arrière avec la cuisse, le pli fessier se creuse ; l'entrejambe suit le bassin et chaque jambe ne tire que son côté (pas de
-   déchirure entre les cuisses quand l'une monte et l'autre descend).
+   (plus largement autour des hanches, de l'entrejambe et du milieu du dos). Les fessiers, ronds, restent avec le bassin, l'arrière
+   de la cuisse avec la cuisse, raccordés sur quelques centimètres : quand la hanche s'ouvre (en danseuse, en bas du coup de pédale),
+   la fesse ne pivote pas vers l'arrière avec la cuisse, et le pli sous la fesse reste discret (la cuisse ne glisse pas sous une
+   peau restée au bassin) ; l'entrejambe suit le bassin et chaque jambe ne tire que son côté (pas de déchirure entre les cuisses
+   quand l'une monte et l'autre descend).
    Casque, lunettes, chaussures et queue de cheval sont fabriqués de la même façon et suivent leur os. Chaque sommet porte sa zone
    (peau, maillot, cuissard, chaussette, chaussure, casque, verres, gants, cheveux) et la distance au bord de la tenue : les ourlets
    (manches, cuissard, chaussettes, col, gants) sont des lignes nettes.
@@ -505,13 +506,8 @@ function bodyModel(J, M, gear) {
     }
     const G = limbs[g - 1], j = G.path;
     if (g >= 3) {
-      // arrière de la racine de la cuisse, sous le fessier (autour de l'ischion, d'où partent les ischio-jambiers) : il reste avec le
-      // bassin ; quand la hanche s'ouvre (bas du coup de pédale, danseuse), il ne pivote pas vers l'arrière sous le fessier, le pli
-      // fessier se creuse
-      const dx = x - G.hip.x, dy = y - G.hip.y, dz = z - G.hip.z;
-      const t = dx * G.dT.x + dy * G.dT.y + dz * G.dT.z, a = dx * G.aT.x + dy * G.aT.y + dz * G.aT.z;
-      const perp = Math.sqrt(Math.max(1e-12, dx * dx + dy * dy + dz * dz - t * t));
-      if (t < 0.045 && a < -0.25 * perp) return B.pelvis;
+      // (l'arrière de la racine de la cuisse est à la cuisse : s'il restait avec le bassin, la cuisse qui s'ouvre, en danseuse, glisserait
+      // dessous et creuserait un pli profond sous la fesse ; le raccord du fessier à la cuisse l'adoucit, voir buttock)
       // entrejambe : entre les racines des deux cuisses, la peau suit le bassin (chaque cuisse s'y raccorde de son côté) ; sinon,
       // quand une cuisse monte et l'autre descend, la surface entre elles s'étire
       if (Math.abs(x - J.pelvis.x) < 0.03 && y < J.pelvis.y - 0.04 && Math.abs(z - J.pelvis.z) < 0.16) return B.pelvis;
@@ -530,9 +526,10 @@ function bodyModel(J, M, gear) {
     m = Math.max(m, 1 - ss(0.07, 0.15, Math.sqrt(cx * cx + cy * cy + cz * cz)));
     return m;
   }
-  /** Le fessier (0 à 1) : derrière la hanche et en arrière de la racine de la cuisse. Son raccord à la cuisse est plus court qu'ailleurs
-   *  autour de la hanche : quand la hanche s'ouvre, le bas du fessier accompagne un peu la cuisse (fessier et ischio-jambiers d'une
-   *  seule courbe, sans marche) sans pivoter vers l'arrière avec elle (pas de bosse). */
+  /** Le fessier (0 à 1) : derrière la hanche et en arrière de la racine de la cuisse, jusqu'au haut des ischio-jambiers. Son raccord à
+   *  la cuisse est plus court qu'ailleurs autour de la hanche : quand la hanche s'ouvre, le bas du fessier accompagne un peu la cuisse
+   *  et le haut des ischio-jambiers un peu le bassin (fessier et cuisse d'une seule courbe, un pli fessier discret) sans que la fesse
+   *  pivote vers l'arrière avec la cuisse (pas de bosse). */
   function buttock(g, x, y, z) {
     if (g !== 0) return 0;
     let m = 0;
@@ -540,14 +537,14 @@ function bodyModel(J, M, gear) {
       const dx = x - G.hip.x, dy = y - G.hip.y, dz = z - G.hip.z, d2 = dx * dx + dy * dy + dz * dz;
       const t = dx * G.dT.x + dy * G.dT.y + dz * G.dT.z, a = dx * G.aT.x + dy * G.aT.y + dz * G.aT.z;
       const perp = Math.sqrt(Math.max(1e-6, d2 - t * t));
-      m = Math.max(m, ss(0.1, 0.35, -a / perp) * (1 - ss(-0.03, 0.02, t)) * (1 - ss(0.16, 0.24, Math.sqrt(d2))));
+      m = Math.max(m, ss(0.1, 0.35, -a / perp) * (1 - ss(0, 0.06, t)) * (1 - ss(0.16, 0.24, Math.sqrt(d2))));
     }
     return m;
   }
   /** Demi-largeur (m) du raccord entre deux os au sommet (x, y, z) du groupe g. */
   function blend(g, x, y, z) {
     const b = buttock(g, x, y, z);
-    return (0.034 + 0.058 * wide(g, x, y, z)) * (1 - b) + 0.058 * b;
+    return (0.034 + 0.058 * wide(g, x, y, z)) * (1 - b) + 0.075 * b;
   }
   return { sdf, region, groupOf, boneOf, blend, HF };
 }

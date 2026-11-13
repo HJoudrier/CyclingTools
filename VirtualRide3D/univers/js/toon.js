@@ -362,7 +362,7 @@
     const hasSheen = prepared.some((p) => p.sheen !== 0);
     const sheen = hasSheen ? new Float32Array(vCount) : null;
     const hasHip = prepared.some((p) => p.g.attributes.hipW);
-    const hip = hasHip ? new Float32Array(vCount) : null;
+    const hip = hasHip ? new Float32Array(vCount * 2) : null;
     const hasArm = prepared.some((p) => p.arm !== 0);
     const arm = hasArm ? new Float32Array(vCount) : null;
     const hasWing = prepared.some((p) => p.wing !== 0);
@@ -382,7 +382,7 @@
         if (wing) wing[vo + i] = p.wing;
         if (glow) glow[vo + i] = p.glow;
         if (sheen) sheen[vo + i] = p.sheen;
-        if (hip && p.g.attributes.hipW) hip[vo + i] = p.g.attributes.hipW.getX(i);
+        if (hip && p.g.attributes.hipW) { hip[(vo + i) * 2] = p.g.attributes.hipW.getX(i); hip[(vo + i) * 2 + 1] = p.g.attributes.hipW.getY(i); }
       }
       if (p.idx) { for (let k = 0; k < p.idx.length; k++) index[io + k] = p.idx[k] + vo; io += p.idx.length; }
       else { for (let k = 0; k < p.cnt; k++) index[io + k] = vo + k; io += p.cnt; }
@@ -397,7 +397,7 @@
     if (wing) geo.setAttribute('wingSide', new THREE.BufferAttribute(wing, 1));
     if (glow) geo.setAttribute('glow', new THREE.BufferAttribute(glow, 1));
     if (sheen) geo.setAttribute('sheen', new THREE.BufferAttribute(sheen, 1));
-    if (hip) geo.setAttribute('hipW', new THREE.BufferAttribute(hip, 1));
+    if (hip) geo.setAttribute('hipW', new THREE.BufferAttribute(hip, 2));
     geo.setIndex(new THREE.BufferAttribute(index, 1));
     geo.computeBoundingSphere();
     return geo;
@@ -455,14 +455,21 @@
     return m;
   }
 
-  /* Fessiers qui suivent les cuisses (cyclistes détaillés) : les sommets marqués hipW (signe : côté -x ou +x ; valeur : part du
-     mouvement de la cuisse) tournent autour de l'axe des hanches (uHipP : y, z dans le repère du maillage) de cette part de l'écart
-     d'angle de la cuisse de leur côté (uHipA, ou aHip par instance : gauche -x, droite +x ; + quand le genou monte), et se gonflent
-     à peine quand la jambe pousse (contraction du grand fessier) : le pli sous le fessier accompagne la cuisse, le bassin reste posé
-     sur la selle. */
+  /* Fessiers et cuisses (cyclistes détaillés). Chaque cuisse a son angle dans le repère du maillage (uHipA, ou aHip par instance :
+     gauche -x, droite +x ; angle depuis -y vers +z, il grandit quand le genou monte) ; uHipD : l'angle de la cuisse pour lequel le
+     bassin est dessiné, uHipP : l'axe des hanches (y, z). Les sommets du bassin portent hipW : (x) part du mouvement de la cuisse que
+     suit le bas du fessier, signée par côté, (y) 1 sur le bassin (0 ailleurs : le vélo et le reste du coureur du peloton).
+     - Quand une cuisse remonte plus que l'autre, le bas de son fessier l'accompagne (rotation autour de l'axe des hanches).
+     - Quand la hanche s'ouvre au-delà de la forme dessinée (bas du coup de pédale, danseuse : la cuisse dans le prolongement du
+       buste), le fessier ne recule pas avec elle : ce qui dépasse derrière la cuisse, à partir de la hanche et le long de la cuisse,
+       est ramené vers elle (jusqu'à HIP.flat de l'excès au-delà de HIP.r de son axe, à HIP.open rad d'ouverture ; raccord doux sur
+       HIP.soft, rien ne bouge en deçà). Le fessier et l'arrière de la cuisse forment une seule courbe, sans corniche ni pli profond. */
+  const HIP = { flat: 0.65, open: 0.9, r: 0.072, soft: 0.015, side: 0.04, from: -0.12 };
+  const f_ = (v) => v.toFixed(4);
   const HIP_PARS = [
-    'attribute float hipW;',
+    'attribute vec2 hipW;',
     'uniform vec2 uHipP;',
+    'uniform float uHipD;',
     '#ifdef HIP_INSTANCED',
     'attribute vec2 aHip;',
     '#define HIP_A aHip',
@@ -473,14 +480,30 @@
     'vec3 hipRot(vec3 v, float a, vec2 piv) { vec2 p = v.yz - piv; float c = cos(a), s = sin(a); v.yz = piv + vec2(p.x * c - p.y * s, p.x * s + p.y * c); return v; }',
     'vec3 hipDir(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c); }'
   ].join('\n');
-  // la normale d'abord (objectNormal ; n dans le contour), puis la position
+  // la normale d'abord (objectNormal ; n dans le contour), puis la position ; le même calcul que hipDeform
   const HIP_NORMAL = [
-    'float hipD_ = hipW < 0.0 ? HIP_A.x : HIP_A.y, hipK_ = abs(hipW);',
-    'float hipA_ = -hipD_ * hipK_;',
-    'float hipB_ = 0.02 * max(0.0, -hipD_) * hipK_ * (1.0 - hipK_) * 2.5;',
+    `float hipP_ = mix(HIP_A.x, HIP_A.y, smoothstep(${f_(-HIP.side)}, ${f_(HIP.side)}, position.x));`,
+    'vec2 hipU_ = vec2(-cos(hipP_), sin(hipP_)), hipN_ = vec2(-sin(hipP_), -cos(hipP_)), hipQ_ = position.yz - uHipP;',
+    `float hipS_ = ${f_(HIP.flat)} * hipW.y * smoothstep(0.0, ${f_(HIP.open)}, uHipD - hipP_) * smoothstep(${f_(HIP.from)}, 0.0, dot(hipQ_, hipU_));`,
+    `float hipE_ = max(0.0, dot(hipQ_, hipN_) - ${f_(HIP.r)}), hipH_ = hipE_ + ${f_(HIP.soft)};`,
+    'float hipF_ = -hipS_ * hipE_ * hipE_ / hipH_;',
+    `objectNormal.yz += hipN_ * dot(objectNormal.yz, hipN_) * (1.0 / (1.0 - hipS_ * hipE_ * (hipE_ + ${f_(2 * HIP.soft)}) / (hipH_ * hipH_)) - 1.0);`,
+    'float hipA_ = -max(0.0, (hipW.x < 0.0 ? HIP_A.x : HIP_A.y) - 0.5 * (HIP_A.x + HIP_A.y)) * abs(hipW.x);',
     'objectNormal = hipDir(objectNormal, hipA_);'
   ].join('\n');
-  const HIP_POS = 'transformed = hipRot(transformed, hipA_, uHipP) + normalize(objectNormal) * hipB_;';
+  const HIP_POS = 'transformed.yz += hipN_ * hipF_;\ntransformed = hipRot(transformed, hipA_, uHipP);';
+  /** Le calcul du shader en JavaScript (tests) : le point p (repère du maillage) de poids w = [x, y] de hipW, pour les angles des
+   *  cuisses a = [gauche, droite], la forme dessinée pour design, l'axe des hanches piv = [y, z]. Renvoie le point déplacé. */
+  function hipDeform(p, w, a, design, piv) {
+    const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+    const ph = a[0] + (a[1] - a[0]) * ss(-HIP.side, HIP.side, p.x);
+    const uy = -Math.cos(ph), uz = Math.sin(ph), ny = -Math.sin(ph), nz = -Math.cos(ph), qy = p.y - piv[0], qz = p.z - piv[1];
+    const s = HIP.flat * w[1] * ss(0, HIP.open, design - ph) * ss(HIP.from, 0, qy * uy + qz * uz);
+    const e = Math.max(0, qy * ny + qz * nz - HIP.r), f = -s * e * e / (e + HIP.soft);
+    const ang = -Math.max(0, (w[0] < 0 ? a[0] : a[1]) - (a[0] + a[1]) / 2) * Math.abs(w[0]);
+    const y = p.y + ny * f - piv[0], z = p.z + nz * f - piv[1], c = Math.cos(ang), sn = Math.sin(ang);
+    return p.clone().set(p.x, piv[0] + y * c - z * sn, piv[1] + y * sn + z * c);
+  }
   function hipPatch(m, uniforms, instanced) {
     const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
     m.onBeforeCompile = (shader, renderer) => {
@@ -511,5 +534,5 @@
     return m;
   }
 
-  B3D.toon = { shared, snowPatch, sheenPatch, hipPatch, glowMat, gradientMap, terrainGradientMap, mat, instancedMat, outlineMat, computeOutlineNormals, addOutline, outlineAll, merge, tr, textTexture, _m };
+  B3D.toon = { shared, snowPatch, sheenPatch, hipPatch, HIP, hipDeform, glowMat, gradientMap, terrainGradientMap, mat, instancedMat, outlineMat, computeOutlineNormals, addOutline, outlineAll, merge, tr, textTexture, _m };
 })(typeof window !== 'undefined' ? window : globalThis);

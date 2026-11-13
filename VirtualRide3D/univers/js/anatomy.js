@@ -3,7 +3,8 @@
    Des géométries sans matériau : des pièces à fusionner ({geo, color, matrix?}, comme B3D.toon.merge) pour la tête (crâne et visage,
    nez, oreilles, lèvres, yeux, sourcils, cheveux, queue de cheval, jugulaire du casque), les bras et les jambes galbés (deltoïde,
    biceps, quadriceps, mollet, tibia, chevilles ; manches, cuissard, chaussettes, couvre-chaussures), les mains gantées, les
-   chaussures, le bassin et les fessiers (une seule surface, avec le reflet du lycra, dont le bas suit les cuisses) ; le buste (épaules arrondies d'où sortent les bras, omoplates, dos rond du cycliste,
+   chaussures, le bassin et les fessiers (une seule surface, avec le reflet du lycra, dont le bas suit les cuisses et qui ne recule pas
+   quand la hanche s'ouvre : B3D.toon.hipPatch) ; le buste (épaules arrondies d'où sortent les bras, omoplates, dos rond du cycliste,
    pectoraux ou poitrine chez une femme) est une géométrie simple qui garde les coordonnées de texture de la sphère du modèle
    simple, pour le motif du maillot.
    q : 1 (détaillé) ou 2 (réaliste : plus fin, avec les finitions : col et fermeture du maillot, poches, bande de cuissard, doigts,
@@ -439,7 +440,10 @@
     center: [0, -0.03, -0.01],         // centre des rayons (repère du buste)
     saddle: -0.086,                    // dessous des fessiers posé sur la selle (repère du corps, depuis le milieu des hanches)
     hip: 0.078,                        // rayon de la rotule de chaque hanche (un peu plus que la racine de la cuisse)
-    glute: { x: 0.058, y: -0.056, z: -0.046, rx: 0.076, ry: 0.086, rz: 0.07 }, // un fessier (repère du buste) : rond, près des hanches
+    thigh: 1.745,                      // rad : angle de la cuisse (depuis le bas du buste vers le ventre) pour lequel la forme est
+                                       // dessinée, celui du milieu du coup de pédale sur les cocottes ; plus ouverte, le fessier ne
+                                       // recule pas avec la cuisse (B3D.toon.hipPatch)
+    glute: { x: 0.058, y: -0.036, z: -0.046, rx: 0.076, ry: 0.066, rz: 0.064 }, // un fessier (repère du buste) : rond, près des hanches, peu saillant
     hem: [0.042, 0.06]                 // ourlet du maillot : hauteurs (repère du buste) dans le dos, de son bas à son haut
   };
   const PB_ = Math.cos(PELVIS.beta), PS_ = Math.sin(PELVIS.beta);
@@ -448,7 +452,7 @@
   const PCOL = {
     wm: curve([[-0.12, 0.136], [-0.04, 0.148], [0.01, 0.152], [0.05, 0.15], [0.09, 0.14], [0.16, 0.122]]),
     wf: curve([[-0.12, 0.144], [-0.04, 0.156], [0.01, 0.16], [0.05, 0.155], [0.09, 0.14], [0.16, 0.116]]),
-    back: curve([[-0.12, 0.09], [-0.02, 0.106], [0.06, 0.11], [0.16, 0.108]]),
+    back: curve([[-0.12, 0.072], [-0.02, 0.098], [0.06, 0.11], [0.16, 0.108]]),
     front: curve([[-0.12, 0.075], [-0.03, 0.094], [0.04, 0.096], [0.08, 0.088], [0.16, 0.076]])
   };
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
@@ -514,8 +518,8 @@
     rows.sort((a, b) => a - b);
     return { rows, h0, h1, C };
   }
-  /** Surface du bassin, en trois pièces qui partagent leurs rangées limites : le cuissard (v ≤ h0 : reflet du lycra, poids hipW du
-      mouvement des cuisses), l'ourlet (h0 à h1) et le bas du maillot (au-dessus). */
+  /** Surface du bassin, en trois pièces qui partagent leurs rangées limites : le cuissard (v ≤ h0 : reflet du lycra ; le bas des
+      fessiers suit les cuisses, poids hipW.x), l'ourlet (h0 à h1) et le bas du maillot (au-dessus) ; hipW.y = 1 sur tout le bassin. */
   const pelvisCache = new Map();
   function pelvisSurfaces(fem, q) {
     const key = (fem ? 'f' : 'm') + q;
@@ -545,8 +549,9 @@
         const k = (j * N + i) * 3, x = pos[k], y = pos[k + 1], z = pos[k + 2];
         P.push(x, y, z); Nn.push(nor[k], nor[k + 1], nor[k + 2]);
         // part du mouvement de la cuisse de ce côté : forte en bas et vers les cuisses, nulle en haut (au-dessus des hanches, le
-        // cuissard ne bouge pas), au milieu (le sillon reste continu) et à l'ourlet (pas de fente entre le cuissard et le maillot)
-        if (hipW) hip.push(Math.sign(x) * HIP_FOLLOW * ss(0.03, -0.045, y * PB_ - z * PS_) * ss(0, 0.045, Math.abs(x)) * ss(h0, h0 - 0.12, rows[j]) * ss(0.015, -0.03, y));
+        // cuissard ne bouge pas), au milieu (le sillon reste continu) et à l'ourlet (pas de fente entre le cuissard et le maillot) ;
+        // puis 1 : un sommet du bassin (hanche ouverte, ce qui dépasse derrière la cuisse est ramené vers elle)
+        hip.push(hipW ? Math.sign(x) * HIP_FOLLOW * ss(0.03, -0.045, y * PB_ - z * PS_) * ss(0, 0.045, Math.abs(x)) * ss(h0, h0 - 0.12, rows[j]) * ss(0.015, -0.03, y) : 0, 1);
       }
       for (let k = 0; k + 1 < list.length; k++) for (let i = 0; i < N; i++) {
         const a = k * N + i, b = k * N + (i + 1) % N;
@@ -555,7 +560,7 @@
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3));
-      if (hipW) geo.setAttribute('hipW', new THREE.Float32BufferAttribute(hip, 1));
+      geo.setAttribute('hipW', new THREE.Float32BufferAttribute(hip, 2));
       geo.setIndex(ix);
       return geo;
     };
@@ -579,13 +584,16 @@
 
   /** Bassin et fessiers : le cuissard (o.color, reflet du lycra), l'ourlet et le bas du maillot (o.jersey, o.hem ; sans maillot à part,
       une combinaison : tout à la couleur du cuissard), et le trait du sillon (o.ink) ; o.tint : le maillot teinté par instance
-      (peloton). La première pièce porte les poids hipW. */
+      (peloton). Toutes portent hipW (B3D.toon.hipPatch : le bas des fessiers suit les cuisses, seulement sur le cuissard ; hanche
+      ouverte, le fessier ne recule pas avec la cuisse). */
   function pelvisParts(o) {
     const fem = !!o.fem, q = o.q || 1, color = o.color || '#26232f', S = pelvisSurfaces(fem, q);
     const jersey = o.jersey || color, hem = o.hem || (o.jersey ? new THREE.Color(o.jersey).multiplyScalar(0.7).getStyle() : color);
     const tint = o.tint ? 1 : 0;
     // le sillon, du bas de l'ourlet vers la selle, effilé vers le haut
     const cleft = pelvisLine(fem, () => 0, (t) => S.h0 - 0.03 - (S.h0 - 0.2) * t, (t) => 0.0004 + (q > 1 ? 0.0017 : 0.0022) * ss(0, 0.5, t), q > 1 ? 20 : 12);
+    // il se déforme avec le bassin (hanches ouvertes) : il reste posé dessus
+    cleft.setAttribute('hipW', new THREE.Float32BufferAttribute(new Float32Array(cleft.attributes.position.count * 2).map((v, i) => i % 2), 2));
     return [{ geo: S.shorts, color, sheen: 1 }, { geo: S.hem, color: hem, tint }, { geo: S.jersey, color: jersey, tint }, { geo: cleft, color: o.ink || '#141218' }];
   }
 

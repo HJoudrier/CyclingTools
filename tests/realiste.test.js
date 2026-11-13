@@ -319,6 +319,42 @@ test('réaliste : fessiers en danseuse et au pédalage (pose de référence sym�
   }
 });
 
+test('réaliste : pli sous la fesse discret, la cuisse dans le prolongement du buste (danseuse, de profil)', async () => {
+  const B = await imp('body.js');
+  const K = await imp('bike.js');
+  const THREE = await import('three');
+  for (const sex of ['m', 'f']) {
+    const G = K.normGear({ frame: 'aero', position: 'hoods', clothing: 'fitted', helmet: 'road', sex });
+    const L = K.frameLayout(G.frame), M = B.morphology(sex), P = K.plan(L, 'hoods', false, M), S = K.plan(L, 'hoods', true, M);
+    const J0 = B.restJoints(P, L.BB, M), g = B.buildBody(J0, G, 0.016), inv = B.restInverse(J0);
+    const pos = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, RW = g.attributes.aRegW, n = pos.count;
+    for (const [name, plan, stand] of [['danseuse', S, 1], ['assis', P, 0]]) {
+      // pédale droite en bas : la hanche droite est ouverte au plus (danseuse : 140°, la cuisse presque dans le prolongement du buste)
+      const J = B.joints(plan, 0.3, L.BB, M, { stand });
+      if (stand) assert.ok(B.hipAngle(J, 'R') > 130 * Math.PI / 180, `hanche ouverte : ${(B.hipAngle(J, 'R') * 180 / Math.PI).toFixed(0)}°`);
+      const mats = B.boneEnds(J).map(([a, b, lat], k) => B.boneFrame(a, b, lat, new THREE.Matrix4()).multiply(inv[k]));
+      // de profil, dans le plan de la cuisse droite : distance à l'axe de la cuisse vers l'arrière, tous les 2 cm le long de la cuisse
+      const hip = J.hipR, d = J.knR.clone().sub(hip).normalize(), back = new THREE.Vector3(0, d.z, -d.y);
+      if (back.z > 0) back.negate();
+      const prof = new Map(), v = new THREE.Vector3(), acc = new THREE.Vector3(), t = new THREE.Vector3();
+      for (let i = 0; i < n; i++) {
+        if (RW.getX(i) + RW.getY(i) + RW.getZ(i) + RW.getW(i) < 0.5) continue;
+        v.fromBufferAttribute(pos, i); acc.set(0, 0, 0);
+        for (let k = 0; k < 4; k++) { const w = SW.getComponent(i, k); if (w > 0) acc.addScaledVector(t.copy(v).applyMatrix4(mats[SI.getComponent(i, k)]), w); }
+        if (Math.abs(acc.x - hip.x) > 0.03) continue;
+        acc.sub(hip);
+        const b = Math.round(acc.dot(d) * 50);
+        if (b >= -3 && b <= 7) prof.set(b, Math.max(prof.get(b) ?? -1, acc.dot(back)));
+      }
+      // pli : le creux du profil entre la fesse (au-dessus) et l'arrière de la cuisse (en dessous)
+      const p = [...prof.keys()].sort((a, b) => a - b).map((k) => prof.get(k));
+      let fold = 0;
+      for (let i = 1; i + 1 < p.length; i++) fold = Math.max(fold, Math.min(Math.max(...p.slice(0, i)), Math.max(...p.slice(i + 1))) - p[i]);
+      assert.ok(p.length >= 10 && fold < (stand ? 0.01 : 0.005), `${sex}, ${name} : pli de ${(fold * 100).toFixed(1)} cm sous la fesse`);
+    }
+  }
+});
+
 test('réaliste : le vélo sous le coureur (pieds sur les pédales, transmission à droite, disques à gauche, selle plate)', async () => {
   const B = await imp('body.js');
   const K = await imp('bike.js');

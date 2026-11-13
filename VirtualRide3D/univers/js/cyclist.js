@@ -821,13 +821,14 @@
       // dessus (le bas du buste y est caché) ; le trait du sillon, sans contour
       const pp = A.pelvisParts({ q, fem, color: shorts, jersey: J.base, hem: suit ? J.base : null });
       const seat = pp.slice(0, 3), creases = pp.slice(3);
-      const hipU = this.hipU = { uHipP: { value: new THREE.Vector2() }, uHipA: { value: new THREE.Vector2() } };
-      const T = B3D.toon;
-      this.pelvis = new THREE.Mesh(T.merge(seat), T.hipPatch(T.sheenPatch(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: T.gradientMap() })), hipU, false));
+      const hipU = this.hipU = { uHipP: { value: new THREE.Vector2() }, uHipA: { value: new THREE.Vector2() }, uHipD: { value: A.PELVIS.thigh } };
+      const T = B3D.toon, hipMat = T.hipPatch(T.sheenPatch(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: T.gradientMap() })), hipU, false);
+      this.pelvis = new THREE.Mesh(T.merge(seat), hipMat);
       this.pelvis.scale.set(this.torsoK, 1, this.torsoK); // tenue ample : cuissard ample, comme le maillot
       this.body.add(this.pelvis);
       addOutline(this.pelvis, { width: 0.8, minW: 0.004, maxW: 0.03, hip: { uniforms: hipU } });
-      this._parts(creases, 0, this.pelvis);
+      // le sillon, déformé avec le bassin (il reste posé dessus)
+      this._parts(creases, 0, this.pelvis).material = hipMat;
       // tête : crâne et visage, nez et oreilles (contour fin), yeux et lèvres, cheveux, casque et lunettes
       this.head = new THREE.Group();
       this.head.scale.setScalar(HEAD_FINE);
@@ -1171,9 +1172,9 @@
         leg.shoe.rotation.set(pitch, 0, stand > 0.01 ? this.rock : 0, 'ZXY');
       }
       if (this.hipU) {
-        // le bas de chaque fessier suit sa cuisse : écart à l'angle moyen des deux cuisses, autour de l'axe des hanches (repère du bassin)
-        const [L, Rg] = this.legs[0].sx < 0 ? this.legs : [this.legs[1], this.legs[0]], mean = (L.theta + Rg.theta) / 2;
-        this.hipU.uHipA.value.set(L.theta - mean, Rg.theta - mean);
+        // fessiers et cuisses : l'angle de chaque cuisse dans le repère du bassin (B3D.toon.hipPatch), autour de l'axe des hanches
+        const [L, Rg] = this.legs[0].sx < 0 ? this.legs : [this.legs[1], this.legs[0]], tilt = this.pelvis.rotation.x;
+        this.hipU.uHipA.value.set(L.theta + tilt, Rg.theta + tilt);
         this.pelvis.updateMatrix();
         const h = this._w[0].set(0, L.hip.y, L.hip.z).applyMatrix4(this._m.copy(this.pelvis.matrix).invert());
         this.hipU.uHipP.value.set(h.y, h.z);

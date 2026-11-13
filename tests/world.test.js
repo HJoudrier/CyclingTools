@@ -509,16 +509,22 @@ test('cyclistes 3D : trois niveaux de détail, la même pose, une cycliste', { s
   assert.ok(!real.c.tail, 'pas de queue de cheval chez un homme');
   assert.ok(f.c.shoulderX < real.c.shoulderX);
   assert.ok(real.c.arms.every((a) => !a.shoulder), 'modèles fins : pas de boule à l\'épaule');
-  // les fessiers suivent les cuisses : angles opposés autour de leur moyenne, qui s'inversent au demi-tour de pédalier
+  // fessiers et cuisses : l'angle de chaque cuisse dans le repère du bassin (gauche, droite), qui s'échangent au demi-tour de pédalier ;
+  // la forme du bassin est dessinée pour le milieu du coup de pédale sur les cocottes
   const c = real.c;
   c.crank = 1;
   c.update(0, st);
-  const a1 = c.hipU.uHipA.value.clone();
+  const a1 = c.hipU.uHipA.value.clone(), tilt = c.pelvis.rotation.x;
+  assert.ok(Math.abs(a1.x - (c.legs[0].theta + tilt)) < 1e-9 && Math.abs(a1.y - (c.legs[1].theta + tilt)) < 1e-9 && c.legs[0].sx < 0, `angles des cuisses : ${a1.x.toFixed(3)}, ${a1.y.toFixed(3)}`);
+  assert.ok(Math.abs(a1.x - a1.y) > 0.2, 'une cuisse monte, l\'autre descend');
   c.crank = 1 + Math.PI;
   c.update(0, st);
   const a2 = c.hipU.uHipA.value;
-  assert.ok(Math.abs(a1.x + a1.y) < 1e-9 && Math.abs(a1.x) > 0.1, `écarts des cuisses : ${a1.x.toFixed(3)}, ${a1.y.toFixed(3)}`);
-  assert.ok(Math.abs(a2.x - a1.y) < 1e-6, 'au demi-tour, chaque fessier prend le mouvement de l\'autre');
+  assert.ok(Math.abs(a2.x - a1.y) < 1e-6 && Math.abs(a2.y - a1.x) < 1e-6, 'au demi-tour, chaque fessier prend le mouvement de l\'autre');
+  assert.equal(c.hipU.uHipD.value, B3D.anatomy.PELVIS.thigh);
+  let lo = 9, hi = -9;
+  for (let k = 0; k < 24; k++) { c.crank = k / 24 * Math.PI * 2; c.update(0, st); lo = Math.min(lo, c.hipU.uHipA.value.x); hi = Math.max(hi, c.hipU.uHipA.value.x); }
+  assert.ok(lo < B3D.anatomy.PELVIS.thigh - 0.2 && hi > B3D.anatomy.PELVIS.thigh + 0.2, 'assis : la cuisse passe de part et d\'autre de la forme dessinée');
   assert.ok(!simple.c.hipU, 'modèle simple : pas de fessiers animés');
   assert.ok(new C({ sex: 'f', detail: 'detailed' }).fem, 'sans équipement : le sexe du menu de Bike3D');
   assert.ok(!new C({ sex: 'f', gear: { sex: 'm' } }).fem, 'avec équipement : celui du profil');
@@ -627,8 +633,8 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
   const side = (fem, y) => { let x = 0; while (x < 0.3 && A.pelvisSDF(x, y, -0.02, fem) < 0) x += 0.0005; return x; };
   for (const fem of [false, true]) {
     const cheek = back(fem, 0.07, -0.06), cleft = back(fem, 0, -0.06), near = back(fem, 0.03, -0.06);
-    assert.ok(cheek < back(fem, 0.07, 0.08) - 0.02, `les fessiers bombent derrière le dos : ${cheek.toFixed(3)} m`);
-    assert.ok(cheek > -0.15, `sans excès : ${cheek.toFixed(3)} m`);
+    assert.ok(cheek < back(fem, 0.07, 0.08) - 0.008, `les fessiers bombent derrière le dos : ${cheek.toFixed(3)} m`);
+    assert.ok(cheek > back(fem, 0.07, 0.08) - (fem ? 0.024 : 0.018), `sans excès : ${cheek.toFixed(3)} m`);
     assert.ok(cleft - cheek > 0.005, 'sillon entre les fessiers');
     assert.ok(near - cheek < 0.006, 'sillon étroit : le fessier reste plein jusqu\'à 3 cm du milieu');
     assert.ok(Math.abs(back(fem, 0.02, 0.1) - back(fem, 0, 0.1)) < 0.004, 'en haut, ni sillon ni bord : le bassin se fond dans le maillot');
@@ -674,7 +680,17 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
   }
   assert.ok(Math.abs(low - A.HIP_FOLLOW) < 0.05 && high < 0.01 && mid < 0.05, `poids : bas ${low.toFixed(2)}, haut ${high.toFixed(2)}, milieu ${mid.toFixed(2)}`);
   assert.equal(seam, 0, 'pas de fente à l\'ourlet : le bord du cuissard ne bouge pas');
-  assert.ok(!seat[1].geo.attributes.hipW && !seat[2].geo.attributes.hipW, 'l\'ourlet et le maillot ne suivent pas les cuisses');
+  // l'ourlet et le maillot ne suivent pas les cuisses ; tout le bassin (sillon compris) est marqué : hanche ouverte, il se déforme
+  for (const p of seat.slice(1)) {
+    const w = p.geo.attributes.hipW;
+    assert.equal(w.itemSize, 2);
+    for (let i = 0; i < w.count; i++) assert.ok(w.getX(i) === 0 && w.getY(i) === 1, 'ourlet, maillot et sillon : marqués, sans suivre les cuisses');
+  }
+  for (let i = 0; i < hw.count; i++) assert.equal(hw.getY(i), 1, 'cuissard : marqué');
+  const other = seat[3].geo.clone();
+  other.deleteAttribute('hipW');
+  const mg = B3D.toon.merge([seat[0], { geo: other, color: '#ffffff' }]).attributes.hipW;
+  assert.ok(mg.itemSize === 2 && mg.getY(mg.count - 1) === 0 && mg.getY(0) === 1, 'fusionné avec le reste (le vélo du peloton) : seul le bassin est marqué');
   // le bassin tourne avec le buste : plus en bas du cintre (buste couché) qu'en danseuse (buste relevé)
   const V3 = B3D.toon.shared.uRider.value.constructor;
   assert.ok(A.pelvisPose(new V3(0, 0.45, 0.9)).tilt > A.pelvisPose(new V3(0, 0.9, 0.45)).tilt);
@@ -687,6 +703,52 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
   shorts.geo.computeBoundingBox(); skin.geo.computeBoundingBox();
   assert.equal(shorts.color, '#26232f');
   assert.ok(Math.abs(shorts.geo.boundingBox.max.y - 0.28) < 1e-6 && Math.abs(skin.geo.boundingBox.min.y - 0.28) < 1e-6);
+});
+
+test('cyclistes 3D : hanche ouverte (danseuse), la fesse ne recule pas avec la cuisse et ne fait pas de corniche dessus', { skip: !hasBike3d && 'Bike3D absent' }, () => {
+  const B3D = bike3d(['js/race.js', 'js/peloton.js']), A = B3D.anatomy, T = B3D.toon, C = B3D.Cyclist, V3 = T.shared.uRider.value.constructor;
+  // en danseuse, pédale droite en bas : la cuisse droite presque dans le prolongement du buste, la gauche levée
+  const c = new C({ gear: { frame: 'alu' }, detail: 'realistic' });
+  c.standT = 1; c.crank = 0.3;
+  c.update(0, { speed: 0, pedaling: false, standing: true, steer: 0 });
+  const a = [c.hipU.uHipA.value.x, c.hipU.uHipA.value.y], D = c.hipU.uHipD.value, piv = [c.hipU.uHipP.value.x, c.hipU.uHipP.value.y], tilt = c.pelvis.rotation.x;
+  assert.ok(D - a[1] > 0.8 && a[0] > D - 0.1, `cuisse droite ouverte de ${(D - a[1]).toFixed(2)} rad, gauche levée`);
+  const geo = T.merge(A.pelvisParts({ q: 2 })), P = geo.attributes.position, W = geo.attributes.hipW;
+  const pt = (i) => new V3(P.getX(i), P.getY(i), P.getZ(i)), w = (i) => [W.getX(i), W.getY(i)];
+  // les cuisses à la forme dessinée : le bassin ne bouge pas
+  for (let i = 0; i < P.count; i += 7) assert.ok(T.hipDeform(pt(i), w(i), [D, D], D, piv).distanceTo(pt(i)) < 1e-9);
+  // derrière la cuisse ouverte, dès la hanche et le long de la cuisse : ce qui dépasse de son axe est ramené vers elle (pas de corniche)
+  const u = [-Math.cos(a[1]), Math.sin(a[1])], nb = [-Math.sin(a[1]), -Math.cos(a[1])];
+  let raw = 0, def = 0, back = 0, lift = 0;
+  for (let i = 0; i < P.count; i++) {
+    const p = pt(i), q = T.hipDeform(p, w(i), a, D, piv);
+    if (p.x > 0.04 && (p.y - piv[0]) * u[0] + (p.z - piv[1]) * u[1] > -0.04) {
+      raw = Math.max(raw, (p.y - piv[0]) * nb[0] + (p.z - piv[1]) * nb[1]);
+      def = Math.max(def, (q.y - piv[0]) * nb[0] + (q.z - piv[1]) * nb[1]);
+      // la fesse ne recule pas avec la cuisse
+      lift = Math.max(lift, (q.y - p.y) * nb[0] + (q.z - p.z) * nb[1]);
+    }
+    // de profil : jusqu'où les fesses vont derrière l'axe des hanches (horizontalement, le buste incliné de tilt)
+    back = Math.max(back, -(q.y - piv[0]) * Math.sin(tilt) - (q.z - piv[1]) * Math.cos(tilt));
+  }
+  assert.ok(raw - def > 0.02 && def < 0.105, `derrière la cuisse : ${(def * 100).toFixed(1)} cm de son axe (forme dessinée : ${(raw * 100).toFixed(1)} cm)`);
+  assert.ok(lift < 1e-6, 'rien ne recule derrière la cuisse ouverte');
+  assert.ok(back < 0.135, `de profil, les fesses à ${(back * 100).toFixed(1)} cm derrière les hanches`);
+  // le bas du fessier de la cuisse levée l'accompagne (il tourne vers l'avant avec elle)
+  let moved = 0;
+  for (let i = 0; i < P.count; i++) if (W.getX(i) < -0.2) moved = Math.max(moved, T.hipDeform(pt(i), w(i), a, D, piv).distanceTo(pt(i)));
+  assert.ok(moved > 0.01, `le bas du fessier gauche suit sa cuisse : ${(moved * 100).toFixed(1)} cm`);
+  // le peloton : les angles des cuisses dans son repère, comme le cycliste du joueur
+  const Pl = new B3D.Peloton({ add() {}, remove() {} }, { sStart: 0, sEnd: 1000 }, { seed: 1, race: null, roadHalf: 3 }, { count: 2, detail: 2, sex: 'm' });
+  Pl.route.sample = (s, q) => Object.assign(q, { x: 0, y: 0, z: 0, tx: 0, tz: 1, rx: 1, rz: 0, grade: 0, curv: 0 });
+  Pl.riders.forEach((r) => Object.assign(r, { s: 5, lat: 0, latV: 0, lean: 0, rock: 0, v: 0, power: 0, crank: 1 }));
+  Pl.render(0, { getWorldPosition: (v) => v.set(0, 1.5, -3), getWorldDirection: (v) => v.set(0, 0, 1) });
+  const body = [...Pl.bodies.values()].find((b) => b.hip);
+  const cy = new C({ gear: { frame: 'classic' }, detail: 'realistic' });
+  cy.crank = 1;
+  cy.update(0, { speed: 0, pedaling: false, standing: false, steer: 0 });
+  const hx = body.hip.getX(0), hy = body.hip.getY(0);
+  assert.ok(Math.abs(hx - cy.legs[0].theta) < 0.02 && Math.abs(hy - cy.legs[1].theta) < 0.02, `peloton : les angles des cuisses (${hx.toFixed(3)}, ${hy.toFixed(3)} ; joueur : ${cy.legs[0].theta.toFixed(3)}, ${cy.legs[1].theta.toFixed(3)})`);
 });
 
 test('cyclistes 3D : visage (les yeux à mi-hauteur de la tête, un nez qui dépasse, des lunettes devant les yeux)', { skip: !hasBike3d && 'Bike3D absent' }, () => {
