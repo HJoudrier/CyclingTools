@@ -64,16 +64,22 @@ vec3 jerseyColor(vec3 p) {
 }
 vec3 bodyAlbedo() {
   int R = int(vRegion + 0.5);
-  // peau, maillot, cuissard, chaussette : la zone la plus présente au pixel (poids interpolés entre les sommets)
-  if (R <= ${REGION.SOCK} && dot(vRegW, vec4(1.0)) > 0.01) {
+  // peau, maillot, cuissard, chaussette ou gant : la zone la plus présente au pixel. Les poids des deux zones d'un bord (ourlet de
+  // la manche, du cuissard, de la chaussette, col, gant) se croisent exactement sur le bord : une ligne nette entre les sommets.
+  float hem = 0.0;
+  if (dot(vRegW, vec4(1.0)) > 0.01) {
     float m = max(max(vRegW.x, vRegW.y), max(vRegW.z, vRegW.w));
-    R = m == vRegW.x ? ${REGION.JERSEY} : m == vRegW.y ? ${REGION.SHORTS} : m == vRegW.z ? ${REGION.SKIN} : ${REGION.SOCK};
+    // chaussette ou gant : les pieds sont en bas, les mains en haut (pose de référence)
+    R = m == vRegW.x ? ${REGION.JERSEY} : m == vRegW.y ? ${REGION.SHORTS} : m == vRegW.z ? ${REGION.SKIN} : (vRef.y < 0.62 ? ${REGION.SOCK} : ${REGION.GLOVE});
+    // ourlet : une bande un peu plus sombre au bord du tissu, côté tissu
+    float second = vRegW.x + vRegW.y + vRegW.z + vRegW.w - m;
+    hem = R == ${REGION.SKIN} ? 0.0 : smoothstep(0.08, 0.3, second);
   }
   bRough = 0.5; bMetal = 0.0; bCoat = 0.0; bSheen = 0.0;
   if (R == ${REGION.SKIN}) { bRough = 0.48; return vSkinTone; }
-  if (R == ${REGION.JERSEY}) { bRough = 0.62; bSheen = 0.35; return jerseyColor(vRef); }
-  if (R == ${REGION.SHORTS}) { bRough = 0.38; bSheen = 0.3; return uShorts; }
-  if (R == ${REGION.SOCK}) { bRough = 0.85; bSheen = 0.4; return uSock; }
+  if (R == ${REGION.JERSEY}) { bRough = 0.62; bSheen = 0.35; return jerseyColor(vRef) * (1.0 - 0.3 * hem); }
+  if (R == ${REGION.SHORTS}) { bRough = 0.38 + 0.3 * hem; bSheen = 0.3; return uShorts + vec3(0.035) * hem; }
+  if (R == ${REGION.SOCK}) { bRough = 0.85; bSheen = 0.4; return uSock * (1.0 - 0.18 * hem); }
   if (R == ${REGION.SHOE}) { bRough = 0.3; bCoat = 0.7; return uShoe; }
   if (R == ${REGION.HELMET}) { bRough = 0.25; bCoat = 1.0; return vLook.rgb; }
   if (R == ${REGION.LENS}) { bRough = 0.06; bMetal = 0.9; bCoat = 1.0; return vec3(0.03, 0.035, 0.05); }
@@ -106,7 +112,7 @@ function bodyMaterial(engine, U, colors) {
         material.sheenColor *= bSheen;
         material.sheenRoughness = 0.4;`);
   };
-  m.customProgramCacheKey = () => 'body-v1';
+  m.customProgramCacheKey = () => 'body-v2';
   engine.prepare(m);
   const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   depth.onBeforeCompile = (shader) => {
@@ -186,7 +192,7 @@ class Batch {
 
 const TEAM_PATTERNS = [1, 2, 3, 4, 5, 6, 0, 2];
 const hex = (c) => { const col = new THREE.Color(c); return [col.r, col.g, col.b]; };
-const SKINS = ['#e8b89a', '#d9a07e', '#c68863', '#a96c48', '#7c4a2d', '#f0c8ae'].map((c) => hex(c));
+const SKINS = ['#dba383', '#cf9571', '#b97f5c', '#9a6644', '#74462b', '#e2b091'].map((c) => hex(c));   // teints hâlés des coureurs
 
 /* ---------------------------------------------------------------- les coureurs */
 
@@ -393,14 +399,17 @@ export class Riders {
       elbows: S.elbows && st < 0.5 ? S.elbows : null,
     };
     if (tk > 0.01) {
-      P.pelvis.y -= 0.03 * tk; P.pelvis.z += 0.03 * tk; P.shoulder.y -= 0.16 * tk; P.shoulder.z += 0.08 * tk;
+      // recroquevillé : le bassin bascule en avant sur la selle (il ne descend presque pas), les épaules descendent sur le cintre
+      P.pelvis.y -= 0.012 * tk; P.pelvis.z += 0.025 * tk; P.shoulder.y -= 0.15 * tk; P.shoulder.z += 0.075 * tk;
       if (S.drops) { P.hands[0].lerp(S.drops[0], tk); P.hands[1].lerp(S.drops[1], tk); }
     }
-    const bob = Math.sin(a.crank * 2) * 0.007;
-    P.pelvis.y += bob; P.shoulder.y += bob;
+    // le haut du corps d'un coureur reste presque immobile assis ; en danseuse, il monte et descend à chaque coup de pédale
+    const bob = Math.sin(a.crank * 2) * (0.003 + 0.007 * st);
+    P.pelvis.y += bob; P.shoulder.y += bob * 0.6;
     const sw = -Math.sin(a.crank) * 0.08 * st;
     P.pelvis.x += sw; P.shoulder.x += sw * 1.4;
-    const J = joints(P, a.crank, M.layout.BB, M.morph, { look: a.steer * 0.25 });
+    // le bassin bascule un peu sur la selle : la hanche de la jambe qui pousse descend
+    const J = joints(P, a.crank, M.layout.BB, M.morph, { look: a.steer * 0.25, roll: 0.03 * Math.cos(a.crank) * (1 - st), stand: st });
     const ends = boneEnds(J);
     const D = this.boneData, base = row * NB * 16;
     for (let b = 0; b < NB; b++) {
@@ -477,7 +486,7 @@ function standingJoints(sex, up) {
     J['hip' + k] = new THREE.Vector3(sx * 0.09, 0.92 * s, 0.01);
     J['kn' + k] = new THREE.Vector3(sx * 0.1, 0.5 * s, 0.03);
     J['an' + k] = new THREE.Vector3(sx * 0.1, 0.09, -0.01);
-    J['toe' + k] = new THREE.Vector3(sx * 0.11, 0.03, 0.14);
+    J['toe' + k] = new THREE.Vector3(sx * 0.11, 0.09, 0.14);   // l'os du pied est parallèle à la semelle : pied à plat
   }
   return J;
 }

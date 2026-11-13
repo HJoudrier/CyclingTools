@@ -97,12 +97,34 @@ export function clipOns(L, pro) {
   return { y, z, rise, px, py, pad: [px, py + 0.06, z], ext: pro ? [0.045, py + 0.085, z + 0.25] : [0.055, py + 0.06, z + 0.27] };
 }
 
-/** Plan de la position (comme _plan de Bike3D) : bassin, épaules, mains, coudes. */
+/* Pédalage : manivelle (m) ; pied : la cheville au-dessus (up) et en arrière (back) de l'axe de la pédale, la plante sur l'axe ;
+   fwd : bout de l'os du pied, devant l'axe. */
+export const CRANK = 0.17;
+export const FOOT = { up: 0.087, back: 0.125, fwd: 0.085 };
+/** Inclinaison du pied (rad, pointe plus basse que le talon) à la phase phi du tour (0 : pédale en haut, π/2 : devant) : presque à
+ *  plat en poussant (vers 3 heures), talon relevé en remontant (vers 9-10 heures) ; stand : en danseuse, talon plus haut. */
+export function footPitch(phi, stand) {
+  return 0.35 - 0.21 * Math.cos(phi - 1.83) + 0.12 * (stand || 0);
+}
+
+const MORPH = { shoulderX: 0.178, upperArm: 0.31, foreArm: 0.33, torso: 0.52, thigh: 0.435, shin: 0.435 };
+/** Hauteur des hanches (leur milieu) : au-dessus de la selle, là où le genou reste fléchi de 34° en bas du coup de pédale (entre 7 et
+ *  10 cm au-dessus de la selle : les ischions sont posés dessus, l'articulation est plus haut). */
+export function hipHeight(L, morph) {
+  const M = morph || MORPH, p = footPitch(Math.PI, 0);
+  const ay = L.BB.y - CRANK + FOOT.up * Math.cos(p) + FOOT.back * Math.sin(p), az = L.BB.z - FOOT.back * Math.cos(p) + FOOT.up * Math.sin(p);
+  const D2 = M.thigh * M.thigh + M.shin * M.shin + 2 * M.thigh * M.shin * Math.cos(34 * Math.PI / 180), dz = L.saddle.z + 0.02 - az;
+  return Math.max(L.saddle.y + 0.07, Math.min(L.saddle.y + 0.1, ay + Math.sqrt(Math.max(0, D2 - dz * dz))));
+}
+
+/** Plan de la position : le milieu des hanches (au-dessus de la selle), le milieu des épaules, les mains, les coudes. L'angle du buste
+ *  est cherché pour que l'épaule soit à e × longueur du bras des mains ; sur les manchettes, pour que les coudes y reposent.
+ *  stand : en danseuse (mains sur les cocottes, hanches au-dessus du boîtier de pédalier, épaules au-dessus du cintre). */
 export function plan(L, posId, stand, morph) {
-  const P = POSITIONS[posId] || POSITIONS.hoods, ck = L.cockpit;
+  const P = POSITIONS[posId] || POSITIONS.hoods, ck = L.cockpit, M = morph || MORPH;
   const side = (p) => [V(-p[0], p[1], p[2]), V(p[0], p[1], p[2])];
-  const pelvis = V(0, 1.0, L.saddle.z + 0.03);
-  const TORSO = 0.59;
+  const pelvis = V(0, hipHeight(L, M), L.saddle.z + 0.02);
+  const TORSO = M.torso || MORPH.torso;
   let hands, elbows = null, e = P.e;
   const co = P.grip === 'pads' || (P.grip === 'forearms' && L.F.bar === 'tt') ? clipOns(L, P.pro) : null;
   if (P.grip === 'pads' && co) { hands = side(co.ext); elbows = side(co.pad); }
@@ -111,18 +133,18 @@ export function plan(L, posId, stand, morph) {
   else if (P.grip === 'drops') { hands = side(ck.drops); e = ck.dropsE; }
   else hands = side(ck[P.grip] || ck.hoods);
   let a = 0.6;
-  if (elbows) a = Math.asin(Math.max(0.05, Math.min(0.95, (elbows[1].y + 0.28 - pelvis.y) / TORSO)));
+  if (elbows) a = Math.asin(Math.max(0.05, Math.min(0.95, (elbows[1].y + M.upperArm * 0.9 - pelvis.y) / TORSO)));
   else {
-    const h = hands[1], reach = (morph ? morph.upperArm + morph.foreArm : 0.585) * 1.02 * e;
+    const h = hands[1], reach = (M.upperArm + M.foreArm) * e;
     let lo = 0.08, hi = 1.3;
     for (let k = 0; k < 22; k++) {
       a = (lo + hi) / 2;
-      const d = Math.hypot(Math.abs(h.x) - (morph ? morph.shoulderX : 0.19), h.y - (pelvis.y + TORSO * Math.sin(a) - 0.03), h.z - (pelvis.z + TORSO * Math.cos(a) - 0.03));
+      const d = Math.hypot(Math.abs(h.x) - M.shoulderX, h.y - (pelvis.y + TORSO * Math.sin(a)), h.z - (pelvis.z + TORSO * Math.cos(a)));
       if (d < reach) lo = a; else hi = a;
     }
   }
+  if (stand) { pelvis.y += 0.075; pelvis.z += 0.17; a = 0.66; }
   const shoulder = V(0, pelvis.y + TORSO * Math.sin(a), pelvis.z + TORSO * Math.cos(a));
-  if (stand) { pelvis.y += 0.16; pelvis.z += 0.2; shoulder.y += 0.06; shoulder.z += 0.1; }
   const drops = ck.dropBar && (P.grip === 'hoods' || P.grip === 'tops') ? side(ck.drops) : null;
   return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1, clipOns: co };
 }
@@ -279,12 +301,12 @@ function wheel(spec, tire, front, wide) {
     // moyeu
     g.tube([V(-0.045, 0, 0), V(-0.03, 0, 0), V(0.03, 0, 0), V(0.045, 0, 0)], 0.022, 0.022, MAT.darkMetal, 16);
   }
-  // disque de frein et cassette
+  // disque de frein (à gauche du coureur : x > 0) et cassette (à droite, le grand pignon contre les rayons)
   if (!front) {
-    g.tube([V(-0.035, 0, 0), V(-0.033, 0, 0)], 0.08, 0.08, MAT.steel, 32);
-    if (!LOW) for (let k = 0; k < 11; k++) g.tube([V(0.028 + k * 0.0038, 0, 0), V(0.0295 + k * 0.0038, 0, 0)], 0.022 + k * 0.0034, 0.022 + k * 0.0034, MAT.chain, 24);
+    g.tube([V(0.033, 0, 0), V(0.035, 0, 0)], 0.08, 0.08, MAT.steel, 32);
+    if (!LOW) for (let k = 0; k < 11; k++) g.tube([V(-0.0295 - k * 0.0038, 0, 0), V(-0.028 - k * 0.0038, 0, 0)], 0.056 - k * 0.0034, 0.056 - k * 0.0034, MAT.chain, 24);
   } else {
-    g.tube([V(-0.035, 0, 0), V(-0.033, 0, 0)], 0.07, 0.07, MAT.steel, 32);
+    g.tube([V(0.033, 0, 0), V(0.035, 0, 0)], 0.07, 0.07, MAT.steel, 32);
   }
   return g.build();
 }
@@ -292,12 +314,14 @@ function wheel(spec, tire, front, wide) {
 function crankset(L, gear) {
   const g = new GB();
   // plateaux, araignée, manivelles, pédales (repère centré sur l'axe du pédalier)
-  g.tube([V(0.045, 0, 0), V(0.049, 0, 0)], 0.105, 0.105, MAT.carbon, 48);
-  g.tube([V(0.052, 0, 0), V(0.0555, 0, 0)], 0.082, 0.082, MAT.darkMetal, 40);
+  // (les plateaux à la droite du coureur : x < 0)
+  g.tube([V(-0.049, 0, 0), V(-0.045, 0, 0)], 0.105, 0.105, MAT.carbon, 48);
+  g.tube([V(-0.0555, 0, 0), V(-0.052, 0, 0)], 0.082, 0.082, MAT.darkMetal, 40);
   g.tube([V(-0.07, 0, 0), V(0.07, 0, 0)], 0.012, 0.012, MAT.darkMetal, 10);
   for (const sx of [-1, 1]) {
-    // manivelle : de l'axe vers la pédale, côté droit vers le haut à crank = 0 (convention de Bike3D)
-    const dir = sx > 0 ? V(0, 1, 0) : V(0, -1, 0);
+    // manivelle : de l'axe vers la pédale ; à crank = 0, la pédale du côté x < 0 (la droite du coureur) est en haut (convention de
+    // Bike3D, celle des pieds du coureur : body.js)
+    const dir = sx > 0 ? V(0, -1, 0) : V(0, 1, 0);
     const a = V(sx * 0.075, 0, 0), b = V(sx * 0.085, dir.y * 0.17, 0);
     g.tube([a, b], 0.012, 0.01, gear.frame === 'tt' || gear.frame === 'aero' ? MAT.carbon : MAT.alu, 8, 2);
     // pédale automatique
@@ -354,9 +378,12 @@ function bikeStatic(L, gear) {
     const wdt = 0.072 * (1 - Math.pow(tt, 1.6)) + 0.016;
     sp.push([z, wdt, sad.y + 0.012 * Math.sin(tt * Math.PI) - 0.008 * tt]);
   }
+  // coque plate : large derrière, étroite au bec, de 2 cm d'épaisseur ; le dessus est à la hauteur de la selle
+  const TH = 0.01;
   for (let i = 0; i < sp.length - 1; i++) {
     const [z0, w0, y0] = sp[i], [z1, w1, y1] = sp[i + 1];
-    g.tube([V(0, y0, z0), V(0, y1, z1)], w0, w1, MAT.saddle, 14, 0.32 * 0.32 * 9.7, false);
+    const pf = TH / ((w0 + w1) / 2), k = Math.sqrt(pf);
+    g.tube([V(0, y0 - TH, z0), V(0, y1 - TH, z1)], w0 * k, w1 * k, MAT.saddle, 14, pf, i === 0 || i === sp.length - 2);
   }
   g.tube([V(-0.02, sad.y - 0.01, sad.z - 0.1), V(-0.02, sad.y - 0.015, sad.z + 0.11)], 0.0035, 0.0035, MAT.steel, 6);
   g.tube([V(0.02, sad.y - 0.01, sad.z - 0.1), V(0.02, sad.y - 0.015, sad.z + 0.11)], 0.0035, 0.0035, MAT.steel, 6);
@@ -397,13 +424,13 @@ function bikeStatic(L, gear) {
     }
   }
   // freins à disque (étriers), dérailleur, chaîne
-  g.box(V(-0.045, R + 0.06, -0.5 + 0.04), 0.012, 0.025, 0.035, MAT.darkMetal, 0.6);
-  g.box(V(-0.045, R + 0.06, frontAxle.z - 0.04), 0.012, 0.025, 0.035, MAT.darkMetal, -0.6);
-  g.box(V(0.075, R - 0.07, -0.5 + 0.01), 0.008, 0.045, 0.02, MAT.darkMetal, 0.3);
+  g.box(V(0.045, R + 0.06, -0.5 + 0.04), 0.012, 0.025, 0.035, MAT.darkMetal, 0.6);
+  g.box(V(0.045, R + 0.06, frontAxle.z - 0.04), 0.012, 0.025, 0.035, MAT.darkMetal, -0.6);
+  g.box(V(-0.075, R - 0.07, -0.5 + 0.01), 0.008, 0.045, 0.02, MAT.darkMetal, 0.3);
   // chaîne : brin supérieur et inférieur entre plateau et pignons
   const cy = BB.y, cz = BB.z;
-  g.tube([V(0.052, cy + 0.1, cz), V(0.05, R + 0.04, -0.5)], 0.0045, 0.0045, MAT.chain, 6, 3);
-  g.tube([V(0.052, cy - 0.1, cz), V(0.06, R - 0.09, -0.5 + 0.03), V(0.06, R - 0.03, -0.5)], 0.0045, 0.0045, MAT.chain, 6, 3);
+  g.tube([V(-0.052, cy + 0.1, cz), V(-0.05, R + 0.04, -0.5)], 0.0045, 0.0045, MAT.chain, 6, 3);
+  g.tube([V(-0.052, cy - 0.1, cz), V(-0.06, R - 0.09, -0.5 + 0.03), V(-0.06, R - 0.03, -0.5)], 0.0045, 0.0045, MAT.chain, 6, 3);
   // bidon et porte-bidon
   if (F.bottle) {
     const B = L.bottle, d = B.dir;
