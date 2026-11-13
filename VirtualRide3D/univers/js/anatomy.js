@@ -439,7 +439,7 @@
     center: [0, -0.03, -0.01],         // centre des rayons (repère du buste)
     saddle: -0.086,                    // dessous des fessiers posé sur la selle (repère du corps, depuis le milieu des hanches)
     hip: 0.078,                        // rayon de la rotule de chaque hanche (un peu plus que la racine de la cuisse)
-    glute: { x: 0.058, y: -0.07, z: -0.05, rx: 0.076, ry: 0.1, rz: 0.07 }, // un fessier (repère du buste) : allongé le long du dos
+    glute: { x: 0.058, y: -0.056, z: -0.046, rx: 0.076, ry: 0.086, rz: 0.07 }, // un fessier (repère du buste) : rond, près des hanches
     hem: [0.042, 0.06]                 // ourlet du maillot : hauteurs (repère du buste) dans le dos, de son bas à son haut
   };
   const PB_ = Math.cos(PELVIS.beta), PS_ = Math.sin(PELVIS.beta);
@@ -475,10 +475,11 @@
     d = smin(d, Math.sqrt(hx * hx + y * y + z * z) - PELVIS.hip * (fem ? 1.03 : 1), 0.025);
     // repère du corps (depuis le milieu des hanches)
     const yb = y * PB_ - z * PS_, zb = y * PS_ + z * PB_;
-    // posé sur la selle : le dessous des fessiers s'aplatit au milieu et retombe de chaque côté de la selle (derrière les hanches
-    // seulement : devant, l'entrejambe et la racine des cuisses)
-    const seat = PELVIS.saddle - 0.015 * ss(0.05, 0.16, Math.abs(x)) - 3 * Math.max(0, zb + 0.02);
-    return smax(d, seat - yb, 0.06);
+    // posé sur la selle : le dessous s'aplatit là où il touche la selle, juste derrière les hanches (ni devant, l'entrejambe et la
+    // racine des cuisses, ni à l'arrière des fessiers, qui reste rond : un dessous plat ferait une corniche quand la cuisse descend
+    // ou en danseuse) ; il retombe un peu de chaque côté de la selle
+    const seat = PELVIS.saddle - 0.012 * ss(0.05, 0.16, Math.abs(x)) - 3 * Math.max(0, zb + 0.02) - 3 * Math.max(0, -0.075 - zb);
+    return smax(d, seat - yb, 0.045);
   }
   const pelvisDir = (a, v) => { const f = v * Math.PI; return V(Math.sin(f) * Math.sin(a), -Math.cos(f), -Math.sin(f) * Math.cos(a)); };
   /** Point de la surface du bassin (repère du buste) sur le rayon (a, v) : a, angle autour du dos (0 au milieu du dos, π/2 sur le

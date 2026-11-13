@@ -256,6 +256,69 @@ test('réaliste : posture d\'un coureur professionnel (hanches au-dessus de la s
   void THREE;
 });
 
+test('réaliste : fessiers en danseuse et au pédalage (pose de référence symétrique, fessier qui suit le bassin, pas de déchirure à l\'entrejambe)', async () => {
+  const B = await imp('body.js');
+  const K = await imp('bike.js');
+  const THREE = await import('three');
+  const G = K.normGear({ frame: 'aero', position: 'hoods', clothing: 'fitted', helmet: 'road', sex: 'm' });
+  const L = K.frameLayout(G.frame), M = B.morphology('m'), P = K.plan(L, 'hoods', false, M), S = K.plan(L, 'hoods', true, M);
+  // pose de référence : les deux jambes à la même phase, la hanche entre sa flexion la plus forte et son ouverture la plus grande
+  const J0 = B.restJoints(P, L.BB, M);
+  assert.ok(Math.abs(B.hipAngle(J0, 'L') - B.hipAngle(J0, 'R')) < 1e-9 && Math.abs(J0.knL.z - J0.knR.z) < 1e-9, 'pose de référence symétrique');
+  let lo = 9, hi = 0;
+  for (let c = 0; c < Math.PI * 2; c += 0.05) { const a = B.hipAngle(B.joints(P, c, L.BB, M), 'L'); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+  const a0 = B.hipAngle(J0, 'L');
+  assert.ok(a0 > lo + 0.3 * (hi - lo) && a0 < hi - 0.2 * (hi - lo), `hanche de référence ${(a0 * 180 / Math.PI).toFixed(0)}° entre ${(lo * 180 / Math.PI).toFixed(0)} et ${(hi * 180 / Math.PI).toFixed(0)}°`);
+  // le corps déformé comme sur la carte graphique (texture des os) : assis et en danseuse, jambes opposées
+  const g = B.buildBody(J0, G, 0.016), inv = B.restInverse(J0);
+  const pos = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, RW = g.attributes.aRegW, n = pos.count;
+  const body = (i) => RW.getX(i) + RW.getY(i) + RW.getZ(i) + RW.getW(i) > 0.5;
+  const skin = (J) => {
+    const mats = B.boneEnds(J).map(([a, b, lat], k) => B.boneFrame(a, b, lat, new THREE.Matrix4()).multiply(inv[k]));
+    const out = new Float32Array(n * 3), v = new THREE.Vector3(), acc = new THREE.Vector3(), t = new THREE.Vector3();
+    for (let i = 0; i < n; i++) {
+      v.fromBufferAttribute(pos, i); acc.set(0, 0, 0);
+      for (let k = 0; k < 4; k++) { const w = SW.getComponent(i, k); if (w > 0) acc.addScaledVector(t.copy(v).applyMatrix4(mats[SI.getComponent(i, k)]), w); }
+      out.set([acc.x, acc.y, acc.z], i * 3);
+    }
+    return { out, pinv: mats[B.B.pelvis].clone().invert() };
+  };
+  const idx = g.index.array, H = J0.pelvis;
+  for (const [name, plan, crank, stand] of [['assis', P, Math.PI, 0], ['danseuse, pédale gauche en bas', S, Math.PI, 1], ['danseuse, pédale gauche en haut', S, 0, 1]]) {
+    const { out, pinv } = skin(B.joints(plan, crank, L.BB, M, { stand }));
+    // l'arrière des fessiers suit le bassin : il ne recule pas avec la cuisse quand la hanche s'ouvre (pas de bosse sous la fesse)
+    const v = new THREE.Vector3();
+    let back = 0;
+    for (let i = 0; i < n; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (!body(i) || z > H.z - 0.06 || y < H.y - 0.12 || y > H.y + 0.04 || Math.abs(x) < 0.02 || Math.abs(x) > 0.15) continue;
+      v.set(out[i * 3], out[i * 3 + 1], out[i * 3 + 2]).applyMatrix4(pinv);
+      back = Math.max(back, z - v.z);
+    }
+    assert.ok(back < 0.025, `${name} : le fessier recule de ${(back * 100).toFixed(1)} cm par rapport au bassin`);
+    // ni déchirure ni pli : autour du bassin et à l'entrejambe, aucune arête ne s'étire plus de 2,8 fois
+    let worst = 0;
+    for (let k = 0; k < idx.length; k += 3) for (let c = 0; c < 3; c++) {
+      const a = idx[k + c], b = idx[k + (c + 1) % 3];
+      if (!body(a) || !body(b) || Math.abs(pos.getY(a) - H.y) > 0.2 || pos.getZ(a) > H.z + 0.1) continue;
+      const r = Math.hypot(pos.getX(a) - pos.getX(b), pos.getY(a) - pos.getY(b), pos.getZ(a) - pos.getZ(b));
+      const d = Math.hypot(out[a * 3] - out[b * 3], out[a * 3 + 1] - out[b * 3 + 1], out[a * 3 + 2] - out[b * 3 + 2]);
+      if (r > 1e-4) worst = Math.max(worst, d / r);
+    }
+    assert.ok(worst < 2.8, `${name} : étirement de la peau ${worst.toFixed(2)}`);
+  }
+  // chaque jambe ne tire que son côté : à gauche du milieu, aucun poids de la jambe droite (et inversement)
+  for (let i = 0; i < n; i++) {
+    if (!body(i) || Math.abs(pos.getX(i)) < 0.03) continue;
+    for (let k = 0; k < 4; k++) {
+      const b = SI.getComponent(i, k), w = SW.getComponent(i, k);
+      if (w < 1e-3) continue;
+      if (pos.getX(i) < 0) assert.ok(![B.B.thighR, B.B.shinR, B.B.footR].includes(b), 'la jambe droite ne tire pas le côté gauche');
+      else assert.ok(![B.B.thighL, B.B.shinL, B.B.footL].includes(b), 'la jambe gauche ne tire pas le côté droit');
+    }
+  }
+});
+
 test('réaliste : le vélo sous le coureur (pieds sur les pédales, transmission à droite, disques à gauche, selle plate)', async () => {
   const B = await imp('body.js');
   const K = await imp('bike.js');

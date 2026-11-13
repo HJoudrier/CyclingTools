@@ -5,7 +5,7 @@
    ombres). Deux niveaux de détail : le corps fin près de la caméra, le corps simplifié au loin. Les vélos sont instanciés aussi : cadre
    à la couleur de l'équipe, roues et pédalier qui tournent. Le vélo s'incline dans les virages et suit la pente. */
 import * as THREE from 'three';
-import { joints, boneEnds, boneFrame, buildBody, restInverse, morphology, BONES, REGION } from './body.js';
+import { joints, restJoints, boneEnds, boneFrame, buildBody, restInverse, morphology, BONES, REGION } from './body.js';
 import { buildBike, plan, normGear, WHEEL_R } from './bike.js';
 
 const NB = BONES.length;
@@ -252,7 +252,7 @@ export class Riders {
     if (!BD) {
       const morph = morphology(G.sex);
       const P = plan(bike.layout, G.position, false, morph);
-      const J = joints(P, Math.PI / 2, bike.layout.BB, morph);
+      const J = restJoints(P, bike.layout.BB, morph);
       const fineGeo = buildBody(J, G, cap === 1 ? 0.0095 : 0.0125);
       const midGeo = cap === 1 ? null : buildBody(J, G, 0.021);
       const coarseGeo = cap === 1 ? null : buildBody(J, G, 0.036);

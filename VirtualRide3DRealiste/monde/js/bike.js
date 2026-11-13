@@ -147,8 +147,7 @@ export function plan(L, posId, stand, morph) {
   if (stand) { pelvis.y += 0.075; pelvis.z += 0.17; a = 0.66; }
   const shoulder = V(0, pelvis.y + TORSO * Math.sin(a), pelvis.z + TORSO * Math.cos(a));
   const drops = ck.dropBar && (P.grip === 'hoods' || P.grip === 'tops') ? side(ck.drops) : null;
-  // seat : le dessus de la selle (le dessous des fessiers s'y pose)
-  return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1, clipOns: co, seat: stand ? undefined : L.saddle.y };
+  return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1, clipOns: co };
 }
 
 /* ---------------------------------------------------------------- constructeur de géométrie */

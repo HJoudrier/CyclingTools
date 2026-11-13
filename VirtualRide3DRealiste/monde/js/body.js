@@ -1,17 +1,19 @@
 /* Virtual Ride 3D Réaliste — corps du cycliste : une seule surface continue, sans couture, construite à partir d'un champ de distance,
-   extraite en maillage (« surface nets ») dans la pose de référence (sur les cocottes, pédales à l'horizontale), puis rattachée à un
-   squelette de 15 os.
+   extraite en maillage (« surface nets ») dans la pose de référence (restJoints : la position choisie, les deux jambes à la même
+   phase, la hanche au milieu de sa course), puis rattachée à un squelette de 15 os.
    Les proportions et la posture sont celles d'un coureur professionnel (photos et images de course ; angles articulaires de la
    littérature) : hanches 8 à 9 cm au-dessus de la selle (genou fléchi de 35° en bas du coup de pédale, de 113° en haut), buste
    à 37° sur les cocottes, dos rond d'un seul arc, épaules avancées, coudes fléchis, cou projeté vers la route, casque incliné,
-   cheville qui travaille (la pointe du pied plus basse que le talon, davantage en remontant). Assis, le dessous du bassin et des
-   fessiers s'aplatit sur la selle.
+   cheville qui travaille (la pointe du pied plus basse que le talon, davantage en remontant).
    Le buste est une seule forme, du bassin posé sur la selle à la base du cou : des sections (largeur, ventre, dos) qui varient le
    long de la colonne, donc ni bosse ni raccord dans le dos ; les fessiers, les trapèzes et les pectoraux s'y fondent. Les bras et les
    jambes (deltoïde, biceps, triceps, quadriceps, ischio-jambiers, vastes, rotule, mollet, malléoles) ne se fondent dans le buste
    qu'autour de l'épaule et de la hanche : pas de palmure entre le bras et le buste, entre les cuisses.
    Chaque sommet suit les os voisins : il reçoit d'abord l'os de sa partie du corps, puis ces poids sont lissés le long de la surface
-   (plus largement autour des hanches et du milieu du dos) ; au pédalage, le bas des fessiers suit la cuisse sans cassure.
+   (plus largement autour des hanches, de l'entrejambe et du milieu du dos). Les fessiers, ronds, et l'arrière de la racine des
+   cuisses restent avec le bassin : quand la hanche s'ouvre (en danseuse, en bas du coup de pédale), la fesse ne pivote pas vers
+   l'arrière avec la cuisse, le pli fessier se creuse ; l'entrejambe suit le bassin et chaque jambe ne tire que son côté (pas de
+   déchirure entre les cuisses quand l'une monte et l'autre descend).
    Casque, lunettes, chaussures et queue de cheval sont fabriqués de la même façon et suivent leur os. Chaque sommet porte sa zone
    (peau, maillot, cuissard, chaussette, chaussure, casque, verres, gants, cheveux) et la distance au bord de la tenue : les ourlets
    (manches, cuissard, chaussettes, col, gants) sont des lignes nettes.
@@ -26,6 +28,7 @@ export const REGION = { SKIN: 0, JERSEY: 1, SHORTS: 2, SOCK: 3, SHOE: 4, HELMET:
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const NB = BONES.length;
+const LEG_L = [B.thighL, B.shinL, B.footL], LEG_R = [B.thighR, B.shinR, B.footR];
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
@@ -89,7 +92,7 @@ function profile(pts) {
 
 /** Articulations du cycliste pour une pose : pelvis (le milieu des hanches), poitrine (milieu du dos), base du cou, tête, épaules,
  *  coudes, poignets, mains, hanches, genoux, chevilles, pointes de pied.
- *  P : plan de position {pelvis, shoulder (le milieu des épaules), hands[2], elbows?, seat? (dessus de la selle)} ; crank : angle du pédalier ; morph :
+ *  P : plan de position {pelvis, shoulder (le milieu des épaules), hands[2], elbows?} ; crank : angle du pédalier ; morph :
  *  morphologie ; opts : {look (la tête tourne), roll (bascule du bassin, rad : la hanche de la jambe qui pousse descend), stand
  *  (0 à 1, en danseuse : talon plus haut), round (dos plus ou moins rond)}. */
 export function joints(P, crank, BB, morph, opts = {}) {
@@ -111,7 +114,6 @@ export function joints(P, crank, BB, morph, opts = {}) {
   J.head = J.neck.clone().add(V(0, Math.sin(ha) * nl, Math.cos(ha) * nl));
   J.headLook = opts.look || 0;
   J.headPitch = 0.36;                                  // visage penché vers la route, le casque incliné
-  J.seatY = P.seat;                                    // dessus de la selle (assis) : le dessous des fessiers s'y pose
   const roll = opts.roll || 0;
   J.latP = roll ? V(1, -roll, 0).normalize() : null;
   for (const [s, i] of [['L', 0], ['R', 1]]) {
@@ -128,10 +130,11 @@ export function joints(P, crank, BB, morph, opts = {}) {
     J['hd' + s] = hand.clone().addScaledVector(fdir, 0.03);
   }
   for (const [s, sx] of [['L', -1], ['R', 1]]) {
-    const sgn = -sx;
-    const pedal = V(sx * 0.12, BB.y + sgn * Math.cos(crank) * CRANK, BB.z + sgn * Math.sin(crank) * CRANK);
+    // phase de la pédale de ce côté (0 : en haut, π/2 : devant) ; opts.legPhase : les deux pieds à la même phase (pose de référence)
+    const phi = opts.legPhase ?? (crank + (sx < 0 ? 0 : Math.PI));
+    const pedal = V(sx * 0.12, BB.y + Math.cos(phi) * CRANK, BB.z + Math.sin(phi) * CRANK);
     // pied : la plante sur l'axe de la pédale ; il bascule autour de cet axe au fil du tour (phase depuis le point mort haut)
-    const pitch = footPitch(crank + (sgn > 0 ? 0 : Math.PI), opts.stand || 0), c = Math.cos(pitch), sn = Math.sin(pitch);
+    const pitch = footPitch(phi, opts.stand || 0), c = Math.cos(pitch), sn = Math.sin(pitch);
     const ankle = pedal.clone().add(V(0, FOOT.up * c + FOOT.back * sn, -FOOT.back * c + FOOT.up * sn));
     const hip = V(pelvis.x + sx * morph.hipX, pelvis.y - sx * morph.hipX * roll, pelvis.z);
     const knee = ik(hip, ankle, morph.thigh, morph.shin, V(sx * 0.05, 0.25, 1).normalize());
@@ -141,6 +144,31 @@ export function joints(P, crank, BB, morph, opts = {}) {
     J['pedal' + s] = pedal;
   }
   return J;
+}
+
+/** Angle de la hanche (rad) entre l'axe du buste et la cuisse de ce côté (s : 'L' ou 'R') : 180° jambe dans le prolongement du buste. */
+export function hipAngle(J, s) {
+  const u = J.chest.clone().sub(J.pelvis).normalize(), d = J['kn' + s].clone().sub(J['hip' + s]).normalize();
+  return Math.acos(Math.max(-1, Math.min(1, u.dot(d))));
+}
+
+/** Pose de référence du corps (celle où il est modelé et rattaché au squelette) : la position P, les deux jambes symétriques, à la
+ *  phase du coup de pédale où la hanche est au milieu de sa course (ni fléchie comme en haut, ni ouverte comme en bas). Au pédalage, en
+ *  danseuse ou buste relevé, le bassin et les fessiers se déforment ainsi le moins possible, et pareil des deux côtés. */
+export function restJoints(P, BB, morph) {
+  let lo = 9, hi = -9, pLo = 0, pHi = Math.PI;
+  const N = 96, ang = [];
+  for (let k = 0; k < N; k++) {
+    const a = hipAngle(joints(P, 0, BB, morph, { legPhase: k / N * Math.PI * 2 }), 'L');
+    ang.push(a);
+    if (a < lo) { lo = a; pLo = k; } if (a > hi) { hi = a; pHi = k; }
+  }
+  // sur la descente de la pédale (de la hanche la plus fléchie à la plus ouverte), la phase du milieu, un peu plus ouverte : en
+  // danseuse et en bas du coup de pédale, la hanche s'ouvre bien plus qu'elle ne se ferme en haut
+  const mid = lo + (hi - lo) * 0.68;
+  let best = pLo, bestD = 9;
+  for (let k = pLo; k !== pHi; k = (k + 1) % N) if (Math.abs(ang[k] - mid) < bestD) { bestD = Math.abs(ang[k] - mid); best = k; }
+  return joints(P, 0, BB, morph, { legPhase: best / N * Math.PI * 2 });
 }
 
 function ik(a, b, l1, l2, bend) {
@@ -188,7 +216,7 @@ export function boneFrame(a, b, lat, out, yaw) {
 export function morphology(sex) {
   const f = sex === 'f';
   return {
-    f, shoulderX: f ? 0.16 : 0.178, hipX: f ? 0.09 : 0.088, torso: f ? 0.49 : 0.52, neck: f ? 0.156 : 0.165, pelvisLen: f ? 0.088 : 0.09,
+    f, shoulderX: f ? 0.16 : 0.178, hipX: f ? 0.09 : 0.088, torso: f ? 0.49 : 0.52, neck: f ? 0.156 : 0.165, pelvisLen: f ? 0.056 : 0.058,
     upperArm: f ? 0.292 : 0.31, foreArm: f ? 0.31 : 0.33, thigh: f ? 0.428 : 0.435, shin: f ? 0.425 : 0.435,
     chestW: f ? 0.14 : 0.158, chestD: f ? 0.098 : 0.106, waistW: f ? 0.116 : 0.131, hipW: f ? 0.158 : 0.152, glute: f ? 0.08 : 0.075,
     armR: f ? 0.036 : 0.042, thighR: f ? 0.083 : 0.084, calfR: f ? 0.051 : 0.055, neckR: f ? 0.048 : 0.056, headS: f ? 0.94 : 1,
@@ -211,11 +239,11 @@ function makeTrunk(J, M) {
   const cx = P2.x - P0.x, cy = P2.y - P0.y, cz = P2.z - P0.z, cc = cx * cx + cy * cy + cz * cz;
   // repères le long de l'arc : hanches en fH, puis part k du trajet des hanches au cou
   const fH = M.pelvisLen / L, f = (k) => fH + (1 - fH) * k;
-  const W = profile([[0, 0.098], [fH * 0.5, 0.14], [fH, M.hipW], [f(0.14), M.hipW - 0.008], [f(0.33), M.waistW], [f(0.55), (M.waistW + M.chestW) / 2 + 0.004],
+  const W = profile([[0, 0.072], [fH * 0.5, 0.118], [fH, M.hipW], [f(0.14), M.hipW - 0.008], [f(0.33), M.waistW], [f(0.55), (M.waistW + M.chestW) / 2 + 0.004],
     [f(0.74), M.chestW + 0.004], [f(0.87), M.chestW + 0.008], [f(0.95), M.chestW - 0.006], [1, 0.1]]);
   const DV = profile([[0, 0.05], [fH, 0.082], [f(0.14), 0.088], [f(0.33), 0.09], [f(0.55), 0.096], [f(0.74), M.chestD], [f(0.87), M.chestD - 0.012], [f(0.95), 0.075], [1, 0.06]]);
-  const DD = profile([[0, 0.062], [fH, 0.086], [f(0.14), 0.087], [f(0.33), 0.088], [f(0.55), 0.094], [f(0.74), 0.101], [f(0.87), 0.1], [f(0.95), 0.09], [1, 0.072]]);
-  const capA = 0.05, capB = 0.045;
+  const DD = profile([[0, 0.05], [fH, 0.084], [f(0.14), 0.087], [f(0.33), 0.088], [f(0.55), 0.094], [f(0.74), 0.101], [f(0.87), 0.1], [f(0.95), 0.09], [1, 0.072]]);
+  const capA = 0.045, capB = 0.045;
   const o = { s: 0, lx: 0, ld: 0, la: 0, u: 0 };
   function coord(x, y, z, out) {
     let u = clamp(((x - P0.x) * cx + (y - P0.y) * cy + (z - P0.z) * cz) / cc, 0, 1);
@@ -306,7 +334,7 @@ function bodyModel(J, M, gear) {
   for (const sx of [-1, 1]) {
     // fessiers : derrière et sous les hanches, posés sur l'arrière de la selle ; larges et peu saillants, dans la ligne du dos
     // (sur les photos de coureurs assis, le bas du dos descend vers la selle d'un seul arrondi)
-    trunk.push(elp(ell(pc.clone().addScaledVector(X, sx * 0.068).addScaledVector(pt, -0.02), pt, X, M.glute + 0.004, 0.105, M.glute + 0.016), 0.07));
+    trunk.push(elp(ell(pc.clone().addScaledVector(X, sx * 0.064).addScaledVector(pt, 0.01), pt, X, M.glute + 0.002, 0.074, M.glute), 0.06));
     // trapèze et clavicule : du cou à la pointe de l'épaule
     const sh = J[sx < 0 ? 'shL' : 'shR'];
     const st = T.tangent(1), sd = V(0, st.z, -st.y).normalize();
@@ -365,6 +393,7 @@ function bodyModel(J, M, gear) {
     L.push(cone(hip.clone().addScaledVector(dT, 0.06), kn, r * 0.97, 0.05, 0));
     L.push(elp(ell(hip.clone().lerp(kn, 0.42).addScaledVector(aT, 0.022).addScaledVector(out, 0.004), dT, X, r * 0.86, LT * 0.43, r * 0.72), 0.04));    // quadriceps
     L.push(elp(ell(hip.clone().lerp(kn, 0.46).addScaledVector(aT, -0.02), dT, X, r * 0.76, LT * 0.4, r * 0.62), 0.04));                              // ischio-jambiers
+    L.push(elp(ell(hip.clone().lerp(kn, 0.24).addScaledVector(aT, -0.03), dT, X, r * 0.8, LT * 0.22, r * 0.66), 0.05));                              // haut des ischio-jambiers, adducteurs
     L.push(elp(ell(hip.clone().lerp(kn, 0.5).addScaledVector(out, 0.018).addScaledVector(aT, 0.008), dT, X, r * 0.56, LT * 0.36, r * 0.62), 0.04));   // vaste externe
     L.push(elp(ell(hip.clone().lerp(kn, 0.84).addScaledVector(aT, 0.014).addScaledVector(out, -0.021), dT, X, 0.036, 0.06, 0.036), 0.03));            // vaste interne
     L.push(ball(kn, 0.05, 0.03));
@@ -377,7 +406,7 @@ function bodyModel(J, M, gear) {
     const fw = toe.clone().sub(an).normalize(), up = V(0, fw.z, -fw.y).normalize();
     L.push(cone(an.clone().addScaledVector(up, -0.03).addScaledVector(fw, -0.03), an.clone().addScaledVector(fw, 0.17).addScaledVector(up, -0.045), 0.033, 0.026, 0.02));
     const bis = dT.clone().add(dS).normalize();
-    legs.push({ list: L, joint: hip, k: 0.07, r0: 0.15, r1: 0.26, path: [hip, kn, an, toe], R: 0.12, s, sx, hip, kn, an, dT, LT, dS, LS, bis, bones: [B['thigh' + s], B['shin' + s], B['foot' + s]] });
+    legs.push({ list: L, joint: hip, k: 0.07, r0: 0.15, r1: 0.26, path: [hip, kn, an, toe], R: 0.12, s, sx, hip, kn, an, dT, aT, LT, dS, LS, bis, bones: [B['thigh' + s], B['shin' + s], B['foot' + s]] });
   }
   const limbs = arms.concat(legs);
   for (const g of limbs) {
@@ -385,12 +414,7 @@ function bodyModel(J, M, gear) {
     g.cx = c.x; g.cy = c.y; g.cz = c.z; g.RR = bb.min.distanceTo(bb.max) / 2 + g.R;
   }
   const limbD = (g, x, y, z) => evalGroup(g.list, x, y, z);
-  // assis : le dessous du bassin et des fessiers s'aplatit sur la selle, et retombe un peu de chaque côté
-  const seatY = J.seatY;
-  const trunkD = seatY === undefined ? (x, y, z) => evalGroup(trunk, x, y, z) : (x, y, z) => {
-    const d = evalGroup(trunk, x, y, z), cut = seatY - 0.008 - 0.022 * ss(0.05, 0.15, Math.abs(x)) - y;
-    return cut < -0.06 ? d : -smin(-d, -cut, 0.03);
-  };
+  const trunkD = (x, y, z) => evalGroup(trunk, x, y, z);
   // plus proche du cou ou de la tête que du reste du buste
   const headish = (x, y, z) => {
     let dh = 1e9, db = 1e9;
@@ -480,18 +504,52 @@ function bodyModel(J, M, gear) {
       return tc.u < T.uc ? B.pelvis : B.chest;
     }
     const G = limbs[g - 1], j = G.path;
+    if (g >= 3) {
+      // arrière de la racine de la cuisse, sous le fessier (autour de l'ischion, d'où partent les ischio-jambiers) : il reste avec le
+      // bassin ; quand la hanche s'ouvre (bas du coup de pédale, danseuse), il ne pivote pas vers l'arrière sous le fessier, le pli
+      // fessier se creuse
+      const dx = x - G.hip.x, dy = y - G.hip.y, dz = z - G.hip.z;
+      const t = dx * G.dT.x + dy * G.dT.y + dz * G.dT.z, a = dx * G.aT.x + dy * G.aT.y + dz * G.aT.z;
+      const perp = Math.sqrt(Math.max(1e-12, dx * dx + dy * dy + dz * dz - t * t));
+      if (t < 0.045 && a < -0.25 * perp) return B.pelvis;
+      // entrejambe : entre les racines des deux cuisses, la peau suit le bassin (chaque cuisse s'y raccorde de son côté) ; sinon,
+      // quand une cuisse monte et l'autre descend, la surface entre elles s'étire
+      if (Math.abs(x - J.pelvis.x) < 0.03 && y < J.pelvis.y - 0.04 && Math.abs(z - J.pelvis.z) < 0.16) return B.pelvis;
+    }
     if ((x - j[1].x) * G.bis.x + (y - j[1].y) * G.bis.y + (z - j[1].z) * G.bis.z <= 0) return G.bones[0];
     const d2 = g <= 2 ? G.dF : G.dS;
     return (x - j[2].x) * d2.x + (y - j[2].y) * d2.y + (z - j[2].z) * d2.z > (g <= 2 ? 0 : 0.012) ? G.bones[2] : G.bones[1];
   }
-  /** Lissage supplémentaire des poids (0 à 1) : autour des hanches (le bas des fessiers suit la cuisse) et au milieu du dos. */
+  /** Lissage supplémentaire des poids (0 à 1) : autour des hanches (raccord progressif du bassin à la cuisse) et au milieu du dos. */
   function wide(g, x, y, z) {
     let m = 0;
     for (const G of legs) m = Math.max(m, 1 - ss(0.13, 0.24, Math.hypot(x - G.hip.x, y - G.hip.y, z - G.hip.z)));
     if (g === 0) { T.coord(x, y, z, tc); m = Math.max(m, 1 - ss(0.1, 0.2, Math.abs(tc.s - T.uc * T.L))); }
+    // entrejambe et haut de l'intérieur des cuisses : le raccord de chaque cuisse au bassin y est large
+    const cx = x - J.pelvis.x, cy = y - (J.pelvis.y - 0.15), cz = z - (J.pelvis.z + 0.05);
+    m = Math.max(m, 1 - ss(0.07, 0.15, Math.sqrt(cx * cx + cy * cy + cz * cz)));
     return m;
   }
-  return { sdf, region, groupOf, boneOf, wide, HF };
+  /** Le fessier (0 à 1) : derrière la hanche et en arrière de la racine de la cuisse. Son raccord à la cuisse est plus court qu'ailleurs
+   *  autour de la hanche : quand la hanche s'ouvre, le bas du fessier accompagne un peu la cuisse (fessier et ischio-jambiers d'une
+   *  seule courbe, sans marche) sans pivoter vers l'arrière avec elle (pas de bosse). */
+  function buttock(g, x, y, z) {
+    if (g !== 0) return 0;
+    let m = 0;
+    for (const G of legs) {
+      const dx = x - G.hip.x, dy = y - G.hip.y, dz = z - G.hip.z, d2 = dx * dx + dy * dy + dz * dz;
+      const t = dx * G.dT.x + dy * G.dT.y + dz * G.dT.z, a = dx * G.aT.x + dy * G.aT.y + dz * G.aT.z;
+      const perp = Math.sqrt(Math.max(1e-6, d2 - t * t));
+      m = Math.max(m, ss(0.1, 0.35, -a / perp) * (1 - ss(-0.03, 0.02, t)) * (1 - ss(0.16, 0.24, Math.sqrt(d2))));
+    }
+    return m;
+  }
+  /** Demi-largeur (m) du raccord entre deux os au sommet (x, y, z) du groupe g. */
+  function blend(g, x, y, z) {
+    const b = buttock(g, x, y, z);
+    return (0.034 + 0.058 * wide(g, x, y, z)) * (1 - b) + 0.058 * b;
+  }
+  return { sdf, region, groupOf, boneOf, blend, HF };
 }
 
 /* ---------------------------------------------------------------- extraction du maillage (surface nets) */
@@ -727,7 +785,7 @@ export function buildBody(J, gear, h) {
       if (p.body) {
         const g = body.groupOf(x, y, z);
         label[i] = body.boneOf(g, x, y, z);
-        radius[i] = 0.034 + 0.058 * body.wide(g, x, y, z);       // demi-largeur du raccord entre deux os
+        radius[i] = body.blend(g, x, y, z);                       // demi-largeur du raccord entre deux os
         // zone de la tenue : de part et d'autre d'un bord, les poids des deux zones se croisent exactement sur le bord
         const R = body.region(g, x, y, z), m = clamp(0.5 + R.s / (2 * soft), 0, 1);
         reg[vo + i] = m > 0.5 ? R.b : R.a;
@@ -750,6 +808,17 @@ export function buildBody(J, gear, h) {
         nbr[fill[a]++] = b; nbr[fill[a]++] = d;
       }
       const W = surfaceWeights(label, radius, n, deg, nbr, p.pos, 0.1);
+      // chaque jambe ne tire que son côté du corps : à l'entrejambe, la cuisse opposée (proche par la surface) n'a pas d'influence ;
+      // sinon, quand une cuisse descend et l'autre monte (en danseuse), la surface se déchire entre elles
+      for (let v = 0; v < n; v++) {
+        const x = p.pos[v * 3], o = v * NB;
+        const kL = ss(-0.03, 0.03, -x), kR = ss(-0.03, 0.03, x);
+        for (const b of LEG_L) W[o + b] *= kL;
+        for (const b of LEG_R) W[o + b] *= kR;
+        let sum = 0;
+        for (let b = 0; b < NB; b++) sum += W[o + b];
+        if (sum < 1e-6) W[o + B.pelvis] = 1;
+      }
       // les quatre os les plus présents
       const order = new Array(NB);
       for (let i = 0; i < n; i++) {
