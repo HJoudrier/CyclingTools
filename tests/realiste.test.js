@@ -205,6 +205,175 @@ test('réaliste : le corps du cycliste (une surface, 15 os, poids normalisés, z
 });
 function BONES_NAME(B, b) { return 'os ' + B.BONES[b]; }
 
+test('réaliste : posture d\'un coureur professionnel (hanches au-dessus de la selle, genou, buste, coudes, cheville)', async () => {
+  const B = await imp('body.js');
+  const K = await imp('bike.js');
+  const THREE = await import('three');
+  const deg = (r) => r * 180 / Math.PI;
+  for (const sex of ['m', 'f']) {
+    const M = B.morphology(sex), L = K.frameLayout('aero');
+    const P = K.plan(L, 'hoods', false, M);
+    // les hanches sont au-dessus de la selle (les ischions sont posés dessus), les épaules au bout du buste
+    const rise = P.pelvis.y - L.saddle.y;
+    assert.ok(rise >= 0.07 - 1e-9 && rise <= 0.1 + 1e-9, `${sex} : hanches ${(rise * 100).toFixed(1)} cm au-dessus de la selle`);
+    assert.ok(Math.abs(P.pelvis.distanceTo(P.shoulder) - M.torso) < 1e-9);
+    const lean = (Q) => deg(Math.atan2(Q.shoulder.y - Q.pelvis.y, Q.shoulder.z - Q.pelvis.z));
+    assert.ok(lean(P) > 30 && lean(P) < 42, `${sex} : buste à ${lean(P).toFixed(1)}° sur les cocottes`);
+    assert.ok(lean(K.plan(L, 'drops', false, M)) < lean(P) - 8, 'plus bas en bas du cintre');
+    assert.ok(lean(K.plan(K.frameLayout('tt'), 'tt_pro', false, M)) < 22, 'presque à plat en contre-la-montre');
+    const S = K.plan(L, 'hoods', true, M);
+    assert.ok(S.pelvis.y > P.pelvis.y + 0.05 && Math.abs(S.pelvis.z - L.BB.z) < 0.06, 'danseuse : hanches au-dessus du pédalier');
+    // coudes fléchis sur les cocottes (jamais verrouillés)
+    const J0 = B.joints(P, Math.PI / 2, L.BB, M);
+    const elbow = deg(J0.shL.clone().sub(J0.elL).angleTo(J0.wrL.clone().sub(J0.elL)));
+    assert.ok(elbow > 140 && elbow < 165, `${sex} : coude à ${elbow.toFixed(0)}°`);
+    // un tour de pédale : le genou fléchi de 30 à 40° en bas, de 105 à 116° en haut ; la cheville travaille
+    let kmin = 9, kmax = 0, pmin = 9, pmax = -9;
+    for (let c = 0; c < Math.PI * 2; c += 0.05) {
+      const J = B.joints(P, c, L.BB, M);
+      for (const s of ['L', 'R']) {
+        const flex = Math.PI - J['hip' + s].clone().sub(J['kn' + s]).angleTo(J['an' + s].clone().sub(J['kn' + s]));
+        kmin = Math.min(kmin, flex); kmax = Math.max(kmax, flex);
+        // pied : cheville au-dessus et en arrière de l'axe de la pédale, à distance fixe ; os du pied parallèle à la semelle
+        const a = J['an' + s], p = J['pedal' + s], t = J['toe' + s];
+        assert.ok(Math.abs(a.distanceTo(p) - Math.hypot(K.FOOT.up, K.FOOT.back)) < 1e-9, 'la cheville tourne autour de l\'axe de la pédale');
+        const pitch = Math.atan2(a.y - t.y, t.z - a.z);
+        pmin = Math.min(pmin, pitch); pmax = Math.max(pmax, pitch);
+      }
+    }
+    assert.ok(deg(kmin) > 30 && deg(kmin) < 40, `${sex} : genou fléchi de ${deg(kmin).toFixed(1)}° en bas du coup de pédale`);
+    assert.ok(deg(kmax) > 105 && deg(kmax) < 116, `${sex} : genou fléchi de ${deg(kmax).toFixed(1)}° en haut`);
+    assert.ok(deg(pmin) > 4 && deg(pmin) < 12 && deg(pmax) > 28 && deg(pmax) < 36, `cheville : pied incliné de ${deg(pmin).toFixed(0)} à ${deg(pmax).toFixed(0)}°`);
+    // la tête en avant des épaules, plus haut : le cou projeté vers la route
+    assert.ok(J0.head.z > P.shoulder.z + 0.08 && J0.head.y > P.shoulder.y + 0.15, 'tête devant et au-dessus des épaules');
+    // le bassin bascule un peu : la hanche de la jambe qui pousse descend
+    const Jr = B.joints(P, 0, L.BB, M, { roll: 0.03 });
+    assert.ok(Jr.hipR.y < Jr.hipL.y && Math.abs(Jr.hipR.y - Jr.hipL.y) < 0.01);
+  }
+  // le pied : presque à plat en poussant, talon relevé en remontant, plus haut en danseuse
+  assert.ok(K.footPitch(Math.PI / 2, 0) < K.footPitch(0, 0) && K.footPitch(1.5 * Math.PI, 0) > K.footPitch(Math.PI, 0));
+  assert.ok(K.footPitch(1, 1) > K.footPitch(1, 0) + 0.1);
+  void THREE;
+});
+
+test('réaliste : le vélo sous le coureur (pieds sur les pédales, transmission à droite, disques à gauche, selle plate)', async () => {
+  const B = await imp('body.js');
+  const K = await imp('bike.js');
+  const G = K.normGear({ frame: 'aero', wheels: 'c45' });
+  const bike = K.buildBike(G), L = bike.layout, M = B.morphology('m');
+  const pos = (g) => g.attributes.position;
+  // pédalier à crank = 0 : chaque pédale est du côté et à la hauteur du pied du coureur
+  const J = B.joints(K.plan(L, 'hoods', false, M), 0, L.BB, M);
+  for (const [s, sx] of [['L', -1], ['R', 1]]) {
+    const p = pos(bike.crank);
+    let y = 0, n = 0;
+    for (let i = 0; i < p.count; i++) if (p.getX(i) * sx > 0.1) { y += p.getY(i); n++; }
+    assert.ok(n > 0, 'pédale du côté ' + s);
+    assert.ok(Math.abs(y / n - (J['pedal' + s].y - L.BB.y)) < 0.01, `pédale ${s} sous le pied : ${(y / n).toFixed(3)} contre ${(J['pedal' + s].y - L.BB.y).toFixed(3)}`);
+  }
+  // transmission à la droite du coureur (x < 0 : le repère a z vers l'avant et y en haut) : plateaux, cassette ; disques à gauche
+  const side = (g, rmin, rmax) => {
+    const p = pos(g);
+    let lo = 1, hi = -1;
+    for (let i = 0; i < p.count; i++) { const r = Math.hypot(p.getY(i), p.getZ(i)); if (r > rmin && r < rmax && Math.abs(p.getX(i)) > 0.025) { lo = Math.min(lo, p.getX(i)); hi = Math.max(hi, p.getX(i)); } }
+    return [lo, hi];
+  };
+  const rings = side(bike.crank, 0.09, 0.12);
+  assert.ok(rings[1] < 0, `plateaux à droite : x de ${rings[0].toFixed(3)} à ${rings[1].toFixed(3)}`);
+  const cogs = side(bike.rear, 0.03, 0.06);
+  assert.ok(cogs[0] < -0.028 && cogs[1] < 0.05, 'cassette à droite');
+  const rotor = side(bike.rear, 0.075, 0.085);
+  assert.ok(rotor[1] > 0.03 && rotor[0] > -0.03 + 1e-9 || rotor[0] > 0, `disque à gauche : x de ${rotor[0].toFixed(3)} à ${rotor[1].toFixed(3)}`);
+  // selle : une coque plate dont le dessus est à la hauteur de la selle (pas un cône de 17 cm de haut)
+  const p = pos(bike.static), sad = L.saddle;
+  let top = -1, low = 9;
+  for (let i = 0; i < p.count; i++) {
+    if (Math.abs(p.getX(i)) > 0.1 || p.getZ(i) < sad.z - 0.11 || p.getZ(i) > sad.z + 0.02) continue;
+    if (p.getY(i) > sad.y - 0.06) { top = Math.max(top, p.getY(i)); if (Math.abs(p.getX(i)) > 0.03) low = Math.min(low, p.getY(i)); }
+  }
+  assert.ok(top > sad.y - 0.005 && top < sad.y + 0.02, `dessus de la selle : ${top.toFixed(3)} (selle à ${sad.y})`);
+  assert.ok(low > sad.y - 0.035, `selle plate : ${(top - low).toFixed(3)} m d'épaisseur sur les côtés`);
+});
+
+test('réaliste : le corps (dos d\'un seul arc sans bosse, épaules rattachées au buste, fessiers posés sur la selle, raccords et ourlets)', async () => {
+  const B = await imp('body.js');
+  const K = await imp('bike.js');
+  const G = K.normGear({ frame: 'aero', position: 'hoods', clothing: 'fitted', helmet: 'road', sex: 'm' });
+  const L = K.frameLayout(G.frame), M = B.morphology('m');
+  const J = B.joints(K.plan(L, G.position, false, M), Math.PI / 2, L.BB, M);
+  const g = B.buildBody(J, G, 0.02);
+  const P = g.attributes.position, N = g.attributes.normal, W = g.attributes.aRegW, n = P.count;
+  const body = (i) => W.getX(i) + W.getY(i) + W.getZ(i) + W.getW(i) > 0.5;      // le corps (les accessoires n'ont pas de zone de tenue)
+  // une seule surface : tous les sommets du corps tiennent ensemble
+  const parent = new Int32Array(n).map((v, i) => i);
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const idx = g.index.array;
+  for (let k = 0; k < idx.length; k += 3) { const a = find(idx[k]), b = find(idx[k + 1]), c = find(idx[k + 2]); parent[b] = a; parent[find(c)] = a; }
+  const roots = new Set();
+  for (let i = 0; i < n; i++) if (body(i)) roots.add(find(i));
+  assert.equal(roots.size, 1, 'le corps est une seule surface');
+  // dos : la hauteur du dos au-dessus de la droite hanches-cou monte puis redescend, d'un seul arc (ni bosse ni creux de plus de 4 mm)
+  const tdir = J.neck.clone().sub(J.pelvis), len = tdir.length();
+  tdir.normalize();
+  const dorsal = { y: tdir.z, z: -tdir.y };
+  const bins = new Array(14).fill(-1);
+  for (let i = 0; i < n; i++) {
+    if (!body(i) || Math.abs(P.getX(i)) > 0.03) continue;
+    const dy = P.getY(i) - J.pelvis.y, dz = P.getZ(i) - J.pelvis.z, s = (dy * tdir.y + dz * tdir.z) / len, h = dy * dorsal.y + dz * dorsal.z;
+    if (s < 0.12 || s > 0.9 || N.getY(i) * dorsal.y + N.getZ(i) * dorsal.z < 0.5) continue;
+    const b = Math.min(13, Math.floor((s - 0.12) / 0.78 * 14));
+    bins[b] = Math.max(bins[b], h);
+  }
+  assert.ok(bins.every((h) => h > 0.05), 'le dos est échantillonné sur toute sa longueur');
+  const peak = bins.indexOf(Math.max(...bins));
+  for (let b = 1; b < bins.length; b++) {
+    if (b <= peak) assert.ok(bins[b] > bins[b - 1] - 0.004, `dos : pas de creux avant le sommet (${bins.map((h) => h.toFixed(3)).join(' ')})`);
+    else assert.ok(bins[b] < bins[b - 1] + 0.004, `dos : pas de bosse après le sommet (${bins.map((h) => h.toFixed(3)).join(' ')})`);
+  }
+  assert.ok(Math.max(...bins) - Math.min(bins[0], bins[13]) < 0.06, 'dos rond sans excès');
+  // épaules : du cou à l'épaule, le buste garde au moins 9 cm d'épaisseur (pas un fil entre le cou et une boule)
+  for (const sx of [-1, 1]) {
+    const sh = J[sx < 0 ? 'shL' : 'shR'];
+    for (const t of [0.3, 0.5, 0.7, 0.9]) {
+      const cx = J.neck.x + (sh.x - J.neck.x) * t, cy = J.neck.y + (sh.y - J.neck.y) * t, cz = J.neck.z + (sh.z - J.neck.z) * t;
+      let lo = 9, hi = -9;
+      for (let i = 0; i < n; i++) {
+        if (!body(i) || Math.abs(P.getX(i) - cx) > 0.02 || Math.hypot(P.getY(i) - cy, P.getZ(i) - cz) > 0.16) continue;
+        const h = (P.getY(i) - cy) * dorsal.y + (P.getZ(i) - cz) * dorsal.z;
+        lo = Math.min(lo, h); hi = Math.max(hi, h);
+      }
+      assert.ok(hi - lo > 0.09, `épaule rattachée au buste (à ${t} du cou) : ${(hi - lo).toFixed(3)} m d'épaisseur`);
+    }
+  }
+  // fessiers : posés sur la selle (ni dessous, ni loin derrière), pas plus larges que les épaules
+  let ymin = 9, zmin = 9, xmax = 0;
+  for (let i = 0; i < n; i++) {
+    if (!body(i) || P.getZ(i) > J.pelvis.z - 0.02 || P.getY(i) > J.pelvis.y + 0.1 || P.getY(i) < J.pelvis.y - 0.2) continue;   // le bassin, derrière les hanches
+    if (Math.abs(P.getX(i)) > 0.085) continue;                       // (la selle : 7 à 9 cm de demi-largeur)
+    ymin = Math.min(ymin, P.getY(i)); zmin = Math.min(zmin, P.getZ(i));
+  }
+  for (let i = 0; i < n; i++) if (body(i) && Math.abs(P.getY(i) - J.pelvis.y) < 0.06 && P.getZ(i) < J.pelvis.z + 0.05) xmax = Math.max(xmax, Math.abs(P.getX(i)));
+  assert.ok(ymin > L.saddle.y - 0.035, `les fessiers ne descendent pas sous la selle : ${(ymin - L.saddle.y).toFixed(3)} m`);
+  assert.ok(zmin > L.saddle.z - 0.16, `ni loin derrière elle : ${(zmin - L.saddle.z).toFixed(3)} m`);
+  assert.ok(xmax < M.shoulderX + 0.06 && xmax > 0.14, `hanches : ${xmax.toFixed(3)} m de demi-largeur`);
+  // raccords : autour de la hanche, des sommets partagés entre le bassin et la cuisse (le bas des fessiers suit la cuisse)
+  const SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+  let shared = 0, edges = 0;
+  for (let i = 0; i < n; i++) {
+    if (!body(i)) continue;
+    let wp = 0, wt = 0;
+    for (let k = 0; k < 4; k++) { const b = SI.getComponent(i, k), w = SW.getComponent(i, k); if (b === B.B.pelvis) wp += w; if (b === B.B.thighL || b === B.B.thighR) wt += w; }
+    if (wp > 0.2 && wt > 0.2) shared++;
+    // ourlets : de part et d'autre d'un bord de la tenue, deux zones se partagent le sommet (la ligne est nette entre les sommets)
+    const ws = [W.getX(i), W.getY(i), W.getZ(i), W.getW(i)];
+    assert.ok(Math.abs(ws[0] + ws[1] + ws[2] + ws[3] - 1) < 1e-5, 'poids des zones de la tenue');
+    if (ws.filter((w) => w > 0.02).length === 2) edges++;
+  }
+  assert.ok(shared > 20, `sommets partagés entre le bassin et les cuisses : ${shared}`);
+  assert.ok(edges > 40, `sommets sur un ourlet : ${edges}`);
+});
+
+
 test('réaliste : la route lissée passe par les points de Bike3D, tangentes unitaires', async () => {
   const vm = require('vm');
   const U = path.join(ROOT, 'VirtualRide3D', 'univers');

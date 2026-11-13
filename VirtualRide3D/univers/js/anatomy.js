@@ -44,9 +44,10 @@
      mesurés en laboratoire : demi-écart des hanches, cuisse, jambe, bras et avant-bras (jusqu'à la prise de la main), buste (des
      hanches aux épaules), manivelle ; la cheville est au-dessus (footUp) et en arrière (footBack) de l'axe de la pédale, la plante du
      pied sur l'axe ; le centre de la chaussure est au-dessus (shoeUp) et en arrière (shoeBack) de l'axe ; hipZ : les hanches devant
-     le milieu de la selle ; knee : flexion du genou en bas du coup de pédale. */
+     le milieu de la selle ; knee : flexion du genou en bas du coup de pédale (37° : la moyenne mesurée chez des coureurs
+     professionnels). */
   const SKEL = { hipX: 0.088, thigh: 0.435, shin: 0.435, upper: 0.31, fore: 0.33, torso: 0.52, crank: 0.17,
-    footUp: 0.087, footBack: 0.125, shoeUp: 0.057, shoeBack: 0.045, hipZ: 0.02, knee: 34 * Math.PI / 180 };
+    footUp: 0.087, footBack: 0.125, shoeUp: 0.057, shoeBack: 0.045, hipZ: 0.02, knee: 37 * Math.PI / 180 };
   /** Inclinaison du pied (rad, pointe plus basse que le talon) à la phase phi du tour (0 : pédale en haut, π/2 : devant) : presque
       à plat en poussant (vers 3 heures), talon relevé en remontant (vers 9-10 heures) ; stand : en danseuse, talon plus haut. */
   function footPitch(phi, stand) { return 0.35 - 0.21 * Math.cos(phi - 1.83) + 0.12 * (stand || 0); }

@@ -108,12 +108,13 @@ export function footPitch(phi, stand) {
 }
 
 const MORPH = { shoulderX: 0.178, upperArm: 0.31, foreArm: 0.33, torso: 0.52, thigh: 0.435, shin: 0.435 };
-/** Hauteur des hanches (leur milieu) : au-dessus de la selle, là où le genou reste fléchi de 34° en bas du coup de pédale (entre 7 et
- *  10 cm au-dessus de la selle : les ischions sont posés dessus, l'articulation est plus haut). */
+/** Hauteur des hanches (leur milieu) : au-dessus de la selle, là où le genou reste fléchi de 37° en bas du coup de pédale (la
+ *  moyenne mesurée chez des coureurs professionnels ; entre 7 et 10 cm au-dessus de la selle : les ischions sont posés dessus,
+ *  l'articulation est plus haut). */
 export function hipHeight(L, morph) {
   const M = morph || MORPH, p = footPitch(Math.PI, 0);
   const ay = L.BB.y - CRANK + FOOT.up * Math.cos(p) + FOOT.back * Math.sin(p), az = L.BB.z - FOOT.back * Math.cos(p) + FOOT.up * Math.sin(p);
-  const D2 = M.thigh * M.thigh + M.shin * M.shin + 2 * M.thigh * M.shin * Math.cos(34 * Math.PI / 180), dz = L.saddle.z + 0.02 - az;
+  const D2 = M.thigh * M.thigh + M.shin * M.shin + 2 * M.thigh * M.shin * Math.cos(37 * Math.PI / 180), dz = L.saddle.z + 0.02 - az;
   return Math.max(L.saddle.y + 0.07, Math.min(L.saddle.y + 0.1, ay + Math.sqrt(Math.max(0, D2 - dz * dz))));
 }
 
@@ -146,7 +147,8 @@ export function plan(L, posId, stand, morph) {
   if (stand) { pelvis.y += 0.075; pelvis.z += 0.17; a = 0.66; }
   const shoulder = V(0, pelvis.y + TORSO * Math.sin(a), pelvis.z + TORSO * Math.cos(a));
   const drops = ck.dropBar && (P.grip === 'hoods' || P.grip === 'tops') ? side(ck.drops) : null;
-  return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1, clipOns: co };
+  // seat : le dessus de la selle (le dessous des fessiers s'y pose)
+  return { pelvis, shoulder, hands, elbows, drops, pro: !!P.pro, tuckK: P.tuckK || 1, clipOns: co, seat: stand ? undefined : L.saddle.y };
 }
 
 /* ---------------------------------------------------------------- constructeur de géométrie */

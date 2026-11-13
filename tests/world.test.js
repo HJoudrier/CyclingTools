@@ -528,6 +528,77 @@ test('cyclistes 3D : trois niveaux de détail, la même pose, une cycliste', { s
   assert.ok(A.headParts({ q: 1, eyes: true }).marks.length > A.headParts({ q: 1, eyes: false }).marks.length);
 });
 
+test('cyclistes 3D : posture et pédalage d\'un coureur professionnel (hanches au-dessus de la selle, genou, cheville, rotule des hanches)', { skip: !hasBike3d && 'Bike3D absent' }, () => {
+  const B3D = bike3d(['js/race.js', 'js/peloton.js']), C = B3D.Cyclist, A = B3D.anatomy, K = A.SKEL;
+  const deg = (r) => r * 180 / Math.PI;
+  const V3 = B3D.toon.shared.uRider.value.constructor;
+  const st = { speed: 9, pedaling: true, standing: false, tuck: false, steer: 0 };
+  for (const detail of ['simple', 'realistic']) {
+    const c = new C({ gear: { frame: 'aero', wheels: 'c45', position: 'hoods' }, detail });
+    // les hanches (leur milieu : le plan de la position) sont au-dessus de la selle : les ischions sont posés dessus
+    const rise = c.plan.pelvis.y - c.saddle.y;
+    assert.ok(rise > 0.07 && rise < 0.1, `${detail} : hanches ${(rise * 100).toFixed(1)} cm au-dessus de la selle`);
+    // buste d'un coureur sur les cocottes : de 32 à 42° ; plus bas en bas du cintre ; presque à plat en contre-la-montre
+    const lean = (P) => deg(Math.atan2(P.shoulder.y - P.pelvis.y, P.shoulder.z - P.pelvis.z));
+    assert.ok(lean(c.plan) > 32 && lean(c.plan) < 42, `${detail} : buste à ${lean(c.plan).toFixed(1)}° sur les cocottes`);
+    assert.ok(lean(c._plan('drops', false)) < lean(c.plan) - 8, 'buste plus bas en bas du cintre');
+    assert.ok(Math.abs(c.plan.pelvis.distanceTo(c.plan.shoulder) - K.torso) < 1e-9, 'longueur du buste');
+    // en danseuse : les hanches plus haut et au-dessus du boîtier de pédalier
+    assert.ok(c.planStand.pelvis.y > c.plan.pelvis.y + 0.05 && Math.abs(c.planStand.pelvis.z - c.BB.z) < 0.06, 'danseuse : hanches au-dessus du pédalier');
+    // un tour de pédale : genou fléchi de 30 à 40° en bas, de 105 à 116° en haut ; la chaussure reste sur sa cale ; la cheville travaille
+    let kmin = 9, kmax = 0, pmin = 9, pmax = -9;
+    for (let k = 0; k < 48; k++) {
+      c.crank = k / 48 * Math.PI * 2;
+      c.update(0, st);
+      const leg = c.legs[0], hip = leg.hip, knee = leg.knee.position, shoe = leg.shoe.position;
+      const sgn = -leg.sx, pedal = new V3(leg.sx * 0.12, c.BB.y + sgn * Math.cos(c.crank) * K.crank, c.BB.z + sgn * Math.sin(c.crank) * K.crank);
+      assert.ok(Math.abs(shoe.distanceTo(pedal) - Math.hypot(K.shoeUp, K.shoeBack)) < 1e-9, 'la chaussure reste sur la pédale');
+      assert.ok(Math.abs(hip.distanceTo(knee) - K.thigh) < 1e-6, 'cuisse de longueur fixe');
+      const pitch = leg.shoe.rotation.x;
+      assert.ok(Math.abs(pitch - A.footPitch(c.crank + (sgn > 0 ? 0 : Math.PI), 0)) < 1e-9);
+      pmin = Math.min(pmin, pitch); pmax = Math.max(pmax, pitch);
+      // cheville : au-dessus et en arrière de l'axe de la pédale, tournée avec le pied
+      const ankle = new V3(), sc = new V3();
+      A.footPose(pedal, c.crank + (sgn > 0 ? 0 : Math.PI), 0, ankle, sc);
+      const a = hip.clone().sub(knee), b = ankle.clone().sub(knee), flex = Math.PI - a.angleTo(b);
+      kmin = Math.min(kmin, flex); kmax = Math.max(kmax, flex);
+    }
+    assert.ok(deg(kmin) > 30 && deg(kmin) < 40, `${detail} : genou fléchi de ${deg(kmin).toFixed(1)}° en bas du coup de pédale`);
+    assert.ok(deg(kmax) > 105 && deg(kmax) < 116, `${detail} : genou fléchi de ${deg(kmax).toFixed(1)}° en haut`);
+    assert.ok(deg(pmin) > 4 && deg(pmin) < 12 && deg(pmax) > 28 && deg(pmax) < 36, `cheville : pied incliné de ${deg(pmin).toFixed(0)} à ${deg(pmax).toFixed(0)}°`);
+  }
+  // le pied : presque à plat en poussant (3 heures), talon relevé en remontant (9-10 heures), plus haut en danseuse
+  assert.ok(A.footPitch(Math.PI / 2, 0) < A.footPitch(0, 0) && A.footPitch(1.5 * Math.PI, 0) > A.footPitch(Math.PI, 0));
+  assert.ok(A.footPitch(1, 1) > A.footPitch(1, 0) + 0.1);
+  // hauteur des hanches : là où le genou reste fléchi de SKEL.knee en bas du coup de pédale
+  const BB = new V3(0, 0.28, -0.08), saddle = new V3(0, 0.965, -0.29), hy = A.hipHeight(BB, saddle);
+  const ankle = new V3();
+  A.footPose(new V3(0, BB.y - K.crank, BB.z), Math.PI, 0, ankle, null);
+  const d = Math.hypot(hy - ankle.y, saddle.z + K.hipZ - ankle.z), flex = Math.PI - Math.acos((K.thigh * K.thigh + K.shin * K.shin - d * d) / (2 * K.thigh * K.shin));
+  assert.ok(Math.abs(flex - K.knee) < 1e-6, `flexion du genou en bas : ${deg(flex).toFixed(1)}°`);
+  // rotule des hanches : la racine de la cuisse (rayon 7,4 cm) est dans le bassin quel que soit l'angle de la cuisse
+  for (const fem of [false, true]) {
+    assert.ok(A.pelvisSDF(K.hipX, 0, 0, fem) < -0.07, 'l\'articulation de la hanche est au cœur du bassin');
+    for (let a = 0; a < Math.PI * 2; a += 0.3) for (const lat of [-0.5, 0, 0.5, 1]) {
+      const r = 0.07, x = K.hipX + r * lat * 0.7, y = r * Math.cos(a) * Math.sqrt(1 - lat * lat * 0.49), z = r * Math.sin(a) * Math.sqrt(1 - lat * lat * 0.49);
+      // (au-dessus de la selle : dessous, le bassin est aplati sur elle)
+      const yb = y * Math.cos(A.PELVIS.beta) - z * Math.sin(A.PELVIS.beta);
+      if (yb > A.PELVIS.saddle + 0.02) assert.ok(A.pelvisSDF(x, y, z, fem) < 0.004, `racine de la cuisse dans la rotule (${a.toFixed(1)}, ${lat})`);
+    }
+  }
+  assert.ok(A.HIP_FOLLOW > 0.2 && A.HIP_FOLLOW < 0.45, 'le bas des fessiers accompagne la cuisse discrètement');
+  // le peloton roule dans la même posture : mêmes hanches, mêmes pieds que le cycliste du joueur
+  const P = new B3D.Peloton({ add() {}, remove() {} }, { sStart: 0, sEnd: 1000 }, { seed: 1, race: null, roadHalf: 3 }, { count: 2, detail: 2, sex: 'm' });
+  P.route.sample = (s, q) => Object.assign(q, { x: 0, y: 0, z: 0, tx: 0, tz: 1, rx: 1, rz: 0, grade: 0, curv: 0 });
+  P.riders.forEach((r) => Object.assign(r, { s: 5, lat: 0, latV: 0, lean: 0, rock: 0, v: 0, power: 0, crank: Math.PI / 2 }));
+  P.render(0, { getWorldPosition: (v) => v.set(0, 1.5, -3), getWorldDirection: (v) => v.set(0, 0, 1) });
+  const shoeAt = (side) => { const m = P.legsL.shoe[side].mesh.instanceMatrix.array; return new V3(m[12], m[13], m[14]); };
+  const cy = new C({ gear: { frame: 'classic' }, detail: 'realistic' });
+  cy.crank = Math.PI / 2;
+  cy.update(0, st);
+  for (let side = 0; side < 2; side++) assert.ok(shoeAt(side).distanceTo(cy.legs[side].shoe.position) < 1e-6, 'peloton : les pieds au même endroit que ceux du joueur');
+});
+
 test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, fessiers, épaules, couleurs des membres)', { skip: !hasBike3d && 'Bike3D absent' }, () => {
   const B3D = bike3d(), A = B3D.anatomy;
   const finite = (geo) => [...geo.attributes.position.array, ...geo.attributes.normal.array].every(Number.isFinite);

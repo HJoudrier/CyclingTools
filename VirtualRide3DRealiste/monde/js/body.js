@@ -2,9 +2,10 @@
    extraite en maillage (« surface nets ») dans la pose de référence (sur les cocottes, pédales à l'horizontale), puis rattachée à un
    squelette de 15 os.
    Les proportions et la posture sont celles d'un coureur professionnel (photos et images de course ; angles articulaires de la
-   littérature) : hanches 9 cm au-dessus de la selle (genou fléchi de 30 à 40° en bas du coup de pédale, de 105 à 110° en haut), buste
-   à 35-40° sur les cocottes, dos rond d'un seul arc, épaules avancées, coudes fléchis, cou relevé, cheville qui travaille (la pointe
-   du pied plus basse que le talon, davantage en remontant).
+   littérature) : hanches 8 à 9 cm au-dessus de la selle (genou fléchi de 35° en bas du coup de pédale, de 113° en haut), buste
+   à 37° sur les cocottes, dos rond d'un seul arc, épaules avancées, coudes fléchis, cou projeté vers la route, casque incliné,
+   cheville qui travaille (la pointe du pied plus basse que le talon, davantage en remontant). Assis, le dessous du bassin et des
+   fessiers s'aplatit sur la selle.
    Le buste est une seule forme, du bassin posé sur la selle à la base du cou : des sections (largeur, ventre, dos) qui varient le
    long de la colonne, donc ni bosse ni raccord dans le dos ; les fessiers, les trapèzes et les pectoraux s'y fondent. Les bras et les
    jambes (deltoïde, biceps, triceps, quadriceps, ischio-jambiers, vastes, rotule, mollet, malléoles) ne se fondent dans le buste
@@ -88,7 +89,7 @@ function profile(pts) {
 
 /** Articulations du cycliste pour une pose : pelvis (le milieu des hanches), poitrine (milieu du dos), base du cou, tête, épaules,
  *  coudes, poignets, mains, hanches, genoux, chevilles, pointes de pied.
- *  P : plan de position {pelvis, shoulder (le milieu des épaules), hands[2], elbows?} ; crank : angle du pédalier ; morph :
+ *  P : plan de position {pelvis, shoulder (le milieu des épaules), hands[2], elbows?, seat? (dessus de la selle)} ; crank : angle du pédalier ; morph :
  *  morphologie ; opts : {look (la tête tourne), roll (bascule du bassin, rad : la hanche de la jambe qui pousse descend), stand
  *  (0 à 1, en danseuse : talon plus haut), round (dos plus ou moins rond)}. */
 export function joints(P, crank, BB, morph, opts = {}) {
@@ -101,14 +102,16 @@ export function joints(P, crank, BB, morph, opts = {}) {
   const dorsal = V(0, tdir.z, -tdir.y).normalize();   // perpendiculaire au buste, vers le dos
   // dos rond : le milieu du dos est poussé vers le dos (le bas du dos plus relevé que le haut)
   J.chest = pelvis.clone().addScaledVector(tdir, tlen * 0.5).addScaledVector(dorsal, 0.04 * (opts.round ?? 1));
-  J.neck = shoulder.clone().addScaledVector(tdir, 0.05).addScaledVector(dorsal, 0.018);
-  // cou relevé : le coureur regarde la route (plus le buste est couché, plus le cou se redresse par rapport à lui)
+  J.neck = shoulder.clone().addScaledVector(tdir, 0.07).addScaledVector(dorsal, 0.02);
+  // cou projeté vers l'avant et relevé : le coureur regarde la route (plus le buste est couché, plus le cou se redresse par
+  // rapport à lui)
   const back = Math.atan2(tdir.y, tdir.z);
-  const ha = Math.min(1.5, 0.745 + 0.62 * back) - (opts.headDown || 0) * 0.15;
-  const nl = morph.neck || 0.15;
+  const ha = Math.min(1.5, 0.56 + 0.62 * back) - (opts.headDown || 0) * 0.15;
+  const nl = morph.neck || 0.165;
   J.head = J.neck.clone().add(V(0, Math.sin(ha) * nl, Math.cos(ha) * nl));
   J.headLook = opts.look || 0;
-  J.headPitch = 0.2;                                   // visage un peu penché vers la route
+  J.headPitch = 0.36;                                  // visage penché vers la route, le casque incliné
+  J.seatY = P.seat;                                    // dessus de la selle (assis) : le dessous des fessiers s'y pose
   const roll = opts.roll || 0;
   J.latP = roll ? V(1, -roll, 0).normalize() : null;
   for (const [s, i] of [['L', 0], ['R', 1]]) {
@@ -185,7 +188,7 @@ export function boneFrame(a, b, lat, out, yaw) {
 export function morphology(sex) {
   const f = sex === 'f';
   return {
-    f, shoulderX: f ? 0.16 : 0.178, hipX: f ? 0.09 : 0.088, torso: f ? 0.49 : 0.52, neck: f ? 0.142 : 0.15, pelvisLen: f ? 0.088 : 0.09,
+    f, shoulderX: f ? 0.16 : 0.178, hipX: f ? 0.09 : 0.088, torso: f ? 0.49 : 0.52, neck: f ? 0.156 : 0.165, pelvisLen: f ? 0.088 : 0.09,
     upperArm: f ? 0.292 : 0.31, foreArm: f ? 0.31 : 0.33, thigh: f ? 0.428 : 0.435, shin: f ? 0.425 : 0.435,
     chestW: f ? 0.14 : 0.158, chestD: f ? 0.098 : 0.106, waistW: f ? 0.116 : 0.131, hipW: f ? 0.158 : 0.152, glute: f ? 0.08 : 0.075,
     armR: f ? 0.036 : 0.042, thighR: f ? 0.083 : 0.084, calfR: f ? 0.051 : 0.055, neckR: f ? 0.048 : 0.056, headS: f ? 0.94 : 1,
@@ -211,7 +214,7 @@ function makeTrunk(J, M) {
   const W = profile([[0, 0.098], [fH * 0.5, 0.14], [fH, M.hipW], [f(0.14), M.hipW - 0.008], [f(0.33), M.waistW], [f(0.55), (M.waistW + M.chestW) / 2 + 0.004],
     [f(0.74), M.chestW + 0.004], [f(0.87), M.chestW + 0.008], [f(0.95), M.chestW - 0.006], [1, 0.1]]);
   const DV = profile([[0, 0.05], [fH, 0.082], [f(0.14), 0.088], [f(0.33), 0.09], [f(0.55), 0.096], [f(0.74), M.chestD], [f(0.87), M.chestD - 0.012], [f(0.95), 0.075], [1, 0.06]]);
-  const DD = profile([[0, 0.066], [fH, 0.09], [f(0.14), 0.087], [f(0.33), 0.085], [f(0.55), 0.093], [f(0.74), 0.101], [f(0.87), 0.099], [f(0.95), 0.086], [1, 0.068]]);
+  const DD = profile([[0, 0.062], [fH, 0.086], [f(0.14), 0.087], [f(0.33), 0.088], [f(0.55), 0.094], [f(0.74), 0.101], [f(0.87), 0.1], [f(0.95), 0.09], [1, 0.072]]);
   const capA = 0.05, capB = 0.045;
   const o = { s: 0, lx: 0, ld: 0, la: 0, u: 0 };
   function coord(x, y, z, out) {
@@ -301,12 +304,13 @@ function bodyModel(J, M, gear) {
   const trunk = [{ d: T.d, k: 0.001, cx: tm.x, cy: tm.y, cz: tm.z, R: T.L / 2 + 0.2 }];
   const pc = T.at(T.fH), pt = T.tangent(T.fH), pd = V(0, pt.z, -pt.y).normalize();      // bassin : centre, axe, dos
   for (const sx of [-1, 1]) {
-    // fessiers : derrière et sous les hanches, posés sur l'arrière de la selle ; ils se fondent dans le bas du dos
-    trunk.push(elp(ell(pc.clone().addScaledVector(X, sx * 0.068).addScaledVector(pd, 0.03).addScaledVector(pt, -0.045), pt, X, M.glute + 0.003, 0.1, M.glute * 0.92), 0.07));
+    // fessiers : derrière et sous les hanches, posés sur l'arrière de la selle ; larges et peu saillants, dans la ligne du dos
+    // (sur les photos de coureurs assis, le bas du dos descend vers la selle d'un seul arrondi)
+    trunk.push(elp(ell(pc.clone().addScaledVector(X, sx * 0.068).addScaledVector(pt, -0.02), pt, X, M.glute + 0.004, 0.105, M.glute + 0.016), 0.07));
     // trapèze et clavicule : du cou à la pointe de l'épaule
     const sh = J[sx < 0 ? 'shL' : 'shR'];
     const st = T.tangent(1), sd = V(0, st.z, -st.y).normalize();
-    trunk.push(cone(J.neck.clone().addScaledVector(X, sx * 0.04).addScaledVector(st, -0.012), sh.clone().addScaledVector(sd, 0.022).addScaledVector(st, 0.012).addScaledVector(X, -sx * 0.012), 0.043, 0.04, 0.06));
+    trunk.push(cone(J.neck.clone().addScaledVector(X, sx * 0.04).addScaledVector(st, -0.012), sh.clone().addScaledVector(sd, 0.022).addScaledVector(st, 0.012).addScaledVector(X, -sx * 0.012), 0.046, 0.041, 0.06));
   }
   {
     // pectoraux, ou poitrine d'une coureuse
@@ -317,7 +321,7 @@ function bodyModel(J, M, gear) {
     }
   }
   const nHead = trunk.length;                                                               // à partir d'ici : cou et tête
-  trunk.push(cone(J.neck.clone(), HF.at(0, -0.058, -0.03), M.neckR + 0.005, M.neckR, 0.045));
+  trunk.push(cone(J.neck.clone(), HF.at(0, -0.058, -0.03), M.neckR + 0.01, M.neckR, 0.05));
   trunk.push(elp(ell(HF.at(0, 0.016, -0.008), HF.U, X, 0.077 * hs, 0.098 * hs, 0.098 * hs), 0.03));          // crâne
   trunk.push(elp(ell(HF.at(0, -0.042, 0.03), HF.U, X, 0.064 * hs, 0.076 * hs, 0.064 * hs), 0.035));           // visage, mâchoire
   trunk.push(ball(HF.at(0, -0.098, 0.066), 0.023 * hs, 0.03));                                               // menton
@@ -381,7 +385,12 @@ function bodyModel(J, M, gear) {
     g.cx = c.x; g.cy = c.y; g.cz = c.z; g.RR = bb.min.distanceTo(bb.max) / 2 + g.R;
   }
   const limbD = (g, x, y, z) => evalGroup(g.list, x, y, z);
-  const trunkD = (x, y, z) => evalGroup(trunk, x, y, z);
+  // assis : le dessous du bassin et des fessiers s'aplatit sur la selle, et retombe un peu de chaque côté
+  const seatY = J.seatY;
+  const trunkD = seatY === undefined ? (x, y, z) => evalGroup(trunk, x, y, z) : (x, y, z) => {
+    const d = evalGroup(trunk, x, y, z), cut = seatY - 0.008 - 0.022 * ss(0.05, 0.15, Math.abs(x)) - y;
+    return cut < -0.06 ? d : -smin(-d, -cut, 0.03);
+  };
   // plus proche du cou ou de la tête que du reste du buste
   const headish = (x, y, z) => {
     let dh = 1e9, db = 1e9;
@@ -416,9 +425,9 @@ function bodyModel(J, M, gear) {
   const hemT = loose ? 0.82 : 0.68;                                                          // cuissard : part de la cuisse couverte
   const sockH = { short: 0.045, classic: 0.12, aero: 0.18 }[gear.socks || 'classic'] ?? 0.12;   // chaussette : m au-dessus de la cheville
   const gloves = gear.gloves !== false && gear.helmet !== 'none';
-  // col : plan en travers du cou, plus bas devant
+  // col montant : plan en travers du cou, un peu plus bas devant
   const nd = J.head.clone().sub(J.neck).normalize(), nv = V(0, nd.z, -nd.y).normalize().multiplyScalar(-1);
-  const cn = nd.clone().addScaledVector(nv, 0.32).normalize(), col = J.neck.clone().addScaledVector(nd, 0.034);
+  const cn = nd.clone().addScaledVector(nv, 0.24).normalize(), col = J.neck.clone().addScaledVector(nd, 0.052);
   const tc = { s: 0, lx: 0, ld: 0, la: 0, u: 0 };
   const hemBack = T.fH * T.L + (loose ? 0.02 : 0.065), hemFront = T.fH * T.L + (loose ? 0.06 : 0.15);
   const R = { a: 0, b: 0, s: 0 };
@@ -587,7 +596,7 @@ function accessoryPrims(J, M, gear, HF) {
       if (tail) d = smin(d, sdRoundCone(x, y, z, tail[0], tail[1], 0.07 * hs, 0.032), 0.03);
       d = Math.max(d, -(d + 0.021));                                  // coque de 21 mm
       const [lx, u, f] = loc(x, y, z);
-      d = Math.max(d, 0.004 + 0.28 * f - u);                          // bord : au-dessus des sourcils, bas sur la nuque
+      d = Math.max(d, -0.002 + 0.24 * f - u);                         // bord : au-dessus des sourcils, bas sur la nuque
       if (helmet !== 'aero') for (const c of [-0.05, -0.025, 0, 0.025, 0.05]) {
         const len = Math.abs(c) > 0.04 ? 0.045 : Math.abs(c) > 0.01 ? 0.065 : 0.078;
         d = Math.max(d, -Math.max(Math.abs(lx - c) - 0.0068, Math.abs(f - 0.008) - len, 0.058 - u));
