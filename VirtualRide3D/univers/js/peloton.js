@@ -163,7 +163,6 @@
     const tdir = shoulder.clone().sub(pelvis), tlen = tdir.length(), tn = tdir.clone().normalize();
     const torsoM = new THREE.Matrix4().compose(pelvis.clone().addScaledVector(tdir, 0.5), new THREE.Quaternion().setFromUnitVectors(UP, tn), V(0.2, tlen * 0.5 + 0.1, 0.16));
     parts.push({ geo: A.torsoGeometry({ q, fem }), color: W, tint: 1, matrix: torsoM });
-    parts.push(...placed(A.torsoHem({ q, fem, base: W }), torsoM, { tint: 1 }));
     if (q > 1) {
       // col, liseré, fermeture, poches (teintées, un peu plus sombres)
       const trim = A.torsoTrim({ q, fem, base: W, accent: '#f4f1ea' });
@@ -173,7 +172,7 @@
     const backP = A.torsoPoint(V(0, -0.12, -1), fem, 0.03).applyMatrix4(torsoM), torsoQ = new THREE.Quaternion().setFromUnitVectors(UP, tn);
     parts.push({ geo: new THREE.BoxGeometry(0.18, 0.13, 0.008), color: '#fbfaf5', matrix: new THREE.Matrix4().compose(backP, torsoQ, V(1, 1, 1)) });
     const pp = A.pelvisPose(tn);
-    parts.push(...placed(A.pelvisParts({ q, fem, color: DK }), new THREE.Matrix4().compose(pelvis.clone().add(pp.offset), new THREE.Quaternion().setFromEuler(new THREE.Euler(pp.tilt, 0, 0)), V(1, 1, 1))));
+    parts.push(...placed(A.pelvisParts({ q, fem, color: DK, jersey: W, tint: true }), new THREE.Matrix4().compose(pelvis.clone().add(pp.offset), new THREE.Quaternion().setFromEuler(new THREE.Euler(pp.tilt, 0, 0)), V(1, 1, 1))));
     // tête, comme le cycliste du joueur : dans le prolongement du dos, réduite à l'échelle réelle, casque et lunettes de sport
     const ha = Math.atan2(tn.y, tn.z) + 0.21, headPos = shoulder.clone().add(V(0, Math.sin(ha) * 0.2, Math.cos(ha) * 0.2));
     const headM = new THREE.Matrix4().compose(headPos, new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.15, 0, 0)), V(0.8, 0.8, 0.8));

@@ -24,15 +24,16 @@
 
   /** Profil lisse passant par des points [t, valeur] (Hermite cubique, pentes de Catmull-Rom). */
   function curve(pts) {
-    const n = pts.length - 1;
-    const slope = (k) => { const a = pts[Math.max(0, k - 1)], b = pts[Math.min(n, k + 1)]; return (b[1] - a[1]) / (b[0] - a[0]); };
+    const n = pts.length - 1, X = new Float64Array(n + 1), Y = new Float64Array(n + 1), S = new Float64Array(n + 1);
+    pts.forEach((p, k) => { X[k] = p[0]; Y[k] = p[1]; });
+    for (let k = 0; k <= n; k++) { const a = Math.max(0, k - 1), b = Math.min(n, k + 1); S[k] = (Y[b] - Y[a]) / (X[b] - X[a]); }
     return (t) => {
-      if (t <= pts[0][0]) return pts[0][1];
-      if (t >= pts[n][0]) return pts[n][1];
+      if (t <= X[0]) return Y[0];
+      if (t >= X[n]) return Y[n];
       let i = 0;
-      while (t > pts[i + 1][0]) i++;
-      const h = pts[i + 1][0] - pts[i][0], u = (t - pts[i][0]) / h, u2 = u * u, u3 = u2 * u;
-      return (2 * u3 - 3 * u2 + 1) * pts[i][1] + (u3 - 2 * u2 + u) * slope(i) * h + (-2 * u3 + 3 * u2) * pts[i + 1][1] + (u3 - u2) * slope(i + 1) * h;
+      while (t > X[i + 1]) i++;
+      const h = X[i + 1] - X[i], u = (t - X[i]) / h, u2 = u * u, u3 = u2 * u;
+      return (2 * u3 - 3 * u2 + 1) * Y[i] + (u3 - 2 * u2 + u) * S[i] * h + (-2 * u3 + 3 * u2) * Y[i + 1] + (u3 - u2) * S[i + 1] * h;
     };
   }
 
@@ -165,29 +166,30 @@
   /** Point du crâne et du visage dans la direction n (unité) ; fem : visage plus fin, menton plus petit. */
   function headPoint(n, fem) {
     const { x, y, z } = n;
-    let px = x * (fem ? 0.1 : 0.103), py = y * 0.126, pz = z * 0.124;
+    // le bas du visage plus court que le crâne : les yeux à mi-hauteur de la tête, du sommet au menton
+    let px = x * (fem ? 0.095 : 0.099), py = y * (y > 0 ? 0.126 : 0.104), pz = z * 0.122;
     const fr = ss(-0.3, 0.75, z), low = ss(0.1, -0.85, y), bk = ss(0.2, -0.8, z);
-    // mâchoire et menton : le bas du visage descend un peu, se resserre vers le menton (mâchoire plus carrée chez un homme)
-    py -= (fem ? 0.022 : 0.03) * low * fr;
-    px *= 1 - (fem ? 0.36 : 0.24) * ss(-0.3, -0.95, y) * (0.35 + 0.65 * fr) - (fem ? 0.08 : 0.04) * low * fr;
-    pz += 0.008 * low * fr + (fem ? 0.007 : 0.012) * bell(y, -0.72, 0.16) * bell(x, 0, 0.3) * fr;
+    // mâchoire et menton : le bas du visage descend un peu, se resserre vers un menton arrondi (mâchoire plus carrée chez un homme)
+    py -= (fem ? 0.014 : 0.02) * low * fr;
+    px *= 1 - (fem ? 0.34 : 0.26) * ss(-0.25, -0.95, y) * (0.35 + 0.65 * fr) - (fem ? 0.06 : 0.03) * low * fr;
+    pz += 0.006 * low * fr + (fem ? 0.006 : 0.01) * bell(y, -0.78, 0.26) * bell(x, 0, 0.55) * fr;
     // sous la mâchoire, entre le menton et le cou : la ligne de la mâchoire remonte vers l'oreille
-    py += 0.03 * ss(-0.3, -0.95, y) * bell(z, 0.1, 0.42);
+    py += 0.018 * ss(-0.3, -0.95, y) * bell(z, -0.05, 0.4);
     px *= 1 - 0.1 * ss(-0.3, -0.95, y) * bell(z, 0.1, 0.5);
     // nuque : le bas de l'arrière remonte et rentre ; occiput
     py += 0.022 * bk * low;
     pz += 0.022 * bk * low - 0.012 * bk * bell(y, 0.1, 0.45);
     // visage : plat sur les côtés, front fuyant au-dessus des arcades, bouche un peu en avant ; tempes, pommettes, joues, orbites
     pz -= 0.03 * fr * x * x + 0.014 * ss(0.35, 0.95, y) * fr;
-    pz += 0.006 * bell(y, -0.36, 0.14) * bell(x, 0, 0.35) * fr;
-    px *= (1 - 0.07 * bell(y, 0.35, 0.3) * fr) * (1 + (fem ? 0.035 : 0.05) * bell(y, -0.08, 0.16) * fr) * (1 - 0.04 * bell(y, -0.38, 0.14) * fr);
-    pz += (fem ? 0.004 : 0.008) * bell(y, 0.27, 0.08) * fr * bell(x, 0, 0.55);
-    for (const s of [-1, 1]) pz -= 0.008 * bell(x, s * 0.33, 0.13) * bell(y, 0.16, 0.1) * fr;
+    pz += 0.003 * bell(y, -0.55, 0.2) * bell(x, 0, 0.4) * fr;
+    px *= (1 - 0.07 * bell(y, 0.4, 0.3) * fr) * (1 + (fem ? 0.02 : 0.03) * bell(y, -0.15, 0.16) * fr) * (1 - 0.05 * bell(y, -0.5, 0.14) * fr);
+    pz += (fem ? 0.004 : 0.008) * bell(y, 0.17, 0.08) * fr * bell(x, 0, 0.55);
+    for (const s of [-1, 1]) pz += 0.004 * bell(y, -0.14, 0.12) * bell(x, s * 0.45, 0.16) * fr - 0.008 * bell(x, s * 0.33, 0.13) * bell(y, 0.02, 0.1) * fr;
     return V(px, py, pz);
   }
   const dir = (x, y, z) => V(x, y, z).normalize();
   const onHead = (x, y, z, fem, out = 0) => { const n = dir(x, y, z), p = headPoint(n, fem); return p.addScaledVector(n, out); };
-  const ell = (q, rx, ry, rz) => new THREE.SphereGeometry(1, q > 1 ? 16 : 10, q > 1 ? 12 : 8).scale(rx, ry, rz);
+  const ell = (q, rx, ry, rz) => new THREE.SphereGeometry(1, q > 1 ? 16 : 8, q > 1 ? 12 : 6).scale(rx, ry, rz);
   const at = (geo, color, m) => ({ geo, color, matrix: m });
   /** Pièce placée en p, tournée pour que son axe +y suive d (unité), étirée (sx, sy, sz). */
   function along(geo, color, p, d, s) {
@@ -216,36 +218,37 @@
     out.skull.push(at(deformed(w, h, (n) => headPoint(n, fem)), skin));
     const deep = new THREE.Color(skin).multiplyScalar(0.86).getStyle();
     // nez d'une pièce : arête étroite, plus large et plus en avant vers la pointe et les ailes
-    const root = onHead(0, 0.2, 1, fem, -0.003), nl = fem ? 0.041 : 0.048;
+    const root = onHead(0, 0.08, 1, fem, -0.004), nl = fem ? 0.05 : 0.058;
     out.features.push(at(deformed(q > 1 ? 16 : 10, q > 1 ? 12 : 8, (n) => {
-      const t = (1 - n.y) / 2, w = (fem ? 0.0052 : 0.006) + (fem ? 0.0062 : 0.0075) * t + 0.0042 * bell(t, 0.86, 0.12);
-      const f = 0.005 + (fem ? 0.021 : 0.025) * Math.pow(t, 1.3) - 0.009 * ss(0.9, 1, t);
-      return V(n.x * w, root.y - t * nl + (n.z < 0 ? 0 : 0.004 * ss(0.75, 1, t) * n.z), root.z + (n.z > 0 ? n.z * f : n.z * 0.006));
+      const t = (1 - n.y) / 2, w = (fem ? 0.0055 : 0.0064) + (fem ? 0.0062 : 0.0076) * t + 0.0046 * bell(t, 0.86, 0.12);
+      const f = 0.006 + (fem ? 0.029 : 0.036) * Math.pow(t, 1.2) - 0.012 * ss(0.88, 1, t);
+      return V(n.x * w, root.y - t * nl + (n.z < 0 ? 0 : 0.004 * ss(0.75, 1, t) * n.z), root.z + (n.z > 0 ? n.z * f : n.z * 0.008));
     }), skin));
     if (q > 1) for (const s of [-1, 1]) out.marks.push(at(ell(q, 1, 1, 1), deep, tr(s * 0.0065, root.y - nl * 0.97, root.z + 0.012, 0, 0, 0, 0.0035, 0.0018, 0.004)));
     // oreilles (et le creux de l'oreille, en réaliste)
     for (const s of [-1, 1]) {
-      const e = onHead(s, 0.05, -0.1, fem, -0.004);
+      const e = onHead(s, -0.08, -0.1, fem, -0.004);
       out.features.push(at(ell(q, 1, 1, 1), skin, tr(e.x + s * 0.006, e.y, e.z, 0.15, s * 0.25, 0, 0.009, fem ? 0.029 : 0.032, 0.021)));
       if (q > 1) out.marks.push(at(ell(q, 1, 1, 1), deep, tr(e.x + s * 0.0135, e.y - 0.002, e.z + 0.002, 0.15, s * 0.25, 0, 0.003, 0.017, 0.011)));
     }
     // bouche (ouverture sombre), lèvres
-    const m = onHead(0, -0.34, 0.94, fem, -0.003), lip = fem ? '#c87470' : '#c58a7a';
+    const m = onHead(0, -0.56, 0.83, fem, -0.003), lip = fem ? '#c87470' : '#c58a7a';
     out.mouth.push(at(ell(q, 1, 1, 1), '#4a2226', tr(m.x, m.y, m.z - 0.002, 0, 0, 0, 0.017, 0.0035, 0.006)));
     out.marks.push(at(ell(q, 1, 1, 1), lip, tr(m.x, m.y + 0.005, m.z - 0.002, -0.2, 0, 0, fem ? 0.02 : 0.021, fem ? 0.005 : 0.0038, 0.006)));
     out.marks.push(at(ell(q, 1, 1, 1), lip, tr(m.x, m.y - 0.006, m.z - 0.003, 0.25, 0, 0, 0.018, fem ? 0.0062 : 0.005, 0.0062)));
     // yeux (blanc, iris, pupille, paupière ; cils en réaliste chez une femme) et sourcils
     for (const s of [-1, 1]) {
-      const e = onHead(s * 0.33, 0.16, 0.93, fem, -0.0045);
+      const e = onHead(s * 0.33, 0.02, 0.94, fem, -0.0045);
       if (o.eyes) {
-        out.marks.push(at(ell(q, 1, 1, 1), '#f6f3ee', tr(e.x, e.y, e.z, 0, 0, 0, 0.0145, 0.0095, 0.0085)));
-        out.marks.push(at(ell(q, 1, 1, 1), o.iris || '#5b3b22', tr(e.x, e.y - 0.0005, e.z + 0.0072, 0, 0, 0, 0.0068, 0.0068, 0.0022)));
-        out.marks.push(at(ell(q, 1, 1, 1), '#141218', tr(e.x, e.y - 0.0005, e.z + 0.009, 0, 0, 0, 0.0032, 0.0032, 0.001)));
-        out.marks.push(at(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.36), skin, tr(e.x, e.y + 0.0012, e.z + 0.0005, 0.45, 0, 0, 0.0157, 0.0108, 0.0098)));
-        if (q > 1 && fem) out.marks.push(at(new THREE.BoxGeometry(0.03, 0.0016, 0.006), '#1d1a2b', tr(e.x, e.y + 0.0085, e.z + 0.008, -0.35, 0, -s * 0.12)));
+        // blanc, iris, pupille, paupière (l'œil ouvert), et la ligne des cils en haut (plus marquée chez une femme)
+        out.marks.push(at(ell(q, 1, 1, 1), '#f6f3ee', tr(e.x, e.y, e.z, 0, 0, 0, 0.0155, 0.0105, 0.0085)));
+        out.marks.push(at(ell(q, 1, 1, 1), o.iris || '#5b3b22', tr(e.x, e.y - 0.0004, e.z + 0.0072, 0, 0, 0, 0.0074, 0.0074, 0.0022)));
+        out.marks.push(at(ell(q, 1, 1, 1), '#141218', tr(e.x, e.y - 0.0004, e.z + 0.009, 0, 0, 0, 0.0034, 0.0034, 0.001)));
+        out.marks.push(at(new THREE.SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.27), skin, tr(e.x, e.y + 0.001, e.z + 0.0005, 0.3, 0, 0, 0.0166, 0.0114, 0.0098)));
+        out.marks.push(at(ell(q, 1, 1, 1), '#2a1f1c', tr(e.x + s * 0.001, e.y + 0.0062, e.z + 0.0055, -0.5, 0, -s * 0.1, 0.0158, fem ? 0.0024 : 0.0016, 0.0042)));
       }
-      const b = onHead(s * 0.34, 0.33, 0.88, fem, 0.001);
-      out.marks.push(at(ell(q, 1, 1, 1), new THREE.Color(hair).multiplyScalar(0.8).getStyle(), tr(b.x, b.y, b.z, -0.25, -s * 0.12, -s * 0.12, fem ? 0.02 : 0.023, fem ? 0.0028 : 0.0038, 0.005)));
+      const b = onHead(s * 0.34, 0.2, 0.92, fem, 0.001);
+      out.marks.push(at(ell(q, 1, 1, 1), new THREE.Color(hair).multiplyScalar(0.8).getStyle(), tr(b.x, b.y, b.z, -0.25, -s * 0.12, s * 0.06, fem ? 0.02 : 0.023, fem ? 0.0028 : 0.0038, 0.005)));
     }
     // cheveux : courts sous le casque (nuque, tempes, pattes) ; plus bas dans la nuque chez une femme
     out.hair.push(at(deformed(w, h, (n) => headPoint(n, fem).multiplyScalar(1.035).add(V(0, 0, -0.002)),
@@ -264,20 +267,20 @@
         const join = onHead(s * 0.92, -0.42, 0.05, fem, 0.006);
         for (const pts of [[onHead(s, 0.32, 0.32, fem, 0.004), onHead(s, -0.05, 0.25, fem, 0.005), join],
           [onHead(s * 0.95, 0.3, -0.38, fem, 0.004), onHead(s, -0.12, -0.25, fem, 0.005), join],
-          [join, onHead(s * 0.55, -0.85, 0.35, fem, 0.005), onHead(0, -0.72, 0.72, fem, 0.005)]]) out.straps.push(at(sweep(pts, () => 0.0024, q, 8), '#26232f'));
+          [join, onHead(s * 0.5, -0.9, 0.2, fem, 0.005), onHead(0, -0.97, 0.22, fem, 0.005)]]) out.straps.push(at(sweep(pts, () => 0.0024, q, 8), '#26232f'));
       }
     }
     return out;
   }
 
-  /** Bande à la surface du visage (lunettes) : angles a0, a1 autour de la tête (0 devant), hauteurs y0, y1 (direction), décollée
-      de off(a). */
+  /** Bande à la surface du visage (lunettes) : angles a0, a1 autour de la tête (0 devant), hauteurs y0, y1 (direction ; nombre ou
+      fonction de l'angle), décollée de off(a). */
   function faceBand(fem, a0, a1, y0, y1, off, q) {
-    const nu = q > 1 ? 24 : 14, nv = 3, pos = [], idx = [];
+    const nu = q > 1 ? 28 : 16, nv = 3, pos = [], idx = [], Y0 = typeof y0 === 'function' ? y0 : () => y0, Y1 = typeof y1 === 'function' ? y1 : () => y1;
     for (let j = 0; j <= nv; j++) {
-      const y = y0 + (y1 - y0) * j / nv, c = Math.sqrt(1 - y * y);
       for (let i = 0; i <= nu; i++) {
-        const a = a0 + (a1 - a0) * i / nu, n = V(Math.sin(a) * c, y, Math.cos(a) * c), p = headPoint(n, fem).addScaledVector(n, off(a));
+        const a = a0 + (a1 - a0) * i / nu, y = Y0(a) + (Y1(a) - Y0(a)) * j / nv, c = Math.sqrt(1 - y * y);
+        const n = V(Math.sin(a) * c, y, Math.cos(a) * c), p = headPoint(n, fem).addScaledVector(n, off(a));
         pos.push(p.x, p.y, p.z);
       }
     }
@@ -291,12 +294,15 @@
     return smoothNormals(geo);
   }
 
-  /** Lunettes ajustées au visage : sport (verre enveloppant, monture en haut, branches jusqu'aux oreilles) ou écran (shield). */
+  /** Lunettes ajustées au visage : sport (verre enveloppant, monture en haut, branches jusqu'aux oreilles) ou écran (shield). Le
+      verre couvre les yeux, échancré au-dessus du nez, avec un reflet de chaque côté. */
   function glassesParts(o) {
     const q = o.q || 1, fem = !!o.fem, shield = o.type === 'shield', parts = [];
-    const w = shield ? 1.4 : 1.22, lo = shield ? 0.02 : 0.07, hi = shield ? 0.4 : 0.31;
-    const off = (a) => 0.011 + 0.011 * bell(a, 0, 0.32); // le verre passe devant l'arête du nez
-    parts.push({ geo: faceBand(fem, -w, w, lo, hi, off, q), color: shield ? '#6b5ce0' : '#4fd0ff' });
+    const w = shield ? 1.4 : 1.22, hi = shield ? 0.26 : 0.18;
+    const lo = (a) => (shield ? -0.15 : -0.12) + (shield ? 0.07 : 0.1) * bell(a, 0, 0.17) + 0.05 * ss(0.75, 1.25, Math.abs(a));
+    const off = (a) => (shield ? 0.015 : 0.011) + 0.011 * bell(a, 0, 0.32); // le verre passe devant l'arête du nez et les sourcils
+    parts.push({ geo: faceBand(fem, -w, w, lo, hi, off, q), color: shield ? '#5a4fd0' : '#2f86cf' });
+    for (const s of [-1, 1]) parts.push({ geo: faceBand(fem, s > 0 ? 0.3 : -0.75, s > 0 ? 0.75 : -0.3, hi - 0.085, hi - 0.06, (a) => off(a) + 0.0012, q), color: shield ? '#b7aef6' : '#a9e1ff' });
     parts.push({ geo: faceBand(fem, -w - 0.03, w + 0.03, hi - 0.03, hi + 0.012, (a) => off(a) + 0.002, q), color: shield ? '#f4f1ea' : '#1d1a2b' });
     for (const s of [-1, 1]) {
       const pts = [onHead(Math.sin(s * w), hi - 0.04, Math.cos(w), fem, 0.012), onHead(s, hi - 0.06, -0.15, fem, 0.008), onHead(s, hi - 0.12, -0.42, fem, 0.006)];
@@ -377,98 +383,142 @@
     return parts;
   }
 
-  /** Bande élastique au bas du maillot, posée sur le haut des fessiers : un ourlet net sur le cuissard. */
-  function torsoHem(o) {
-    return [{ geo: torsoStrip(!!o.fem, -0.9, -0.6, -Math.PI, Math.PI, 0.05, o.q || 1), color: new THREE.Color(o.base).multiplyScalar(0.88).getStyle() }];
+  /* Bassin et fessiers : une seule surface qui prolonge le buste sous le maillot et porte le cuissard ; le bas du maillot et son
+     ourlet élastique y sont peints, posés sur le haut des fessiers (le buste finit caché dedans : pas de marche entre le maillot et le
+     cuissard). Dessinée assise dans le repère du buste (x sur le côté, y le long du dos vers les épaules, z vers la poitrine ; origine
+     au bas du buste), pour un buste penché comme sur les cocottes (PELVIS.beta), elle tourne avec le buste (pelvisPose). La forme est
+     une surface implicite (distance signée approchée) : le prolongement du buste, deux fessiers ronds qui s'y fondent (le sillon naît
+     entre eux), le dessous aplati sur la selle et qui retombe de chaque côté ; plus pleins et hanches plus larges chez une femme.
+     Les cuisses (des membres à part) sortent dessous. Maillée par rayons depuis un centre, colonnes resserrées au milieu du dos (le sillon). */
+  const PELVIS = {
+    beta: 0.89,                        // rad : angle du buste depuis la verticale pour lequel la forme est dessinée
+    center: [0, -0.03, -0.01],         // centre des rayons (repère du buste)
+    saddle: -0.065,                    // dessous des fessiers posé sur la selle (repère du corps, depuis le bas du buste)
+    glute: { x: 0.058, y: -0.07, z: -0.05, rx: 0.076, ry: 0.1, rz: 0.07 }, // un fessier (repère du buste) : allongé le long du dos
+    hem: [-0.006, 0.013]               // ourlet du maillot : hauteurs (repère du buste) dans le dos, de son bas à son haut
+  };
+  const PB_ = Math.cos(PELVIS.beta), PS_ = Math.sin(PELVIS.beta);
+  // prolongement du buste le long du dos (repère du buste) : demi-largeur (homme, femme), dos, ventre ; dedans du buste au-dessus de
+  // y ≈ 0,03, dehors en dessous (il cache le bas arrondi du buste)
+  const PCOL = {
+    wm: curve([[-0.12, 0.136], [-0.04, 0.146], [0.01, 0.151], [0.035, 0.148], [0.06, 0.14], [0.16, 0.126]]),
+    wf: curve([[-0.12, 0.144], [-0.04, 0.155], [0.01, 0.158], [0.035, 0.15], [0.06, 0.138], [0.16, 0.118]]),
+    back: curve([[-0.12, 0.09], [-0.02, 0.104], [0.05, 0.104], [0.16, 0.108]]),
+    front: curve([[-0.12, 0.075], [-0.03, 0.094], [0.025, 0.094], [0.06, 0.082], [0.16, 0.076]])
+  };
+  const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+  const smax = (a, b, k) => -smin(-a, -b, k);
+  // distance approchée à un ellipsoïde (bonne près de la surface)
+  const ellD = (x, y, z, rx, ry, rz) => {
+    const ax = x / rx, ay = y / ry, az = z / rz, bx = ax / rx, by = ay / ry, bz = az / rz;
+    const k0 = Math.sqrt(ax * ax + ay * ay + az * az), k1 = Math.sqrt(bx * bx + by * by + bz * bz);
+    return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz);
+  };
+  /** Distance signée approchée à la surface du bassin, au point (x, y, z) du repère du buste (négative dedans). */
+  function pelvisSDF(x, y, z, fem) {
+    // prolongement du buste : section elliptique, bas arrondi, haut ouvert dans le buste
+    const yc = Math.min(0.16, Math.max(-0.12, y)), W = (fem ? PCOL.wf : PCOL.wm)(yc), D = z < 0 ? PCOL.back(yc) : PCOL.front(yc);
+    const ds = (Math.sqrt((x / W) * (x / W) + (z / D) * (z / D)) - 1) * Math.min(W, D), rr = 0.06, dy = Math.max(-0.12 - y, y - 0.2);
+    const ex = Math.max(ds + rr, 0), ey = Math.max(dy + rr, 0);
+    let d = Math.sqrt(ex * ex + ey * ey) + Math.min(Math.max(ds + rr, dy + rr), 0) - rr;
+    // fessiers : deux dômes ronds dans le prolongement du dos, fondus dans le buste ; le sillon reste entre eux
+    const G = PELVIS.glute, kx = fem ? 1.06 : 1, kz = fem ? 1.12 : 1, ky = fem ? 1.04 : 1;
+    const gl = ellD(x + G.x * kx, y - G.y, z - G.z, G.rx * kx, G.ry * ky, G.rz * kz), gr = ellD(x - G.x * kx, y - G.y, z - G.z, G.rx * kx, G.ry * ky, G.rz * kz);
+    d = smin(d, smin(gl, gr, 0.016), 0.04);
+    // repère du corps (depuis le bas du buste)
+    const yb = y * PB_ - z * PS_, zb = y * PS_ + z * PB_;
+    // posé sur la selle : le dessous des fessiers s'aplatit au milieu et retombe de chaque côté de la selle (derrière les hanches
+    // seulement : devant, l'entrejambe et la racine des cuisses)
+    const seat = PELVIS.saddle - 0.015 * ss(0.05, 0.16, Math.abs(x)) - 3 * Math.max(0, zb + 0.02);
+    return smax(d, seat - yb, 0.06);
   }
-
-  /* Bassin et fessiers (cuissard) : une seule surface, de l'entrejambe (v = 0) à la taille (v = 1), décrite debout (m ; origine à
-     la hauteur des hanches, +z devant), puis basculée comme le bassin d'un cycliste assis. Les fessiers arrondissent le dos du
-     bassin et s'y fondent : ni bord en haut ni boule, pleins jusqu'au sillon, étroit et plus profond vers le bas ; arrondis
-     dessous (le pli fessier) ; plus pleins et hanches plus larges chez une femme. */
-  // profils de l'entrejambe (v = 0) à la taille (v = 1), debout : hauteur, demi-largeur (femme, homme), dos sans les fessiers, ventre
-  // (le profil des fessiers : gluteDepth)
-  const PV = (() => {
-    const K = [
-      [0, -0.125, 0, 0, 0, 0], [0.06, -0.121, 0.068, 0.062, 0.035, 0.038], [0.14, -0.108, 0.124, 0.113, 0.058, 0.057],
-      [0.24, -0.09, 0.158, 0.144, 0.072, 0.068], [0.34, -0.07, 0.176, 0.159, 0.08, 0.075], [0.44, -0.046, 0.18, 0.163, 0.085, 0.08],
-      [0.54, -0.02, 0.175, 0.16, 0.087, 0.082], [0.64, 0.008, 0.161, 0.149, 0.086, 0.083], [0.74, 0.04, 0.14, 0.132, 0.08, 0.08],
-      [0.84, 0.075, 0.118, 0.114, 0.074, 0.076], [0.92, 0.11, 0.106, 0.104, 0.068, 0.072], [1, 0.15, 0.098, 0.098, 0.062, 0.068]
-    ];
-    const col = (k) => curve(K.map((r) => [r[0], r[k]]));
-    return { y: col(1), wf: col(2), wm: col(3), back: col(4), front: col(5),
-      cleft: curve([[0, 0.012], [0.1, 0.03], [0.3, 0.04], [0.5, 0.034], [0.68, 0.018], [0.8, 0.005], [0.9, 0]]) };
-  })();
-  /* Profil des fessiers vus de côté (debout) : une super-ellipse (exposant GLUTE.n > 2) plutôt qu'une ellipse : moins saillante au
-     sommet, pleine au-dessus et au-dessous ; la courbe va du bas du dos à la selle d'un seul arrondi, sans pointe. Profondeur (m)
-     derrière le milieu du bassin à la hauteur y ; fermée à l'entrejambe. */
-  const GLUTE = { yc: -0.035, up: 0.17, down: 0.095, depth: 0.128, n: 2.4 };
-  function gluteDepth(v) {
-    const y = PV.y(v), u = Math.min(1, Math.abs(y - GLUTE.yc) / (y > GLUTE.yc ? GLUTE.up : GLUTE.down));
-    return GLUTE.depth * Math.pow(1 - Math.pow(u, GLUTE.n), 1 / GLUTE.n) * ss(0, 0.12, v);
-  }
-  /** Point du bassin : a, angle autour du corps (0 au milieu du dos, π/2 sur le côté +x) ; v, hauteur (0 entrejambe, 1 taille). */
+  const pelvisDir = (a, v) => { const f = v * Math.PI; return V(Math.sin(f) * Math.sin(a), -Math.cos(f), -Math.sin(f) * Math.cos(a)); };
+  /** Point de la surface du bassin (repère du buste) sur le rayon (a, v) : a, angle autour du dos (0 au milieu du dos, π/2 sur le
+      côté +x) ; v, de 0 (en bas, vers la selle) à 1 (en haut, dans le buste). */
   function pelvisPoint(a, v, fem) {
-    // section : ellipse devant ; derrière, une super-ellipse (le bassin reste large jusqu'aux fessiers au lieu de s'effiler)
-    const sn = Math.sin(a), c = Math.cos(a), e = c > 0 ? 0.78 : 1, W = (fem ? PV.wf : PV.wm)(v), B = PV.back(v);
-    const x = W * Math.sign(sn) * Math.pow(Math.abs(sn), e);
-    let z = c > 0 ? -B * Math.pow(c, e) : -PV.front(v) * c;
-    // fessiers : un dôme rond de chaque côté, plein jusqu'au sillon et arrondi vers l'extérieur jusqu'à la hanche ; moins saillants
-    // chez un homme
-    const t = W > 1e-6 ? Math.abs(x) / W : 0, bk = ss(-0.1, 0.45, c), G = Math.max(0, gluteDepth(v) - B) * (fem ? 1 : 0.8);
-    z -= G * Math.sqrt(Math.max(0, 1 - ((t - 0.42) / 0.74) ** 2)) * bk;
-    z += PV.cleft(v) * (fem ? 1.1 : 1) * Math.exp(-((x / 0.013) ** 2)) * bk;
-    if (!fem) z += 0.006 * bell(t, 0.9, 0.08) * bell(v, 0.55, 0.15) * bk; // léger creux sur le côté de la hanche
-    // cambrure : au-dessus des fessiers, la taille suit le dos penché et reste sous le maillot
-    const y = PV.y(v);
-    if (y > 0) z += 0.42 * y * y / (y + 0.03);
-    return V(x, y, z);
+    const C = PELVIS.center, d = pelvisDir(a, v), f = (r) => pelvisSDF(C[0] + d.x * r, C[1] + d.y * r, C[2] + d.z * r, fem);
+    let lo = 0, hi = 0, val = f(0);
+    while (val < 0 && hi < 0.4) { lo = hi; hi += Math.max(0.002, -val * 0.7); val = f(hi); }
+    for (let k = 0; k < 10; k++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; }
+    const r = (lo + hi) / 2;
+    return V(C[0] + d.x * r, C[1] + d.y * r, C[2] + d.z * r);
   }
 
-  /** Pose du bassin d'un cycliste : il bascule avec le buste (penché sur le cintre, les fessiers pointent vers l'arrière), autour
-      d'un point placé au-dessus des hanches du gabarit pour que les fessiers reposent sur la selle et que les cuisses sortent
-      dessous. tdir : du bassin aux épaules ; renvoie {offset (à ajouter au point du bassin), tilt (rad, rotation autour de x)}. */
+  /** Pose du bassin : il tourne avec le buste autour du bas du buste. tdir : du bassin aux épaules ; renvoie {offset (à ajouter au
+      point du bassin), tilt (rad, rotation autour de x)}. */
   function pelvisPose(tdir) {
-    return { offset: V(0, 0.015, -0.005), tilt: 0.68 * Math.atan2(tdir.z, tdir.y) };
+    return { offset: V(0, 0, 0), tilt: Math.atan2(tdir.z, tdir.y) };
   }
 
   const HIP_FOLLOW = 0.6; // part du mouvement de la cuisse que suit le bas du fessier
-  /** Grille (a, v) de la surface : colonnes resserrées au milieu du dos (le sillon), bas fermé, haut fermé par une calotte. */
-  function pelvisSurface(fem, q) {
-    const N = q > 1 ? 72 : 44, M = q > 1 ? 40 : 24, pos = [], idx = [], hip = [];
+  /** Rangées du maillage : v des rangées (de bas en haut), avec les limites de l'ourlet ; et le v de chaque limite. */
+  function pelvisRows(M) {
+    // l'ourlet est à hauteur constante dans le dos : v du rayon du milieu du dos qui atteint la hauteur y
+    const C = PELVIS.center, vAt = (y) => {
+      let lo = 0.3, hi = 0.9;
+      for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (pelvisPoint(0, m, false).y < y) lo = m; else hi = m; }
+      return (lo + hi) / 2;
+    };
+    const h0 = vAt(PELVIS.hem[0]), h1 = vAt(PELVIS.hem[1]), rows = [];
+    for (let j = 0; j <= M; j++) rows.push(j / M);
+    for (const h of [h0, h1]) if (!rows.some((v) => Math.abs(v - h) < 0.4 / M)) rows.push(h); else rows[rows.reduce((b, v, i) => (Math.abs(v - h) < Math.abs(rows[b] - h) ? i : b), 0)] = h;
+    rows.sort((a, b) => a - b);
+    return { rows, h0, h1, C };
+  }
+  /** Surface du bassin, en trois pièces qui partagent leurs rangées limites : le cuissard (v ≤ h0 : reflet du lycra, poids hipW du
+      mouvement des cuisses), l'ourlet (h0 à h1) et le bas du maillot (au-dessus). */
+  const pelvisCache = new Map();
+  function pelvisSurfaces(fem, q) {
+    const key = (fem ? 'f' : 'm') + q;
+    if (!pelvisCache.has(key)) pelvisCache.set(key, buildPelvis(fem, q)); // calcul de la surface : une fois par forme
+    const S = pelvisCache.get(key);
+    return { shorts: S.shorts.clone(), hem: S.hem.clone(), jersey: S.jersey.clone(), h0: S.h0, h1: S.h1 };
+  }
+  function buildPelvis(fem, q) {
+    const N = q > 1 ? 72 : 38, M = q > 1 ? 40 : 22;
+    const { rows, h0, h1 } = pelvisRows(M);
     const col = (i) => { const u = -1 + 2 * i / N; return Math.PI * Math.sign(u) * Math.pow(Math.abs(u), 1.6); };
-    for (let j = 0; j <= M + 1; j++) {
-      for (let i = 0; i < N; i++) {
-        let p;
-        if (j <= M) p = pelvisPoint(col(i), j / M, fem);
-        else p = V(0, PV.y(1) + 0.035, (PV.front(1) - PV.back(1)) / 2); // calotte arrondie sous le maillot
-        pos.push(p.x, p.y, p.z);
-        // part du mouvement de la cuisse de ce côté : forte au bas du fessier, nulle en haut et au milieu (le sillon reste continu)
-        hip.push(j <= M ? Math.sign(p.x) * HIP_FOLLOW * ss(0.8, 0.1, j / M) * ss(0, 0.045, Math.abs(p.x)) : 0);
-      }
+    // la grille entière (normales lissées d'un seul tenant, sans pli aux limites des pièces), puis une pièce par plage de rangées
+    const pos = [], idx = [];
+    for (const v of rows) for (let i = 0; i < N; i++) { const p = pelvisPoint(col(i), v, fem); pos.push(p.x, p.y, p.z); }
+    for (let j = 0; j + 1 < rows.length; j++) for (let i = 0; i < N; i++) {
+      const a = j * N + i, b = j * N + (i + 1) % N;
+      idx.push(a, a + N, b, b, a + N, b + N);
     }
-    for (let j = 0; j <= M; j++) {
-      for (let i = 0; i < N; i++) {
-        const a = j * N + i, b = j * N + (i + 1) % N;
-        idx.push(a, a + N, b, b, a + N, b + N);
+    const all = new THREE.BufferGeometry();
+    all.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    all.setIndex(idx);
+    const nor = smoothNormals(all).attributes.normal.array;
+    const piece = (from, to, hipW) => {
+      const list = [], P = [], Nn = [], hip = [], ix = [];
+      rows.forEach((v, j) => { if (v >= from - 1e-9 && v <= to + 1e-9) list.push(j); });
+      for (const j of list) for (let i = 0; i < N; i++) {
+        const k = (j * N + i) * 3, x = pos[k], y = pos[k + 1], z = pos[k + 2];
+        P.push(x, y, z); Nn.push(nor[k], nor[k + 1], nor[k + 2]);
+        // part du mouvement de la cuisse de ce côté : forte en bas et vers les cuisses, nulle en haut, au milieu (le sillon reste
+        // continu) et à l'ourlet (pas de fente entre le cuissard et le maillot)
+        if (hipW) hip.push(Math.sign(x) * HIP_FOLLOW * ss(0.03, -0.045, y * PB_ - z * PS_) * ss(0, 0.045, Math.abs(x)) * ss(h0, h0 - 0.12, rows[j]));
       }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('hipW', new THREE.Float32BufferAttribute(hip, 1));
-    geo.setIndex(idx);
-    return smoothNormals(geo);
+      for (let k = 0; k + 1 < list.length; k++) for (let i = 0; i < N; i++) {
+        const a = k * N + i, b = k * N + (i + 1) % N;
+        ix.push(a, a + N, b, b, a + N, b + N);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3));
+      if (hipW) geo.setAttribute('hipW', new THREE.Float32BufferAttribute(hip, 1));
+      geo.setIndex(ix);
+      return geo;
+    };
+    return { shorts: piece(0, h0, true), hem: piece(h0, h1, false), jersey: piece(h1, 1, false), h0, h1 };
   }
 
-  /** Trait peint sur la surface du bassin le long de (a(t), v(t)), demi-largeur w(t) (m) : le sillon, dessiné comme un trait d'encre. */
+  /** Trait peint sur la surface du bassin, sur les rayons (a(t), v(t)), demi-largeur w(t) (m) : le sillon, comme un trait d'encre. */
   function pelvisLine(fem, a, v, w, n) {
-    const pos = [], idx = [], e = 1e-3, P = (aa, vv) => pelvisPoint(aa, vv, fem);
+    const pos = [], idx = [], P = (t) => pelvisPoint(a(t), v(t), fem);
     for (let k = 0; k <= n; k++) {
-      const t = k / n, c = P(a(t), v(t));
-      const tg = P(a(Math.min(1, t + 0.01)), v(Math.min(1, t + 0.01))).sub(P(a(Math.max(0, t - 0.01)), v(Math.max(0, t - 0.01)))).normalize();
-      const nr = P(a(t) + e, v(t)).sub(P(a(t) - e, v(t))).cross(P(a(t), v(t) + e).sub(P(a(t), v(t) - e))).normalize();
-      if (nr.dot(V(c.x, 0, c.z)) < 0) nr.negate();
-      const side = nr.clone().cross(tg).normalize().multiplyScalar(w(t));
+      const t = k / n, c = P(t), tg = P(Math.min(1, t + 0.01)).sub(P(Math.max(0, t - 0.01))).normalize();
+      const nr = pelvisDir(a(t), v(t)), side = nr.clone().cross(tg).normalize().multiplyScalar(w(t));
       for (const sg of [-1, 1]) { const p = c.clone().addScaledVector(side, sg).addScaledVector(nr, 0.0008); pos.push(p.x, p.y, p.z); }
     }
     for (let k = 0; k < n; k++) { const i = k * 2; idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
@@ -478,11 +528,16 @@
     return smoothNormals(geo);
   }
 
-  /** Bassin et fessiers : la surface (couleur du cuissard, reflet du lycra) et le trait du sillon. */
+  /** Bassin et fessiers : le cuissard (o.color, reflet du lycra), l'ourlet et le bas du maillot (o.jersey, o.hem ; sans maillot à part,
+      une combinaison : tout à la couleur du cuissard), et le trait du sillon (o.ink) ; o.tint : le maillot teinté par instance
+      (peloton). La première pièce porte les poids hipW. */
   function pelvisParts(o) {
-    const fem = !!o.fem, q = o.q || 1, color = o.color || '#26232f';
-    const cleft = pelvisLine(fem, () => 0, (t) => 0.14 + 0.4 * t, (t) => 0.0004 + (q > 1 ? 0.0019 : 0.0024) * (1 - ss(0.35, 1, t)), q > 1 ? 24 : 12);
-    return [{ geo: pelvisSurface(fem, q), color, sheen: 1 }, { geo: cleft, color: o.ink || '#141218' }];
+    const fem = !!o.fem, q = o.q || 1, color = o.color || '#26232f', S = pelvisSurfaces(fem, q);
+    const jersey = o.jersey || color, hem = o.hem || (o.jersey ? new THREE.Color(o.jersey).multiplyScalar(0.7).getStyle() : color);
+    const tint = o.tint ? 1 : 0;
+    // le sillon, du bas de l'ourlet vers la selle, effilé vers le haut
+    const cleft = pelvisLine(fem, () => 0, (t) => S.h0 - 0.03 - (S.h0 - 0.2) * t, (t) => 0.0004 + (q > 1 ? 0.0017 : 0.0022) * ss(0, 0.5, t), q > 1 ? 20 : 12);
+    return [{ geo: S.shorts, color, sheen: 1 }, { geo: S.hem, color: hem, tint }, { geo: S.jersey, color: jersey, tint }, { geo: cleft, color: o.ink || '#141218' }];
   }
 
   /* ------------------------------------------------------------------ mains et pieds */
@@ -545,5 +600,5 @@
     return parts;
   }
 
-  B3D.anatomy = { curve, smoothNormals, deformed, rings, limb, limbParts, LENGTHS, headPoint, headParts, glassesParts, torsoPoint, torsoGeometry, torsoTrim, torsoHem, pelvisPoint, pelvisParts, pelvisPose, HIP_FOLLOW, handParts, shoeParts };
+  B3D.anatomy = { curve, smoothNormals, deformed, rings, limb, limbParts, LENGTHS, headPoint, headParts, glassesParts, torsoPoint, torsoGeometry, torsoTrim, PELVIS, pelvisSDF, pelvisPoint, pelvisParts, pelvisPose, HIP_FOLLOW, handParts, shoeParts };
 })(typeof window !== 'undefined' ? window : globalThis);

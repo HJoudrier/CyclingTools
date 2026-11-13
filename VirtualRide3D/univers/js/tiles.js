@@ -72,6 +72,9 @@
     fox: ['#d9692a', '#cf5d22', '#e07a36']
   };
 
+  // le contour des objets s'efface entre ces fractions du rayon du paysage chargé (le brouillard les estompe déjà)
+  const OUTLINE_FADE = [0.4, 0.55];
+
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
   const _c = new THREE.Color();
 
@@ -182,14 +185,35 @@
     _createPools() {
       const geos = B3D.props.geometries();
       this.pools = {};
+      // instances triées par le champ de la caméra (cull) ; contours jusqu'à un peu plus de la moitié du rayon, ensuite le brouillard
+      this.culler = new B3D.props.InstanceCuller({ cell: 48 });
       for (const p of POOLS) {
         const cap = Math.round(p.cap * this.Q.caps);
         const geo = p.name === 'fruittree' ? B3D.props.fruitTree(this.L.amb.fruit) : geos[p.name];
+        // au loin, la version allégée : les arbres au-delà de 30 % du rayon, les spectateurs au-delà de 45 m
+        const low = B3D.props.lowGeometry(p.name, this.L.amb.fruit);
         this.pools[p.name] = new B3D.props.InstancePool(this.scene, geo, {
+          name: p.name, culler: this.culler, lod: low ? { geo: low, dist: p.people ? 45 : this.Q.radius * 0.3 } : null,
           capacity: cap, outline: p.outline, sway: p.sway, bounce: p.bounce, people: p.people, outlineWidth: p.outlineWidth, maxW: p.maxW, snow: p.snow,
           castShadow: p.shadow && this.Q.treeShadows || p.name === 'spectator'
         });
       }
+    }
+
+    /** Rend visibles tous les pools, même vides (on : pour compiler leurs shaders d'avance), puis leur rend leur état. */
+    showAllPools(on) {
+      for (const p of Object.values(this.pools)) {
+        if (on) for (const m of [p.mesh, p.outline, p.far]) { if (m) m.visible = true; }
+        else p._applyVisible();
+      }
+    }
+
+    /** Avant chaque image : ne garde à dessiner que les instances dans le champ de la caméra (all : toutes, en réalité virtuelle). */
+    cull(camera, all) {
+      const R = this.Q.radius;
+      B3D.toon.shared.uOutlineFade.value.set(R * OUTLINE_FADE[0], R * OUTLINE_FADE[1]);
+      this.culler.outlineFar = R * OUTLINE_FADE[1];
+      return this.culler.update(camera, all);
     }
 
     clear() {
@@ -202,6 +226,7 @@
     dispose() {
       this.clear();
       for (const p of Object.values(this.pools)) p.dispose();
+      B3D.toon.shared.uOutlineFade.value.set(1e6, 2e6);
       this.scene.remove(this.group);
       this.material.dispose();
     }

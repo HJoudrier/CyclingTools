@@ -7,6 +7,7 @@
   const shared = {
     uTime: { value: 0 },
     uOutlineScale: { value: 0.0022 }, // épaisseur (m) par mètre de distance à la caméra
+    uOutlineFade: { value: new THREE.Vector2(1e6, 2e6) }, // distances (m) où le contour s'efface : au loin, le brouillard suffit
     uRider: { value: new THREE.Vector3(0, -1e5, 0) }, // position du coureur (le public s'excite à son passage)
     // météo : direction (x, z) et force (0..1,6) du vent, route mouillée, nuit, teinte d'ensemble (eau, panneaux)
     uWind: { value: new THREE.Vector3(0, 1, 0) },
@@ -240,6 +241,7 @@
         uMinW: { value: opts.minW !== undefined ? opts.minW : 0.006 },
         uMaxW: { value: opts.maxW !== undefined ? opts.maxW : 0.5 },
         uOutlineScale: shared.uOutlineScale,
+        uOutlineFade: shared.uOutlineFade,
         uTime: shared.uTime,
         uRider: shared.uRider,
         uWind: shared.uWind,
@@ -255,6 +257,7 @@
         'attribute vec3 outlineNormal;',
         hip ? HIP_PARS : '',
         'uniform float uWidth, uMinW, uMaxW, uOutlineScale, uTime;',
+        'uniform vec2 uOutlineFade;',
         'uniform vec3 uWind;',
         people ? PEOPLE_PARS + (phase ? '\n' + PHASE_PARS : '') : '',
         flap ? flap.pars : '',
@@ -272,7 +275,7 @@
         '  #endif',
         '  vec4 mvPosition = modelViewMatrix * p;',
         '  vec3 vn = normalize(mat3(modelViewMatrix) * n);',
-        '  float w = clamp(-mvPosition.z * uOutlineScale * uWidth, uMinW * uWidth, uMaxW);',
+        '  float w = clamp(-mvPosition.z * uOutlineScale * uWidth, uMinW * uWidth, uMaxW) * (1.0 - smoothstep(uOutlineFade.x, uOutlineFade.y, length(mvPosition.xyz)));',
         '  mvPosition.xyz += vn * w;',
         '  gl_Position = projectionMatrix * mvPosition;',
         '  #include <fog_vertex>',
@@ -422,18 +425,18 @@
     return t;
   }
 
-  /* Reflet d'un tissu tendu (lycra du cuissard des cyclistes détaillés) sur les sommets marqués « sheen » (0..1) : un reflet en deux
-     paliers de la lumière principale et un liseré lumineux sur les bords tournés vers elle. L'ombrage toon aplatit un tissu sombre ;
-     le reflet en montre les formes, comme sur une photo. */
+  /* Reflet d'un tissu tendu (lycra du cuissard des cyclistes détaillés) sur les sommets marqués « sheen » (0..1) : un reflet doux et
+     discret de la lumière principale (pas une tache brillante) et un liseré lumineux sur les bords tournés vers elle. L'ombrage toon
+     aplatit un tissu sombre ; le reflet en montre les formes, comme sur une photo. */
   const SHEEN_FRAG = [
     '#if NUM_DIR_LIGHTS > 0',
     'if (vSheen > 0.0) {',
     '  vec3 shL = directionalLights[0].direction;',
     '  float shNL = max(dot(normal, shL), 0.0);',
-    '  float shS = pow(max(dot(normal, normalize(shL + geometryViewDir)), 0.0), 20.0) * step(0.001, shNL);',
-    '  float shB = 0.5 * smoothstep(0.22, 0.3, shS) + 0.5 * smoothstep(0.62, 0.7, shS);',
-    '  float shR = smoothstep(0.6, 0.78, 1.0 - max(dot(normal, geometryViewDir), 0.0)) * smoothstep(0.0, 0.3, shNL);',
-    '  outgoingLight += vSheen * (0.06 * shB + 0.03 * shR) * directionalLights[0].color;',
+    '  float shS = pow(max(dot(normal, normalize(shL + geometryViewDir)), 0.0), 24.0) * step(0.001, shNL);',
+    '  float shB = smoothstep(0.2, 0.9, shS);',
+    '  float shR = smoothstep(0.62, 0.85, 1.0 - max(dot(normal, geometryViewDir), 0.0)) * smoothstep(0.0, 0.3, shNL);',
+    '  outgoingLight += vSheen * (0.032 * shB + 0.022 * shR) * directionalLights[0].color;',
     '}',
     '#endif'
   ].join('\n');

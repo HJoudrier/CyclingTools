@@ -107,6 +107,7 @@
     applyQuality() {
       const Q = B3D.TileManager.QUALITY[this.settings.quality];
       this.Q = Q;
+      this.res = { k: 1, slow: 0, fast: 0, wait: 6, before: 0, check: 0, sum: 0, n: 0, locked: false }; // résolution adaptative
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pixelRatio));
       this.sun.shadow.mapSize.set(Q.shadow, Q.shadow);
       if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
@@ -636,7 +637,10 @@
       // compile d'avance les shaders des objets encore cachés (oiseaux, canards…) pour éviter un à-coup en course
       this.setLoading(0.99, 'Derniers coups de pinceau…');
       await nextFrame();
+      // y compris les pools encore vides (animaux de la nuit, contours, versions allégées du lointain) : pas d'à-coup quand ils apparaissent
+      this.tiles.showAllPools(true);
       try { await this.renderer.compileAsync(this.scene, this.camera); } catch (e) { this.renderer.compile(this.scene, this.camera); }
+      if (this.tiles) this.tiles.showAllPools(false);
       this.setLoading(1, 'Prêt !');
       console.info('[Bike3D] paysage', seed, 'généré en', Math.round(performance.now() - t0), 'ms');
       if (this.ext) {
@@ -1391,10 +1395,41 @@
       return out;
     },
 
+    /* Résolution adaptative : quand l'image ralentit (moins de 48 images par seconde pendant 2 s de course), on dessine moins de pixels,
+       par paliers de 15 % jusqu'à 60 % de la résolution de la qualité choisie ; quand elle redevient fluide assez longtemps (6 s, puis
+       deux fois plus à chaque remontée : pas de va-et-vient), on remonte d'un palier. Si baisser la résolution n'accélère rien (cadence plafonnée par
+       l'appareil, ou le processeur qui limite), on revient en arrière et on n'y touche plus. Pas dans le casque (il impose sa
+       résolution). */
+    adaptResolution(raw) {
+      const A = this.res;
+      if (!A || !this.racing() || (this.vr && this.vr.presenting) || raw > 0.25 || document.hidden) return;
+      const base = Math.min(window.devicePixelRatio || 1, this.Q.pixelRatio);
+      const apply = (k) => { A.k = k; this.renderer.setPixelRatio(base * k); this.resize(); A.slow = 0; A.fast = 0; A.sum = 0; A.n = 0; };
+      A.sum += raw; A.n++;
+      if (A.check > 0) {
+        // juste après une baisse : la cadence s'est-elle améliorée ?
+        A.check -= raw;
+        if (A.check <= 0 && A.sum / A.n > A.before * 0.95) { A.locked = true; apply(Math.min(1, A.k / 0.85)); }
+        return;
+      }
+      A.slow = raw > 1 / 48 ? A.slow + raw : Math.max(0, A.slow - raw);
+      A.fast = raw < 1 / 56 ? A.fast + raw : 0;
+      if (A.slow > 2 && A.k > 0.62 && !A.locked) {
+        const before = A.sum / A.n;
+        apply(Math.max(0.6, A.k * 0.85));
+        A.before = before; A.check = 2;
+      } else if (A.fast > A.wait && A.k < 1) {
+        apply(Math.min(1, A.k / 0.85));
+        A.wait = Math.min(60, A.wait * 2);
+      }
+      if (A.n > 600) { A.sum /= 2; A.n /= 2; }
+    },
+
     // ------------------------------------------------------------------ boucle
     loop() {
       const raw = this.clock.getDelta();
       const dt = Math.min(0.05, raw);
+      this.adaptResolution(raw);
       // poussière : en vue pilotée, elle vit au temps réel, comme les positions reçues (même à faible cadence)
       const dtDust = this.state === 'pyr' ? Math.min(0.25, raw) : dt;
       B3D.toon.shared.uTime.value += dt;
@@ -1569,6 +1604,8 @@
 
     render() {
       if (this.sky) this.sky.update(this.camera, 0);
+      // végétation, rochers, animaux et spectateurs : seulement ceux dans le champ (tous dans le casque, qui tourne avec la tête)
+      if (this.tiles) this.tiles.cull(this.camera, !!(this.vr && this.vr.presenting));
       this.renderer.render(this.scene, this.camera);
     }
   };

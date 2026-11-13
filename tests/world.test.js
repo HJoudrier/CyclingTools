@@ -549,44 +549,64 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
   };
   assert.ok(chest(true) > chest(false) + 0.2, `poitrine : ${chest(true).toFixed(2)} contre ${chest(false).toFixed(2)}`);
   assert.ok(A.headParts({ q: 1, fem: true }).tail.length > 0 && A.headParts({ q: 1, fem: false }).tail.length === 0);
-  // fessiers : une seule surface avec le bassin (pas deux boules), deux rondeurs séparées par un sillon étroit, qui se fondent dans
-  // le dos en haut ; plus pleines chez une cycliste ; reflet du lycra sur le cuissard
-  const at = (fem, v, x) => { // point du dos à la hauteur v et à x m du milieu (repère debout : +z devant)
-    let lo = 0, hi = Math.PI / 2;
-    for (let k = 0; k < 40; k++) { const a = (lo + hi) / 2; if (A.pelvisPoint(a, v, fem).x < x) lo = a; else hi = a; }
-    return A.pelvisPoint(lo, v, fem);
-  };
+  // fessiers : une seule surface qui prolonge le buste (le bas du maillot et son ourlet y sont peints), deux rondeurs séparées par un
+  // sillon étroit qui bombent derrière le prolongement du dos et se fondent dans le maillot en haut ; plus pleines et hanches plus
+  // larges chez une cycliste ; reflet du lycra sur le cuissard (repère du buste : y le long du dos, z vers la poitrine)
+  const back = (fem, x, y) => { let z = 0; while (z > -0.3 && A.pelvisSDF(x, y, z, fem) < 0) z -= 0.0005; return z; };
+  const side = (fem, y) => { let x = 0; while (x < 0.3 && A.pelvisSDF(x, y, -0.02, fem) < 0) x += 0.0005; return x; };
   for (const fem of [false, true]) {
-    const cheek = at(fem, 0.44, 0.07).z, cleft = at(fem, 0.44, 0).z, near = at(fem, 0.44, 0.03).z;
-    assert.ok(cheek < -0.11 && cheek > -0.13, `fessier en arrière sans excès : ${cheek.toFixed(3)} m`);
-    // de profil, pas de pointe : le fessier reste presque aussi saillant 4 cm au-dessus et au-dessous de son sommet
-    const prof = [];
-    for (let v = 0.02; v < 1; v += 0.01) prof.push({ y: A.pelvisPoint(0, v, fem).y, z: at(fem, v, 0.07).z });
-    const top = prof.reduce((m, p) => (p.z < m.z ? p : m));
-    const near4 = (dy) => prof.reduce((m, p) => (Math.abs(p.y - top.y - dy) < Math.abs(m.y - top.y - dy) ? p : m));
-    for (const dy of [-0.04, 0.04]) assert.ok(near4(dy).z - top.z < 0.012, `profil plein à ${dy * 100} cm du sommet : ${(near4(dy).z - top.z).toFixed(3)} m`);
-    assert.ok(cleft - cheek > 0.025, 'sillon entre les fessiers');
-    assert.ok(near - cheek < 0.012, 'sillon étroit : le fessier reste plein jusqu\'à 3 cm du milieu');
-    assert.ok(Math.abs(at(fem, 0.97, 0.02).z - at(fem, 0.97, 0).z) < 0.003, 'en haut, ni sillon ni bord : les fessiers se fondent dans le dos');
+    const cheek = back(fem, 0.07, -0.06), cleft = back(fem, 0, -0.06), near = back(fem, 0.03, -0.06);
+    assert.ok(cheek < back(fem, 0.07, 0.08) - 0.02, `les fessiers bombent derrière le dos : ${cheek.toFixed(3)} m`);
+    assert.ok(cheek > -0.15, `sans excès : ${cheek.toFixed(3)} m`);
+    assert.ok(cleft - cheek > 0.005, 'sillon entre les fessiers');
+    assert.ok(near - cheek < 0.006, 'sillon étroit : le fessier reste plein jusqu\'à 3 cm du milieu');
+    assert.ok(Math.abs(back(fem, 0.02, 0.1) - back(fem, 0, 0.1)) < 0.004, 'en haut, ni sillon ni bord : le bassin se fond dans le maillot');
+    for (const y of [0.03, 0, -0.03, -0.06]) assert.ok(side(fem, y) < 0.17, `hanches pas plus larges que le maillot : ${side(fem, y).toFixed(3)} m`);
   }
-  assert.ok(at(true, 0.44, 0.07).z < at(false, 0.44, 0.07).z - 0.006, 'plus pleins chez une cycliste');
-  const seat = A.pelvisParts({ q: 2, fem: true });
+  assert.ok(back(true, 0.07, -0.06) < back(false, 0.07, -0.06) - 0.005, 'plus pleins chez une cycliste');
+  assert.ok(side(true, -0.03) > side(false, -0.03) + 0.005, 'hanches plus larges chez une cycliste');
+  // le bas du buste est caché dans le bassin (pas de marche entre le maillot et le cuissard), même quand il respire
+  for (const fem of [false, true]) {
+    const cy = new B3D.Cyclist({ gear: { sex: fem ? 'f' : 'm' }, detail: 'detailed' });
+    cy.update(0.016, { speed: 9, pedaling: true, standing: false, tuck: false, steer: 0 });
+    cy.root.updateMatrixWorld(true);
+    const inv = cy.pelvis.matrixWorld.clone().invert(), tp = cy.torso.geometry.attributes.position, v = cy.torso.position.clone();
+    let worst = -1;
+    for (let i = 0; i < tp.count; i++) {
+      v.fromBufferAttribute(tp, i).applyMatrix4(cy.torso.matrixWorld).applyMatrix4(inv);
+      if (v.y < 0) worst = Math.max(worst, A.pelvisSDF(v.x, v.y, v.z, fem));
+    }
+    assert.ok(worst < -0.005, `bas du buste dans le bassin : ${worst.toFixed(4)} m`);
+  }
+  // pièces : cuissard (reflet du lycra, mouvement des cuisses), ourlet et bas du maillot (teintés dans le peloton), trait du sillon
+  const seat = A.pelvisParts({ q: 2, fem: true, color: '#26232f', jersey: '#3d7be0', tint: true });
+  assert.equal(seat.length, 4);
   assert.equal(seat[0].sheen, 1, 'reflet du lycra sur le cuissard');
+  assert.ok(seat[1].tint && seat[2].tint && seat[2].color === '#3d7be0', 'ourlet et maillot teintés');
   assert.ok(B3D.toon.merge(seat).attributes.sheen, 'attribut de reflet dans la géométrie fusionnée');
-  // pédalage : le bas de chaque fessier suit sa cuisse (poids par sommet, signé par côté), le haut et le milieu ne bougent pas
+  const ymin = (g) => { g.computeBoundingBox(); return g.boundingBox.min.y; };
+  assert.ok(ymin(seat[2].geo) > A.PELVIS.hem[0] - 0.03, 'le maillot reste au-dessus de l\'ourlet');
+  assert.ok(A.pelvisParts({ q: 1, color: '#ff0000' }).slice(0, 3).every((p) => p.color === '#ff0000'), 'combinaison : tout à la couleur du cuissard');
+  // pédalage : le bas de chaque fessier suit sa cuisse (poids par sommet, signé par côté), le haut, le milieu et l'ourlet ne bougent pas
   const hw = seat[0].geo.attributes.hipW, pp = seat[0].geo.attributes.position;
-  let low = 0, high = 0, mid = 0;
+  const hem = new Set(), hp = seat[1].geo.attributes.position, pkey = (P, i) => P.getX(i).toFixed(5) + ',' + P.getY(i).toFixed(5) + ',' + P.getZ(i).toFixed(5);
+  for (let i = 0; i < hp.count; i++) hem.add(pkey(hp, i));
+  let low = 0, high = 0, mid = 0, seam = 0;
   for (let i = 0; i < hw.count; i++) {
     const w = hw.getX(i), x = pp.getX(i), y = pp.getY(i);
     if (w !== 0) assert.equal(Math.sign(w), Math.sign(x), 'chaque côté suit sa cuisse');
-    if (y < -0.1 && Math.abs(x) > 0.06) low = Math.max(low, Math.abs(w));
-    if (y > 0.1) high = Math.max(high, Math.abs(w));
+    if (y < -0.06 && Math.abs(x) > 0.06) low = Math.max(low, Math.abs(w));
+    if (y > 0.02) high = Math.max(high, Math.abs(w));
     if (Math.abs(x) < 0.002) mid = Math.max(mid, Math.abs(w));
+    if (hem.has(pkey(pp, i))) seam = Math.max(seam, Math.abs(w));
   }
   assert.ok(Math.abs(low - A.HIP_FOLLOW) < 0.05 && high < 0.01 && mid < 0.05, `poids : bas ${low.toFixed(2)}, haut ${high.toFixed(2)}, milieu ${mid.toFixed(2)}`);
-  // le bassin bascule avec le buste : plus en bas du cintre (buste couché) qu'en danseuse (buste relevé)
+  assert.equal(seam, 0, 'pas de fente à l\'ourlet : le bord du cuissard ne bouge pas');
+  assert.ok(!seat[1].geo.attributes.hipW && !seat[2].geo.attributes.hipW, 'l\'ourlet et le maillot ne suivent pas les cuisses');
+  // le bassin tourne avec le buste : plus en bas du cintre (buste couché) qu'en danseuse (buste relevé)
   const V3 = B3D.toon.shared.uRider.value.constructor;
   assert.ok(A.pelvisPose(new V3(0, 0.45, 0.9)).tilt > A.pelvisPose(new V3(0, 0.9, 0.45)).tilt);
+  assert.ok(Math.abs(A.pelvisPose(new V3(0, 0.63, 0.78)).tilt - Math.atan2(0.78, 0.63)) < 1e-9, 'même angle que le buste');
   // épaules : le buste va jusqu'à l'attache des bras (pas de boule du deltoïde à côté)
   const shoulder = (fem) => A.torsoPoint({ x: 1, y: 0.69, z: 0 }, fem).x * 0.2; // côté du buste à hauteur des épaules (unité x : 0,2 m)
   assert.ok(shoulder(false) >= 0.19 && shoulder(true) >= 0.175, `largeur aux épaules : ${shoulder(false).toFixed(3)} m, ${shoulder(true).toFixed(3)} m`);
@@ -595,6 +615,60 @@ test('cyclistes 3D : anatomie (géométries valides, poitrine d\'une cycliste, f
   shorts.geo.computeBoundingBox(); skin.geo.computeBoundingBox();
   assert.equal(shorts.color, '#26232f');
   assert.ok(Math.abs(shorts.geo.boundingBox.max.y - 0.28) < 1e-6 && Math.abs(skin.geo.boundingBox.min.y - 0.28) < 1e-6);
+});
+
+test('cyclistes 3D : visage (les yeux à mi-hauteur de la tête, un nez qui dépasse, des lunettes devant les yeux)', { skip: !hasBike3d && 'Bike3D absent' }, () => {
+  const B3D = bike3d(), A = B3D.anatomy, THREE = B3D.toon.shared.uRider.value.constructor;
+  for (const fem of [false, true]) {
+    const H = A.headParts({ q: 2, fem, eyes: true }), skull = H.skull[0].geo;
+    skull.computeBoundingBox();
+    const top = skull.boundingBox.max.y, chin = skull.boundingBox.min.y;
+    // les yeux : le point du visage où ils sont posés
+    const eye = A.headPoint(new THREE(0.33, 0.02, 0.94).normalize(), fem);
+    const mid = (top + chin) / 2;
+    assert.ok(Math.abs(eye.y - mid) < 0.02, `yeux à mi-hauteur : ${eye.y.toFixed(3)} contre ${mid.toFixed(3)}`);
+    // le bas du visage : du nez au menton, pas plus long que des yeux au sommet du crâne
+    assert.ok(eye.y - chin < (top - eye.y) * 1.15, `bas du visage : ${(eye.y - chin).toFixed(3)}, haut : ${(top - eye.y).toFixed(3)}`);
+    // le nez dépasse nettement du visage sous lui
+    const nose = H.features[0].geo;
+    nose.computeBoundingBox();
+    const tipZ = nose.boundingBox.max.z, below = A.headPoint(new THREE(0, -0.45, 0.9).normalize(), fem).z;
+    assert.ok(tipZ - below > 0.02, `nez : ${(tipZ - below).toFixed(3)} m devant la bouche`);
+    // les lunettes couvrent les yeux
+    const lens = A.glassesParts({ q: 2, fem, type: 'sport' })[0].geo;
+    lens.computeBoundingBox();
+    assert.ok(lens.boundingBox.min.y < eye.y - 0.006 && lens.boundingBox.max.y > eye.y + 0.006, 'verre devant les yeux');
+  }
+});
+
+test('Bike3D : instances triées par le champ de la caméra (les plus proches d\'abord, contour et version allégée selon la distance)', { skip: !hasBike3d && 'Bike3D absent' }, () => {
+  const B3D = bike3d(['js/props.js']), P = B3D.props, M = B3D.toon.tr;
+  const scene = { add() {}, remove() {} };
+  const culler = new P.InstanceCuller({ cell: 40 });
+  const pool = new P.InstancePool(scene, P.geometries().rock, { capacity: 16, outline: true, culler, lod: { geo: P.lowGeometry('bush'), dist: 200 } });
+  culler.outlineFar = 100;
+  const put = (x, z) => { const i = pool.alloc(); pool.set(i, M(x, 0, z)); return i; };
+  put(0, -30); put(0, -450); put(5, -130); put(400, 0);
+  const behind = put(0, 150);
+  // une caméra qui regarde vers -z depuis l'origine
+  const cam = new culler._cam.constructor(60, 16 / 9, 0.2, 2000);
+  cam.position.set(0, 2, 0);
+  assert.ok(culler.update(cam, false));
+  assert.equal(pool.mesh.count, 2, 'devant, près et à mi-distance : le modèle complet');
+  assert.equal(pool.far.count, 1, 'au loin : la version allégée');
+  assert.equal(pool.outline.count, 1, 'le contour seulement près');
+  assert.equal(pool.matrixAttr.array[14], -30, 'le plus proche d\'abord');
+  assert.ok(!culler.update(cam, false), 'rien n\'a bougé : pas de nouveau tri');
+  // la caméra se retourne : ce qui était derrière se dessine, plus ce qui était devant
+  cam.rotation.y = Math.PI;
+  assert.ok(culler.update(cam, false));
+  assert.equal(pool.mesh.count + pool.far.count, 2, 'derrière la caméra, et tout près (même hors du champ : ombres, coups d\'œil)');
+  // casque de réalité virtuelle : tout, sans tri par le champ
+  culler.update(cam, true);
+  assert.equal(pool.mesh.count + pool.far.count, 5);
+  pool.release(behind);
+  culler.update(cam, true);
+  assert.equal(pool.mesh.count + pool.far.count, 4, 'une instance libérée n\'est plus dessinée');
 });
 
 test('peloton 3D : modèle fin près de la caméra, simple au loin ; des coureuses', { skip: !hasBike3d && 'Bike3D absent' }, () => {

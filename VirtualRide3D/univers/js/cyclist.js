@@ -815,13 +815,15 @@
       this.torso = new THREE.Mesh(A.torsoGeometry({ q, fem }), toonMap(jerseyTexture(J)));
       this.body.add(this.torso);
       addOutline(this.torso, { width: 0.9, minW: 0.006, maxW: 0.04 });
-      this._parts(A.torsoHem({ q, fem, base: J.base }), 0.6, this.torso);
       if (q > 1) this._parts(A.torsoTrim({ q, fem, base: J.base, accent: J.accent }), 0, this.torso);
-      // bassin et fessiers (reflet du lycra), qui suivent les cuisses au pédalage, et le trait du sillon, sans contour
-      const [seat, ...creases] = A.pelvisParts({ q, fem, color: shorts });
+      // bassin et fessiers (cuissard au reflet du lycra, qui suit les cuisses au pédalage), avec le bas du maillot et son ourlet peints
+      // dessus (le bas du buste y est caché) ; le trait du sillon, sans contour
+      const pp = A.pelvisParts({ q, fem, color: shorts, jersey: J.base, hem: suit ? J.base : null });
+      const seat = pp.slice(0, 3), creases = pp.slice(3);
       const hipU = this.hipU = { uHipP: { value: new THREE.Vector2() }, uHipA: { value: new THREE.Vector2() } };
       const T = B3D.toon;
-      this.pelvis = new THREE.Mesh(T.merge([seat]), T.hipPatch(T.sheenPatch(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: T.gradientMap() })), hipU, false));
+      this.pelvis = new THREE.Mesh(T.merge(seat), T.hipPatch(T.sheenPatch(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: T.gradientMap() })), hipU, false));
+      this.pelvis.scale.set(this.torsoK, 1, this.torsoK); // tenue ample : cuissard ample, comme le maillot
       this.body.add(this.pelvis);
       addOutline(this.pelvis, { width: 0.8, minW: 0.004, maxW: 0.03, hip: { uniforms: hipU } });
       this._parts(creases, 0, this.pelvis);
